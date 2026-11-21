@@ -1465,6 +1465,7 @@ static void dmr_load_channel(radio_sm_t *sm)
 
 #if CONFIG_DMR_PRIVACY
 static dmrPrivacyKey_t privacy_key;	// the call stack's privacy hook context (radio task only)
+static dmrPrivacyKey_t data_key;	// the data layer's crypt context: the voice key (radio task only)
 #endif
 
 // Hang time (ms) as the call stack's reply window (whole seconds, rounded up); 0 keeps the stack's default
@@ -3033,7 +3034,6 @@ static void data_tick(radio_sm_t *sm, uint32_t now_ms)
 	c.channelKey = h;
 #if CONFIG_DMR_PRIVACY
 	// The voice key is the data key: data is encrypted or held back as the scheme says
-	static dmrPrivacyKey_t data_key;	// the data layer's crypt context points here (radio task only)
 	data_key.type = (dmrPrivacyType_t)sm->privacy_type;
 	data_key.key = sm->privacy_key;
 	dmrPrivacyDataConfig(&data_key, &c.privacy);
@@ -8167,6 +8167,28 @@ static bool retunes(uint8_t type)
 	}
 }
 
+#if CONFIG_ZEROIZE
+// The emergency wipe (docs/spec/zeroize.md 4.2): every key copy the radio core holds, zeroed, and privacy off. The
+// settings store's copy is the wipe's own (settings_scrub); persist() writes the zeros from now on
+static void zeroize_keys(radio_sm_t *sm)
+{
+#if CONFIG_DMR_PRIVACY
+	sm->privacy_type = DMR_PRIVACY_OFF;
+	sm->privacy_key = 0;
+	memset(&privacy_key, 0, sizeof(privacy_key));
+	memset(&data_key, 0, sizeof(data_key));
+	if (sm->dmr_running) {
+		dmr_configure(sm);	// the call stack's hook and service options without the key
+	}
+	changed(sm);
+#endif
+#if CONFIG_NXDN
+	radio_nxdn_wipe();
+#endif
+	(void)sm;
+}
+#endif
+
 void radio_sm_request(radio_sm_t *sm, const radio_req_t *req, uint32_t now_ms)
 {
 	sm->led_now = now_ms;
@@ -8493,6 +8515,11 @@ void radio_sm_request(radio_sm_t *sm, const radio_req_t *req, uint32_t now_ms)
 		}
 		break;
 	}
+#if CONFIG_ZEROIZE
+	case RREQ_ZEROIZE:
+		zeroize_keys(sm);
+		break;
+#endif
 #if CONFIG_DMR
 	case RREQ_REPLY_CANCEL:
 		dmr_call_reply_cancel();
