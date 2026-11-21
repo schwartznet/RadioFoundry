@@ -509,6 +509,30 @@
     "ZONE_SHARE"
    ]
   },
+  "key_fill_ready": {
+   "group": "settings",
+   "needs": [
+    "KEY_FILL"
+   ]
+  },
+  "key_fill_compare": {
+   "group": "settings",
+   "needs": [
+    "KEY_FILL"
+   ]
+  },
+  "key_fill_done": {
+   "group": "settings",
+   "needs": [
+    "KEY_FILL"
+   ]
+  },
+  "key_send": {
+   "group": "settings",
+   "needs": [
+    "KEY_FILL"
+   ]
+  },
   "zone_imported": {
    "group": "channels",
    "needs": [
