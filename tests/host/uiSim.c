@@ -178,7 +178,7 @@ static const struct { const char *name, *script; } gallery[] = {
 	{ "wipe_code", "ok 7 4 down down down down down ok 2 4" },		// the wipe code, two digits typed
 	{ "wipe_confirm", "wipecode:2468 2 4 6 8 ctx" },			// the code and # on Home: the confirmation
 	{ "wipe_failed", "wipecode:2468 wipefail:6 2 4 6 8 ctx ok" },	// a wipe that didn't finish says what
-	{ "clear_keys_confirm", "ok 7 4 down down down down down down down down ok" },	// Clear all keys asks first
+	{ "clear_keys_confirm", "ok 7 4 down down down down down down down down down ok" },	// Clear all keys asks first
 	{ "settings_freq_trim", "trim ok 7 up ok up" },	// on a radio with a reference trim (radio-features.md 6.1)
 	{ "freq_trim", "trim ok 7 up ok up ok ctx 4 5 ok" },
 	{ "freq_trim_typing", "trim ok 7 up ok up ok 1 2" },
