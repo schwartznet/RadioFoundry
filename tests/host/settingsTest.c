@@ -929,8 +929,12 @@ static void test_settings_layout(void)
 		{ offsetof(settings_t, sig_dmr), 400 },
 		{ offsetof(settings_t, sig_fm), 403 },
 		{ offsetof(settings_t, reserved11), 406 },
+		{ offsetof(settings_t, zz_flags), 408 },	// the emergency wipe (zeroize.md 5), appended
+		{ offsetof(settings_t, zz_reserved), 409 },
+		{ offsetof(settings_t, zz_salt), 412 },
+		{ offsetof(settings_t, zz_hash), 416 },
 	};
-	CHECK(sizeof(settings_t) == 408);
+	CHECK(sizeof(settings_t) == 432);
 	for (unsigned i = 0; i < sizeof(offs) / sizeof(offs[0]); i++) {
 		if (offs[i].got != offs[i].want) {
 			printf("FAIL settings_t field %u at %zu, layout 1 has it at %zu\n", i, offs[i].got, offs[i].want);
