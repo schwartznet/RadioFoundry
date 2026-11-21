@@ -158,7 +158,9 @@ static void publish(void)
 #endif
 	xSemaphoreGive(view_lock);
 	power_off_wanted = sm.view.power_off;
+#if CONFIG_DMR
 	privacy_on = sm.view.dmr.privacy;
+#endif
 	if (sm.power_off_req) {
 		power_off_busy = sm.power_off_busy;
 	}
