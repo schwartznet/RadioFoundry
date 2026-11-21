@@ -40,7 +40,11 @@ every way out: done, Back, a time-out, a failure, leaving the screen, and a rest
 fill screen says "Low power" while it holds.
 
 Through a repeater the radios transmit at the user's own level: the repeater sends the exchange on at its power
-anyway, and the radios may be far apart.
+anyway, and the radios may be far apart. They should be apart: the repeater sends each message on its output while the
+sender is still transmitting on the input, so a receiver next to the sender is overloaded by it (desense) and decodes
+nothing. It sends no acknowledgement, and the sender times out. Seen on air, 2026-11-21: two DM-32UVs side by side
+through a UHF repeater (5 MHz split) failed every try; with one in another room the fill completed. Radios side by side
+use a direct channel.
 
 This is defense in depth, not the security boundary. The X25519 exchange and the matching codes keep the key safe
 from anyone who hears the exchange (7); low power only makes fewer receivers hear it.
