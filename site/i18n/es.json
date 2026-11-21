@@ -389,6 +389,8 @@
  "screen.zone_options": "Opciones de zona",
  "screen.zone_delete": "Eliminar una zona pide confirmación",
  "screen.zone_share_to": "Compartir una zona o un canal con otra radio",
+ "screen.settings_privacy_check": "El valor de comprobación de una clave de privacidad",
+ "screen.stored_keys": "Claves guardadas y sus valores de comprobación",
  "screen.zone_share_to_id": "Compartir con un ID que no es un contacto",
  "screen.zone_share_sending": "Enviar una zona, y la frecuencia por la que sale",
  "screen.zone_imported": "Una zona compartida importada",

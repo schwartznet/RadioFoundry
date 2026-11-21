@@ -389,6 +389,8 @@
  "screen.zone_options": "区域选项",
  "screen.zone_delete": "删除区域前会先确认",
  "screen.zone_share_to": "与其他电台共享区域或信道",
+ "screen.settings_privacy_check": "隐私密钥的检查值",
+ "screen.stored_keys": "已存储的密钥及其检查值",
  "screen.zone_share_to_id": "共享给不是联系人的 ID",
  "screen.zone_share_sending": "发送区域及其使用的频率",
  "screen.zone_imported": "已导入共享的区域",

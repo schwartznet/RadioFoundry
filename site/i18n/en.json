@@ -389,6 +389,8 @@
  "screen.zone_options": "Zone options",
  "screen.zone_delete": "Deleting a zone asks first",
  "screen.zone_share_to": "Sharing a zone or channel with another radio",
+ "screen.settings_privacy_check": "A privacy key's check value",
+ "screen.stored_keys": "Stored keys and their check values",
  "screen.zone_share_to_id": "Sharing to an ID that isn't a contact",
  "screen.zone_share_sending": "Sending a zone, and the frequency it goes on",
  "screen.zone_imported": "A shared zone imported",
