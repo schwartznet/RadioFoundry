@@ -882,7 +882,7 @@ A packet is built only when it can be encrypted: without an MI or the key, `dmrD
 
 ### 13.5 Open
 
-- AES data is checked only between our radios (host tests, and on air between two DM-32UVs). Whether a commercial
+- AES data is checked only between our radios (host tests, and on air between two of our radios). Whether a commercial
   radio's AES data uses this keystream (its IV from the MI, from octet 0) is not known: a capture of a stock radio's
   encrypted text message would settle it.
 
