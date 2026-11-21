@@ -3,13 +3,24 @@
 // Key fill's protocol engine (core/keyfill/keyfill.c, docs/spec/key-fill.md) with two simulated radios: a whole fill for
 // each class of key, a radio in the middle, every message changed on the way, replays of an earlier session, every
 // time-out, ABORT both ways, a third radio's COMMIT, the receiver's refusals, the wipe of every secret, the payload's
-// strict parser, the randomness pool, and a fuzz loop over received messages in every state.
+// strict parser, the randomness pool, a fuzz loop over received messages in every state, and the emergency wipe of a
+// running session (zeroize_ram_hook in core/ui/ui_svc_keyfill.c, with its transport, heap and scheduler faked).
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "config.h"
 #include "keyfill/keyfill.h"
 #include "support/entropy.h"
 #include "support/hkdf.h"
+#include "keyfill/keyfill_api.h"
+#include "codeplug/key_store.h"
+#include "storage/storage.h"
+#include "radio/radio.h"
+#include "ui/ui_svc.h"
+#include "zeroize/zeroize.h"
+#include "board.h"
+#include "FreeRTOS.h"
+#include "task.h"
 #include "fuzz.h"
 
 static int failures;
@@ -525,6 +536,212 @@ static void test_fuzz(void)
 	}
 }
 
+// ---------------- The emergency wipe of a running session (ui_svc_keyfill.c, zeroize.h) ----------------
+// The UI glue runs here as on the UI task, the transport and the store faked; the hook is called as the housekeeping
+// task would, between two of the UI task's ticks
+
+const board_t board;
+uint32_t hal_millis(void) { return now; }
+
+static void *heap_block;		// the session's block, as allocated
+static size_t heap_size;
+static void *heap_freed;
+void *pvPortMalloc(size_t n)
+{
+	heap_block = malloc(n);
+	heap_size = n;
+	return heap_block;
+}
+void vPortFree(void *p)
+{
+	heap_freed = p;
+	free(p);
+}
+
+static int suspends, resumes;
+static bool suspended;
+void vTaskSuspendAll(void) { suspends++; suspended = true; }
+BaseType_t xTaskResumeAll(void) { resumes++; suspended = false; return 0; }
+
+// The transport: one message each way, what the UI sends goes to S
+static int closes, tx_lows, sends;
+static bool open_now, tx_low_now, locked_call;
+static uint8_t to_s[KF_MSG_MAX], to_ui[KF_MSG_MAX];
+static int to_s_len, to_ui_len;
+static kf_send_state_t send_st;
+void key_fill_open(bool open)
+{
+	locked_call |= suspended;	// takes the data service's lock: never with the scheduler suspended
+	closes += !open;
+	open_now = open;
+	to_ui_len = 0;
+}
+int key_fill_take(uint8_t out[KF_MSG_MAX], uint32_t *src)
+{
+	int n = to_ui_len;
+	memcpy(out, to_ui, (size_t)n);
+	*src = S_ID;
+	to_ui_len = 0;
+	return n;
+}
+bool key_fill_send(uint32_t dst, const uint8_t *msg, int len)
+{
+	(void)dst;
+	memcpy(to_s, msg, (size_t)len);
+	to_s_len = len;
+	sends++;
+	send_st = KF_SEND_SENDING;
+	return true;
+}
+kf_send_state_t key_fill_send_state(void) { return send_st; }
+void radio_req_tx_low(bool on)
+{
+	locked_call |= suspended;	// posts to the radio task: the same
+	tx_lows++;
+	tx_low_now = on;
+}
+
+// The store and its job: held until the test runs it
+static storage_job_fn job_fn;
+static void *job_ctx;
+static int stores;
+bool storage_job_post(storage_job_fn fn, void *ctx)
+{
+	if (job_fn != NULL)
+		return false;
+	job_fn = fn;
+	job_ctx = ctx;
+	return true;
+}
+#if KEY_STORE
+uint16_t key_store_count(void) { return 0; }
+bool key_store_get(uint16_t i, key_entry_t *e, uint8_t *key) { (void)i; (void)e; (void)key; return false; }
+int key_store_identity(uint8_t system, uint8_t *out, uint8_t cap) { (void)system; (void)out; (void)cap; return 0; }
+uint8_t key_store_put(const key_put_t *p, uint8_t kcv[KCV_LEN])
+{
+	(void)p;
+	memset(kcv, 1, KCV_LEN);
+	stores++;
+	return KF_STORED;
+}
+#endif
+
+static size_t nonzero(const void *p, size_t n)
+{
+	const uint8_t *b = p;
+	size_t k = 0;
+	for (size_t i = 0; i < n; i++)
+		k += b[i] != 0;
+	return k;
+}
+
+static void ui_tick(void)
+{
+	static const radio_view_t v;
+	now += 20;
+	(void)ui_svc_kf_tick(&v, now);
+}
+
+// The air between the UI's session and S, until neither has anything to send
+static void air(void)
+{
+	for (int i = 0; i < 20; i++) {
+		ui_tick();
+		bool moved = false;
+		if (to_s_len != 0) {
+			kf_rx(&S, R_ID, to_s, to_s_len, now);
+			to_s_len = 0;
+			send_st = KF_SEND_SENT;
+			moved = true;
+		}
+		uint32_t dst;
+		if (to_ui_len == 0 && open_now) {
+			int n = kf_tx(&S, to_ui, &dst);
+			to_ui_len = dst == R_ID ? n : 0;
+			moved |= n != 0;
+		}
+		if (!moved && i > 2)
+			return;
+	}
+}
+
+// A receiver's session, its randomness taken: listening
+static void ui_receiver(void)
+{
+	heap_freed = NULL;
+	CHECK(ui_svc_kf_start(-1, R_ID, 0, true) == UI_KF_OK);
+	CHECK(open_now && tx_low_now);
+	entropy_stir(NULL, 0, ENTROPY_FULL);
+	ui_tick();
+	ui_kf_view_t k;
+	CHECK(ui_svc_kf_view(&k) && k.state == KF_ST_LISTEN);
+	CHECK(heap_block != NULL && nonzero(heap_block, sizeof(kf_session_t)) > 0);	// the private key in it
+}
+
+static void test_zeroize_hook(void)
+{
+	// No session: the pool and the transport are cleared all the same, the override given back
+	entropy_stir(NULL, 0, ENTROPY_FULL);
+	zeroize_ram_hook();
+	CHECK(suspends == 1 && resumes == 1 && !suspended && !locked_call);
+	CHECK(entropy_bits() == 0 && closes == 1 && tx_lows == 1 && !tx_low_now);
+	// The pool as at power on: what it gives after a wipe is what it gives after a wipe with nothing stirred before
+	uint8_t a[32], b[32];
+	micros = 5000;
+	entropy_take(a, sizeof a);
+	for (int i = 0; i < 40; i++)
+		entropy_stir(&i, sizeof i, ENTROPY_KEY_BITS);
+	entropy_wipe();
+	CHECK(entropy_bits() == 0);
+	micros = 5000;
+	entropy_take(b, sizeof b);
+	CHECK(memcmp(a, b, sizeof a) == 0);
+
+	// A receiver listening: every octet of the session zeroed but its ending mark, nothing sent after, the block freed
+	// by the UI task's next tick (not by the hook: the pointer is the UI task's)
+	ui_receiver();
+	void *blk = heap_block;
+	size_t size = heap_size;
+	int sent = sends;
+	zeroize_ram_hook();
+	CHECK(heap_freed == NULL && nonzero(blk, size) == 1 && nonzero(blk, sizeof(kf_session_t)) == 0);
+	ui_kf_view_t k;
+	CHECK(!ui_svc_kf_view(&k));
+	CHECK(!open_now && !tx_low_now && entropy_bits() == 0 && !locked_call && resumes == suspends);
+	ui_tick();
+	CHECK(heap_freed == blk && sends == sent);
+	ui_tick();			// nothing left to tick
+	CHECK(!ui_svc_kf_view(&k));
+
+#if KEY_STORE
+	// A whole fill to Storing, the store job posted but not yet run when the wipe comes: the job stores nothing, the
+	// block stays until it has run
+	ui_receiver();
+	blk = heap_block;
+	uint8_t r[KF_RANDOM_LEN];
+	rnd(r);
+	CHECK(kf_send(&S, S_ID, R_ID, payload_class2, NULL, r, now));
+	air();
+	CHECK(ui_svc_kf_view(&k) && k.state == KF_ST_COMPARE && S.state == KF_ST_COMPARE && k.code == S.code);
+	ui_svc_kf_confirm(true);
+	kf_confirm(&S, true, now);
+	air();
+	CHECK(ui_svc_kf_view(&k) && k.state == KF_ST_STORING && job_fn != NULL);
+	zeroize_ram_hook();
+	CHECK(nonzero(blk, sizeof(kf_session_t)) == 0 && !ui_svc_kf_view(&k));
+	ui_tick();
+	CHECK(heap_freed == NULL);	// the job still holds it
+	storage_job_fn fn = job_fn;
+	job_fn = NULL;
+	if (fn != NULL)
+		fn(job_ctx);
+	CHECK(stores == 0);
+	ui_tick();
+	CHECK(heap_freed == blk && !open_now && !tx_low_now);
+	kf_wipe(&S);
+#endif
+}
+
 int main(void)
 {
 	now = 1000;
@@ -539,6 +756,7 @@ int main(void)
 	test_items();
 	test_entropy();
 	test_fuzz();
+	test_zeroize_hook();
 	printf(failures ? "# FAILED (%d failures)\n" : "# PASSED (0 failures)\n", failures);
 	return failures ? 1 : 0;
 }

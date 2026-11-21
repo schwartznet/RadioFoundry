@@ -82,9 +82,9 @@ enum {
 // it. The ZEROIZE_FAIL_* bits of the steps that failed, 0 when all went
 uint8_t zeroize_run(bool keys_only);
 
-// A feature that keeps keys in RAM of its own zeroes them here (key fill, CONFIG_KEY_FILL). Weak, empty by default.
-// Called by zeroize_run on the housekeeping task after the flash steps, with no lock held: no long waits, no storage
-// lock (docs/spec/zeroize.md 4.2)
+// A feature that keeps keys in RAM of its own zeroes them here. Weak, empty by default; key fill (CONFIG_KEY_FILL)
+// defines it in core/ui/ui_svc_keyfill.c. Called by zeroize_run on the housekeeping task after the flash steps, with no
+// lock held: no long waits, no storage lock (docs/spec/zeroize.md 4.2)
 void zeroize_ram_hook(void);
 #endif
 

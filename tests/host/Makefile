@@ -816,11 +816,15 @@ run: run-key-crypto
 run-key-crypto: keyCryptoTest
 	./keyCryptoTest
 .PHONY: run-key-crypto
-# Key fill between radios (core/keyfill, docs/spec/key-fill.md): two engines end to end, and the randomness pool
+# Key fill between radios (core/keyfill, docs/spec/key-fill.md): two engines end to end, the randomness pool, and the
+# emergency wipe of a running session (the UI glue's zeroize_ram_hook; stubs/keyfill_rtos holds the stand-in FreeRTOS
+# headers)
 TESTS   += keyFillTest
-KEYFILL := $(CORE)/keyfill/keyfill.c $(CORE)/support/entropy.c $(KEYCRYPTO)
-keyFillTest: keyFillTest.c $(KEYFILL) $(wildcard $(CORE)/keyfill/*.h $(CORE)/support/*.h) fuzz.h
-	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_KEY_FILL=1 -o $@ keyFillTest.c $(KEYFILL)
+KEYFILL := $(CORE)/keyfill/keyfill.c $(CORE)/support/entropy.c $(KEYCRYPTO) $(CORE)/ui/ui_svc_keyfill.c
+keyFillTest: keyFillTest.c $(KEYFILL) $(wildcard $(CORE)/keyfill/*.h $(CORE)/support/*.h stubs/keyfill_rtos/*.h) \
+             $(CORE)/ui/ui_svc.h $(CORE)/zeroize/zeroize.h fuzz.h
+	$(CC) $(CFLAGS) -Istubs/keyfill_rtos -I$(ROOT)/hal -Wshadow -DCONFIG_KEY_FILL=1 -DCONFIG_ZEROIZE=1 -o $@ \
+		keyFillTest.c $(KEYFILL)
 run: run-key-fill
 run-key-fill: keyFillTest
 	./keyFillTest
@@ -1484,7 +1488,8 @@ run-cpedit: codeplugEditTest
 ZEROIZE := $(CORE)/zeroize/zeroize.c $(CORE)/support/sha256.c $(CORE)/settings/settings.c $(CPEDIT)
 TESTS   += zeroizeTest
 
-# Built without the __attribute__ override: the test's zeroize_ram_hook takes the weak default's place, as key fill's will
+# Built without the __attribute__ override: the test's zeroize_ram_hook takes the weak default's place, as key fill's
+# does (keyFillTest tests that one)
 zeroizeTest: zeroizeTest.c $(ZEROIZE) $(wildcard $(CORE)/zeroize/*.h $(CORE)/codeplug/*.h $(CORE)/storage/*.h $(CORE)/settings/*.h sim/sim_flash.h)
 	$(CC) -std=gnu99 -Wall -Wextra -Wno-unused-parameter -g $(COVFLAGS) $(SANFLAGS) -I$(CORE) -I$(ROOT)/drivers -Iout/gen 		-I$(ROOT)/hal -I. -Wshadow -o $@ zeroizeTest.c $(ZEROIZE)
 

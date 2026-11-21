@@ -6,8 +6,8 @@
 The emergency wipe erases the radio's keys, and by default its codeplug, when the owner types a 4-digit wipe code and
 `#` on Home or while the keys are locked. It is for a radio about to be lost or taken: the keys stored in it are
 erased from the flash, not marked deleted, and the copies in RAM are zeroed. Then the radio restarts on the built-in
-channels. Status: built and host-tested (`zeroizeTest`, `nandSectorsTest`, the UI flow tests); untested on a radio.
-Switch: `CONFIG_ZEROIZE`.
+channels. Status: built and host-tested (`zeroizeTest`, `nandSectorsTest`, `keyFillTest`, the UI flow tests);
+untested on a radio. Switch: `CONFIG_ZEROIZE`.
 
 A wipe only reaches the radio. Codeplug files, backups, the Codeplug Editor's autosave in a computer's browser and
 any other radio still hold the keys. A group whose radio was lost must still change its keys (6).
@@ -23,6 +23,7 @@ any other radio still hold the keys. A group whose radio was lost must still cha
 | The codeplug's regions | `core/codeplug/codeplug.c` (`codeplug_wipe`) |
 | NAND: superseded copies erased | `drivers/flash/nand_sectors` (`nand_sectors_purge`), `hal_flash_t.purge` |
 | RAM in the radio core | `core/radio/radio_sm.c` (`RREQ_ZEROIZE`), `core/radio/radio_nxdn.c` |
+| A key fill session (`CONFIG_KEY_FILL`) | `core/ui/ui_svc_keyfill.c` (`zeroize_ram_hook`), `core/support/entropy.c` (`entropy_wipe`) |
 | Radio UI | Settings > Privacy rows, the code screen and the wipe screen (`core/ui/ui_menus.c`), the key sequence (`core/ui/ui_app.c`), `core/ui/ui_svc_zeroize.c` |
 
 ## 2. The wipe code
@@ -130,9 +131,19 @@ written (settings-store.md 5), and the live settings are saved as the first reco
 | A key fill session | `zeroize_ram_hook()` (below) |
 
 `zeroize_ram_hook()` is a weak function with an empty default (`zeroize.h`). A feature that holds keys in RAM of its
-own defines it and zeroes them there: key fill (`CONFIG_KEY_FILL`) does when it is merged. It runs on the housekeeping
-task, after the flash steps and after the radio core's request was posted, with no lock held. It must not block for
-long or take the storage lock.
+own defines it and zeroes them there. It runs on the housekeeping task, after the flash steps and after the radio
+core's request was posted, with no lock held. It must not block for long or take the storage lock.
+
+Key fill (`CONFIG_KEY_FILL`) defines it in `core/ui/ui_svc_keyfill.c`, built only with both switches on: an emergency
+wipe clears a running session ([key-fill.md](key-fill.md) 5). The session and the randomness pool belong to the UI
+task, so the hook wipes them in place with the scheduler suspended: the session's secrets, its messages and the store
+job's key, then the pool (`entropy_wipe`). The session is left marked ending, with nothing to send; the UI task frees
+the wiped block on its next tick (the pointer is cleared before the block is freed, so the hook never writes to a freed
+block), and a store job not yet run stores nothing. With the scheduler running again the hook closes the transport
+(`key_fill_open(false)`: the held message cleared, its queued message canceled) and gives back the low power override
+(`radio_req_tx_low(false)`). A computation the UI task was in the middle of when the wipe came (an X25519 step) may
+still write its result into the ending session; the UI task wipes it with the block on its next tick, and the restart
+follows a wipe that went.
 
 The radio core's request goes twice. First at the start of the wipe, without waiting: the radio core saves the key in
 use with the channel (settings-store.md 2), so it must drop its key before the settings are scrubbed, or it could
@@ -204,6 +215,9 @@ Page 1, appended after `reserved11` (an older record reads no code and the defau
   calibration window, the ID database, the voice prompts and the custom data survive, no old settings record or
   journal copy keeps a key, the staging area is empty, the settings that remain are kept (keys only), the codeplug
   reads as the built-in set (keys + codeplug); RAM copies cleared, the hook called, a failed erase reported.
+- `tests/host/keyFillTest.c`: key fill's hook with no session, a listening receiver and a receiver whose store job
+  hasn't run: the session zeroed in place, nothing sent after, the port closed, the low power override given back, the
+  block freed by the UI task's next tick, nothing stored; the randomness pool as at power on.
 - `tests/host/nandSectorsTest.c`: a sector's old content is in the NAND after a rewrite and gone after the purge; the
   current content and the mount survive.
 - `tests/host/uiFlowTest.c`: the settings rows, setting and clearing the code, the code on Home and while locked

@@ -4,6 +4,7 @@
 // Key fill screen is open and is wiped before it is freed, on every way out. The engine (keyfill/keyfill.h) runs here
 // on the UI task, X25519 included; its messages go through the transport (keyfill/keyfill_api.h), a received key is
 // stored by a storage job on the housekeeping task. All the RAM is the session's: this file keeps one pointer.
+// The emergency wipe (CONFIG_ZEROIZE) clears a running session from the housekeeping task: zeroize_ram_hook below.
 #include "config.h"
 
 #if CONFIG_KEY_FILL
@@ -20,6 +21,10 @@
 #include "storage/storage.h"
 #include "hal_time.h"
 #include "FreeRTOS.h"
+#if CONFIG_ZEROIZE
+#include "task.h"
+#include "zeroize/zeroize.h"
+#endif
 
 enum { JOB_NONE, JOB_RUNNING, JOB_DONE };
 
@@ -53,7 +58,18 @@ typedef struct {
 #endif
 } kf_ctx_t;
 
-static kf_ctx_t *kf;
+static kf_ctx_t *kf;		// the UI task's; set only once the block is cleared, cleared before it is freed
+#if CONFIG_ZEROIZE
+static volatile bool wiped;	// an emergency wipe ran: a store job still to run stores nothing (zeroize_ram_hook)
+#endif
+
+// Freed, the pointer cleared first: the emergency wipe (another task) never writes to a freed block
+static void release(void)
+{
+	kf_ctx_t *c = kf;
+	kf = NULL;
+	vPortFree(c);
+}
 
 static uint8_t presses_left(void)
 {
@@ -78,8 +94,7 @@ static void finish(void)
 	tx_low(false);
 	kf_wipe(&kf->s);
 	crypto_wipe(kf, sizeof *kf);
-	vPortFree(kf);
-	kf = NULL;
+	release();
 }
 
 #if KEY_STORE
@@ -122,6 +137,13 @@ static int send_payload(uint8_t *out, int cap, void *ctx)
 static void store_job(void *ctx)
 {
 	kf_ctx_t *c = ctx;
+#if CONFIG_ZEROIZE
+	if (wiped) {
+		c->job_result = KF_RES_WRITE_FAILED;	// the wipe cleared the key it pointed at: nothing goes to the flash
+		c->job = JOB_DONE;
+		return;
+	}
+#endif
 	c->job_result = key_store_put(&c->put, c->job_kcv);
 	c->job = JOB_DONE;
 }
@@ -138,17 +160,20 @@ uint8_t ui_svc_kf_start(int32_t key, uint32_t own, uint32_t dst, bool low)
 			return UI_KF_BUSY;	// a key being stored: the session goes once it is
 		finish();
 	}
-	kf = pvPortMalloc(sizeof *kf);
-	if (kf == NULL)
+	kf_ctx_t *c = pvPortMalloc(sizeof *c);
+	if (c == NULL)
 		return UI_KF_BUSY;
-	memset(kf, 0, sizeof *kf);
+	memset(c, 0, sizeof *c);
+	kf = c;
+#if CONFIG_ZEROIZE
+	wiped = false;
+#endif
 	kf->key = key;
 #if KEY_STORE
 	if (key >= 0) {
 		if (!key_store_get((uint16_t)key, &kf->e, NULL) || !kf->e.kcv_ok) {
 			crypto_wipe(kf, sizeof *kf);
-			vPortFree(kf);
-			kf = NULL;
+			release();
 			return UI_KF_BAD_PEER;	// the key went from the list under the user
 		}
 		kf->pick_cls = kf->e.cls;
@@ -329,4 +354,31 @@ bool ui_svc_kf_tick(const radio_view_t *v, uint32_t now)
 	kf->seen_presses = presses;
 	return changed;
 }
+
+#if CONFIG_ZEROIZE
+// The emergency wipe's RAM step (zeroize.h, docs/spec/zeroize.md 4.2), on the housekeeping task while the session and
+// the randomness pool are the UI task's. Both are wiped in place with the scheduler suspended, so the UI task never
+// runs in the middle (nor frees the block: kf is cleared before vPortFree). The session is left ending with nothing to
+// send: the UI task frees it on its next tick (finish) and the screen shows it gone. A store job still to run stores
+// nothing (wiped). Then, with the scheduler running again (one takes the data service's lock, the other posts to the
+// radio task, neither allowed while suspended): the transport's held message, the port closed, and the radio core's
+// low power override. No storage lock, no long wait
+void zeroize_ram_hook(void)
+{
+	vTaskSuspendAll();
+	kf_ctx_t *c = kf;
+	if (c != NULL) {
+		uint8_t job = c->job;	// a store job still to run keeps the block until it has (ui_svc_kf_tick)
+		kf_wipe(&c->s);
+		crypto_wipe(c, sizeof *c);
+		c->job = job;
+		c->ending = true;
+	}
+	wiped = true;
+	entropy_wipe();
+	(void)xTaskResumeAll();
+	key_fill_open(false);
+	radio_req_tx_low(false);
+}
+#endif
 #endif

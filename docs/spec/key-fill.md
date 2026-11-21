@@ -181,6 +181,11 @@ DONE carries the check value the receiver computed from the stored key, or zeros
 - The session ID, the private key and every derived secret are in the session, which lives on the RTOS heap while the
   Key fill screen is open and is wiped (`crypto_wipe`) before it is freed, on every way out. The engine wipes each
   intermediate secret when it is done with it.
+- An emergency wipe ([zeroize.md](zeroize.md) 4.2, `CONFIG_ZEROIZE`) clears a running session: its RAM step
+  (`zeroize_ram_hook`, in `core/ui/ui_svc_keyfill.c`) wipes the session in place, the transport's held message and the
+  randomness pool (`entropy_wipe`), closes the port and gives the power level back (2.1). The session is then over:
+  nothing more is sent, its screen closes, the UI task frees the wiped block, and a receiver's store job not yet run
+  stores nothing.
 - The sender's key octets are read from the store only when KEY is built, and wiped right after. KEY carries the
   stored entry that still matches the one picked (its class, slot or record, and check value); if none does, the
   session fails (ABORT, canceled) rather than send another key.
@@ -262,7 +267,10 @@ The screen keeps the backlight on. Leaving it (Back, a long Back to Home) cancel
 - `tests/host/keyCryptoTest.c`: X25519 on RFC 7748's vectors and its low-order refusal; HMAC and HKDF.
 - `tests/host/keyFillTest.c`: two engines end to end for each class of key, a radio in the middle (the codes
   differ), every changed message, replays from an earlier session, every time-out, ABORT both ways, a third radio's
-  COMMIT, the receiver's refusals, the wipe of every secret, and a fuzz loop over received messages.
+  COMMIT, the receiver's refusals, the wipe of every secret, and a fuzz loop over received messages. With the UI glue
+  (`ui_svc_keyfill.c`) and a faked transport, heap and scheduler: an emergency wipe (`zeroize_ram_hook`) of no session,
+  of a listening receiver and of one whose store job hasn't run (every octet of the session zeroed, nothing sent after,
+  the block freed by the next tick, nothing stored), and the pool after `entropy_wipe` as at power on.
 - `tests/host/uiFlowTest.c`: the screens of 9 open, and Back from each; in direct mode low power on while a session runs and off after; through a repeater the user's level all along.
 - `tests/host/radioCoreTest.c` (`test_power`): with the override every transmission goes at level 0, the user's level
   is kept and used again after it, and a restarted radio core has no override.

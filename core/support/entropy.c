@@ -63,4 +63,11 @@ void entropy_take(uint8_t *out, size_t n)
 	credit = 0;
 }
 
+void entropy_wipe(void)
+{
+	crypto_wipe(pool, sizeof pool);
+	count = 0;
+	credit = 0;
+}
+
 #endif	// CONFIG_KEY_FILL

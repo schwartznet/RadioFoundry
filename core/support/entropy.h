@@ -2,7 +2,7 @@
 // Copyright (c) 2026 The RadioFoundry Authors
 // A randomness pool for keys (docs/spec/key-fill.md 6). The radios have no hardware random number generator: events
 // whose timing a person or the air decides are stirred in with SHA-256, and only some are credited. One task stirs and
-// takes (the UI task): no lock
+// takes (the UI task): no lock. Only entropy_wipe comes from another task
 #ifndef RFOUNDRY_ENTROPY_H
 #define RFOUNDRY_ENTROPY_H
 
@@ -18,5 +18,8 @@ void entropy_stir(const void *data, size_t n, unsigned bits);
 unsigned entropy_bits(void);
 // n octets from the pool, which then moves on so they can't be found from it later; the credit restarts
 void entropy_take(uint8_t *out, size_t n);
+// The pool, its count and its credit zeroed, as at power on: the emergency wipe (zeroize_ram_hook), from the
+// housekeeping task with the scheduler suspended so the UI task can't stir in the middle of it
+void entropy_wipe(void);
 
 #endif
