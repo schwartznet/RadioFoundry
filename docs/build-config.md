@@ -70,7 +70,7 @@ make BOARD=<id> VARIANT=commercial       # build/<id>-commercial/
 | Variant | Leaves out |
 |---|---|
 | (none: full) | nothing |
-| `amateur` | basic privacy, NXDN Scrambler, Motorola TMS, ARS, LRRP, control station mode, SNMP |
+| `amateur` | basic privacy, AES voice encryption, NXDN Scrambler, Motorola TMS, ARS, LRRP, control station mode, SNMP |
 | `commercial` | the MMDVM hotspot (and split duplex), APRS (and KISS, APRS-IS), satellite tracking |
 
 Each variant file starts with `## title:` and `## summary:` lines, and the comment above each switch says why it is
@@ -109,6 +109,7 @@ below are for an STM32F4 radio.
 | `CONFIG_KEY_CHECK` | y | key check values: Settings > Privacy > Key check and Stored keys, every stored key with six hex digits two radios compare (`core/support/kcv.c`, `core/codeplug/key_store.c`; `docs/spec/key-check.md`). About 1.7 KB flash, no RAM. Off, neither row is there |
 | `CONFIG_KEY_FILL` | y where DMR and KEY_CHECK are | key fill: one radio sends a stored key to another over DMR data, X25519 with a six-digit code compared on both screens, the key's check value at the end (Settings > Privacy > Receive a key, Stored keys > Send this key; `core/keyfill`, `core/support/entropy.c`, `x25519.c`; `docs/spec/key-fill.md`). Needs DMR and `CONFIG_KEY_CHECK`; also builds the TX queue (`CONFIG_DMR_AIR_QUEUE`). Flash and RAM: see `docs/feature-matrix.md` |
 | `CONFIG_ZEROIZE` | = UI_SETTINGS | the emergency wipe: a 4-digit wipe code (Settings > Privacy) and `#` on Home or while locked erase the keys from the flash and RAM (every old copy too), by default the codeplug, then restart (`core/zeroize`, `core/ui/ui_svc_zeroize.c`; `docs/spec/zeroize.md`). The flash steps are in `core/storage`, `core/settings`, `core/codeplug` and, on NAND, `nand_sectors_purge`. Needs `CONFIG_UI_SETTINGS`. About 4.3 KB flash and 120 B RAM. Off, none of the rows and no key sequence |
+| `CONFIG_DMR_AES` | = DMR_PRIVACY | AES-256 voice encryption (DMRA, PI header ALG 0x25), RX and TX on channels bound to a traffic key in the codeplug, `core/dmr/dmrAes.c` (`docs/spec/dmr-voice.md` 5.1) |
 | `CONFIG_DMR_TALKER_ALIAS` | = DMR | talker alias decode and our own alias TX (`docs/spec/dmr-voice.md` 3) |
 | `CONFIG_DMR_GPS` | = DMR | ETSI GPS Info in the embedded LC (FLCO 8): the caller's position on the receive screen (with distance and bearing when ours is known), in Recent and on the debug link; ours sent in the alias superframes when Settings > Location > Send in DMR calls is on and there is a position (GPS, host, fixed: `docs/spec/position.md`; no APRS needed; `docs/spec/dmr-voice.md`) |
 | `CONFIG_DMR_SMS` | = DMR | text messages: ETSI IP text (the default format) and ETSI defined short data, received (inbox, ETSI response) and sent (docs/spec/dmr-data.md 5) |

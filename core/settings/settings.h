@@ -254,6 +254,9 @@ typedef struct {
 	uint8_t sig_dmr[3];
 	uint8_t sig_fm[3];
 	uint8_t reserved11[2];		// 0
+	// DMR AES: the end of the MI positions reserved for our overs (dmrAesSeq_t, dmr-voice.md 5.1; appended: an older
+	// record reads 0, no position yet). A restart starts here, past every position sent
+	uint32_t aes_mi_res;
 	// The emergency wipe (docs/spec/zeroize.md 5), appended: an older record reads no code and the defaults.
 	// zz_flags: SETTINGS_ZZ_*, bits 4-7 the wrong codes typed while locked before a wipe (0 off). The code itself is
 	// never stored: zz_hash is the first 16 octets of SHA-256("RFZZ1" | UID | zz_salt | code)
