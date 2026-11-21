@@ -35,7 +35,8 @@ void hmac_sha256_init(hmac_sha256_t *h, const uint8_t *key, size_t key_len)
 
 void hmac_sha256_update(hmac_sha256_t *h, const void *data, size_t len)
 {
-	sha256_update(&h->inner, data, len);
+	if (len != 0)	// data may be NULL then (HKDF with no info)
+		sha256_update(&h->inner, data, len);
 }
 
 void hmac_sha256_final(hmac_sha256_t *h, uint8_t out[SHA256_LEN])
