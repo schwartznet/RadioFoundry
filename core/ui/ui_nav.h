@@ -43,6 +43,7 @@ typedef enum {
 	SCR_MESSAGE_READ,		// a message's whole text, scrolled (the message screen's Full message row)
 	SCR_DATA_SERVICES,		// Settings > Connections > Data services: ARS server, IP gateway (CONFIG_DMR_ARS / _IP_GATEWAY)
 	SCR_SIG_CHAIN,			// Settings > Signaling tones: one event's five steps (arg = sig_event_t)
+	SCR_KEYS,			// Settings > Privacy > Keys: every stored key and its check value (codeplug/key_store.h)
 #if CONFIG_BACKLIGHT_TEST
 	SCR_BL_TEST,			// Settings > Advanced > Backlight tests
 #endif
