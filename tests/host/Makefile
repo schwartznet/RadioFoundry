@@ -694,7 +694,8 @@ i18nTestDefault: i18nTest.c $(I18N) $(LANG_H) $(wildcard $(CORE)/ui/*.h $(CORE)/
 UIAPP   := $(UI) $(CORE)/ui/ui_app.c $(CORE)/ui/ui_menus.c $(CORE)/ui/ui_find.c $(CORE)/ui/ui_aprs.c $(CORE)/ui/ui_position.c $(CORE)/ui/ui_gps.c $(CORE)/ui/ui_satellite.c $(CORE)/ui/ui_dual.c $(CORE)/radio/tones.c \
            $(CORE)/codeplug/codeplug_talk.c $(CORE)/codeplug/zone_edit.c $(CORE)/codeplug/zone_shift.c $(CORE)/radio/radio_am.c \
            $(CORE)/radio/radio_bcast.c $(CORE)/support/sha256.c $(CORE)/support/image_hash.c \
-           $(CORE)/support/support_info.c $(CORE)/support/hkdf.c $(CORE)/support/kcv.c sim/ui_sim.c sim/ui_png.c
+           $(CORE)/support/support_info.c $(CORE)/support/hkdf.c $(CORE)/support/kcv.c sim/ui_sim.c sim/ui_png.c \
+           $(CORE)/dmr/dmrAes.c $(CORE)/dmr/dmrPrivacy.c $(CORE)/dmr/ambe/ambeFec.c
 # The About page's data header, as the firmware build makes it (tools/gen_about.py; the STM32F4 list stands in)
 ABOUT_H := out/gen/rfoundry_about.h
 $(shell python3 $(ROOT)/tools/gen_about.py $(ROOT)/AUTHORS $(ROOT)/platform/stm32f4/THIRD_PARTY $(ABOUT_H) >/dev/null)
@@ -839,6 +840,8 @@ run-support: supportInfoTest
 .PHONY: run-support
 # The key primitives (core/support): HMAC and HKDF over SHA-256, X25519, key check values (docs/spec/key-check.md)
 TESTS   += keyCryptoTest
+# The AES block cipher an AES key's check value uses (kcv_aes, with DMR_AES)
+KCV_AES := $(CORE)/dmr/dmrAes.c $(CORE)/dmr/dmrPrivacy.c $(CORE)/dmr/ambe/ambeFec.c
 KEYCRYPTO := $(CORE)/support/sha256.c $(CORE)/support/hkdf.c $(CORE)/support/x25519.c $(CORE)/support/kcv.c
 keyCryptoTest: keyCryptoTest.c $(KEYCRYPTO) $(wildcard $(CORE)/support/*.h) ../vectors/key-check.txt
 	$(CC) $(CFLAGS) -Wshadow -o $@ keyCryptoTest.c $(KEYCRYPTO)
@@ -850,7 +853,7 @@ run-key-crypto: keyCryptoTest
 # emergency wipe of a running session (the UI glue's zeroize_ram_hook; stubs/keyfill_rtos holds the stand-in FreeRTOS
 # headers)
 TESTS   += keyFillTest
-KEYFILL := $(CORE)/keyfill/keyfill.c $(CORE)/support/entropy.c $(KEYCRYPTO) $(CORE)/ui/ui_svc_keyfill.c
+KEYFILL := $(CORE)/keyfill/keyfill.c $(CORE)/support/entropy.c $(KEYCRYPTO) $(CORE)/ui/ui_svc_keyfill.c $(KCV_AES)
 keyFillTest: keyFillTest.c $(KEYFILL) $(wildcard $(CORE)/keyfill/*.h $(CORE)/support/*.h stubs/keyfill_rtos/*.h) \
              $(CORE)/ui/ui_svc.h $(CORE)/zeroize/zeroize.h fuzz.h
 	$(CC) $(CFLAGS) -Istubs/keyfill_rtos -I$(ROOT)/hal -Wshadow -DCONFIG_KEY_FILL=1 -DCONFIG_ZEROIZE=1 -o $@ \
@@ -865,7 +868,7 @@ TESTS   += keyStoreTest
 KEYSTORE := $(CORE)/codeplug/key_store.c $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c \
             $(CORE)/codeplug/codeplug_tag.c $(CORE)/codeplug/codeplug_records.c $(CORE)/storage/storage.c sim/sim_flash.c \
             $(CORE)/dmr/dmrPrivacy.c $(CORE)/dmr/ambe/ambeFec.c $(CORE)/support/sha256.c $(CORE)/support/hkdf.c \
-            $(CORE)/support/kcv.c
+            $(CORE)/support/kcv.c $(CORE)/dmr/dmrAes.c
 keyStoreTest: keyStoreTest.c $(KEYSTORE) $(wildcard $(CORE)/codeplug/*.h $(CORE)/support/*.h $(CORE)/storage/*.h sim/sim_flash.h)
 	$(CC) $(CFLAGS) -I$(ROOT)/hal -I. -Wshadow -DCONFIG_KEY_CHECK=1 -DCONFIG_DMR_PRIVACY=1 -DCODEPLUG_MODE_RECORDS=1 \
 		-o $@ keyStoreTest.c $(KEYSTORE)
