@@ -94,6 +94,7 @@ Some settings are on the menu before the feature behind them exists, or don't ap
 | Wipe what | Keys+codeplug, Keys only | Keys+codeplug | What the wipe erases. Keys+codeplug also puts every setting back to its default, as a factory reset, the wipe code included | Untested on a radio |
 | Wipe confirm | On, Off | On | On: after the code, **OK** wipes and any other key goes back. Off: the wipe starts at **#** | Untested on a radio |
 | Wipe after | Off, 3 wrong, 5 wrong, 10 wrong | Off | Wipe after this many wrong codes typed while the keys are locked, with no confirmation. Unlocking the keys or a restart starts the count again | Untested on a radio |
+| Clear all keys | - | - | Erases every key on the radio now (privacy keys, AES and the other modes' keys) and keeps the channels, then restarts. Always asks first: **OK** clears, any other key goes back. Needs no wipe code. Backups and CPS files on a PC still hold the keys | Untested on a radio |
 
 #### Emergency wipe
 

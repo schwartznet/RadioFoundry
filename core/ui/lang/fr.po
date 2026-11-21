@@ -4058,6 +4058,11 @@ msgid "Wipe after"
 msgstr "Effacer après"
 
 #: core/ui/ui_menus.c
+msgctxt "SET_LABEL_CLEAR_KEYS"
+msgid "Clear all keys"
+msgstr "Effacer clés"
+
+#: core/ui/ui_menus.c
 msgctxt "SET_LABEL_AUTO_LOCK"
 msgid "Auto lock"
 msgstr "Verrouillage auto"
@@ -4638,14 +4643,24 @@ msgid "0-9 type  Back"
 msgstr "0-9 tape  Ret"
 
 #: core/ui/ui_menus.c
+msgctxt "WIPE_ROW_AGAIN"
+msgid "Try again"
+msgstr "Réessayer"
+
+#: core/ui/ui_menus.c
+msgctxt "WIPE_ROW_CLEAR_KEYS"
+msgid "Clear keys"
+msgstr "Effacer clés"
+
+#: core/ui/ui_menus.c
 msgctxt "WIPE_ROW_NOW"
 msgid "Wipe now"
 msgstr "Effacer maintenant"
 
 #: core/ui/ui_menus.c
-msgctxt "WIPE_ROW_AGAIN"
-msgid "Try again"
-msgstr "Réessayer"
+msgctxt "WIPE_ASK_CLEAR_KEYS"
+msgid "Erase every key now? Channels stay"
+msgstr "Effacer toutes les clés ? Les canaux restent"
 
 #: core/ui/ui_menus.c
 msgctxt "WIPE_ASK_KEYS"
@@ -4693,6 +4708,11 @@ msgid "Wipe incomplete:"
 msgstr "Effacement incomplet :"
 
 #: core/ui/ui_menus.c
+msgctxt "WIPE_BODY_KEYS_DONE"
+msgid "Keys cleared. Restarting"
+msgstr "Clés effacées. Redémarrage"
+
+#: core/ui/ui_menus.c
 msgctxt "WIPE_BODY_DONE"
 msgid "Wiped. Restarting"
 msgstr "Effacée. Redémarrage"
@@ -4701,6 +4721,11 @@ msgstr "Effacée. Redémarrage"
 msgctxt "WIPE_BODY_RUNNING"
 msgid "Wiping. Don't switch off"
 msgstr "Effacement. N'éteignez pas"
+
+#: core/ui/ui_menus.c
+msgctxt "WIPE_HINT_CLEAR"
+msgid "OK clears  Other keys cancel"
+msgstr "OK efface  Autres touches annulent"
 
 #: core/ui/ui_menus.c
 msgctxt "WIPE_HINT_CONFIRM"

@@ -436,6 +436,7 @@
  "screen.wipe_code": "设置紧急擦除码",
  "screen.wipe_confirm": "紧急擦除前要求再按一次确认",
  "screen.wipe_failed": "未能完成的紧急擦除",
+ "screen.clear_keys_confirm": "清除所有密钥前先确认",
  "radios.list_title": "所有电台",
  "radios.col_cpu": "处理器",
  "radio.cpu": "处理器",

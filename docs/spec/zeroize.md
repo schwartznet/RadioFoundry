@@ -98,6 +98,17 @@ counted on Home with the keys unlocked, where four digits and `#` are an ordinar
 146.2 MHz) and counting them would wipe a radio in normal use. It guards a locked radio against someone trying codes;
 someone who unlocks it first is not counted.
 
+### 3.2 Clear all keys
+
+Settings > Privacy > **Clear all keys** erases every key on the radio and keeps the channels, zones and contacts: the
+privacy slots, the traffic keys (AES and the other modes' keys), their copies in RAM and a running key fill session.
+It runs the same steps as a wipe with Wipe what at Keys only (4.1, 4.2, 4.5), whatever Wipe what is set to, and the
+radio restarts. It needs no wipe code and always asks first, whatever Wipe confirm says: **OK** clears, any other key
+goes back. A failure shows as for the wipe (4.5), and **OK** tries the keys again.
+
+It is for handing a radio on, or loading a new key set over a test one: the keys go with real sector erases, not by
+overwriting a field. As with the wipe (6), copies of the keys in backups and CPS files on a PC are not touched.
+
 ## 4. The wipe
 
 A storage job on the housekeeping task (settings-store.md 3.0), like other codeplug writes. The UI shows the wipe

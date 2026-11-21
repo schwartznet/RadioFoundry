@@ -183,6 +183,7 @@ WEAK bool ui_svc_factory_reset(void) { return false; }
 WEAK bool ui_svc_wipe_code_set(const char code[4]) { (void)code; return false; }
 WEAK bool ui_svc_wipe_code_check(const char code[4]) { (void)code; return false; }
 WEAK bool ui_svc_wipe_start(void) { return false; }
+WEAK bool ui_svc_clear_keys_start(void) { return false; }
 WEAK uint8_t ui_svc_wipe_state(uint8_t *failed) { *failed = 0; return UI_WIPE_IDLE; }
 WEAK bool ui_svc_codeplug_answer(uint8_t answer) { (void)answer; return false; }
 

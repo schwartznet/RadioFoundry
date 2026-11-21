@@ -2531,6 +2531,13 @@ bool ui_svc_wipe_code_check(const char code[4])
 {
 	return ui_svc_setting_get(UI_SET_WIPE_CODE) != 0 && memcmp(code, sim_wipe_code, sizeof sim_wipe_code) == 0;
 }
+static uint32_t sim_key_clears;
+bool ui_svc_clear_keys_start(void)
+{
+	sim_key_clears++;
+	sim_wipe_state = sim_wipe_fail != 0 ? UI_WIPE_FAILED : UI_WIPE_DONE;
+	return true;
+}
 bool ui_svc_wipe_start(void)
 {
 	sim_wipes++;
@@ -2671,6 +2678,7 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 	emergency_on = false;
 	memset(sim_wipe_code, 0, sizeof sim_wipe_code);
 	sim_wipes = 0;
+	sim_key_clears = 0;
 	sim_wipe_state = UI_WIPE_IDLE;
 	sim_wipe_fail = 0;
 	sim_foreign = sim_held = false;
@@ -3087,6 +3095,7 @@ static bool check(const char *kv, char *err, size_t len)
 	else if (strcmp(key, "volbar") == 0) snprintf(got, sizeof got, "%d", s.volbar);	// the knob's bar, -1 = none
 	else if (strcmp(key, "pttblock") == 0) snprintf(got, sizeof got, "%u", ptt_blocked);
 	else if (strcmp(key, "wipes") == 0) snprintf(got, sizeof got, "%u", (unsigned)sim_wipes);	// emergency wipes started
+	else if (strcmp(key, "keyclears") == 0) snprintf(got, sizeof got, "%u", (unsigned)sim_key_clears);	// Clear all keys
 	else if (strcmp(key, "wipecode") == 0) snprintf(got, sizeof got, "%d", (int)ui_svc_setting_get(UI_SET_WIPE_CODE));
 	else if (strcmp(key, "poweroff") == 0) snprintf(got, sizeof got, "%u", ui_app_power_off_due());
 	else if (strcmp(key, "wake") == 0) snprintf(got, sizeof got, "%u", ui_app_take_wake());	// the backlight asked for

@@ -436,6 +436,7 @@
  "screen.wipe_code": "Impostazione del codice di cancellazione d'emergenza",
  "screen.wipe_confirm": "La cancellazione d'emergenza chiede un'ultima pressione",
  "screen.wipe_failed": "Una cancellazione d'emergenza non completata",
+ "screen.clear_keys_confirm": "Cancella tutte le chiavi chiede conferma",
  "radios.list_title": "Tutte le radio",
  "radios.col_cpu": "Processore",
  "radio.cpu": "Processore",

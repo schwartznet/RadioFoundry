@@ -4058,6 +4058,11 @@ msgid "Wipe after"
 msgstr "Cancella dopo"
 
 #: core/ui/ui_menus.c
+msgctxt "SET_LABEL_CLEAR_KEYS"
+msgid "Clear all keys"
+msgstr "Cancella chiavi"
+
+#: core/ui/ui_menus.c
 msgctxt "SET_LABEL_AUTO_LOCK"
 msgid "Auto lock"
 msgstr "Blocco auto"
@@ -4638,14 +4643,24 @@ msgid "0-9 type  Back"
 msgstr "0-9 digita  Indietro"
 
 #: core/ui/ui_menus.c
+msgctxt "WIPE_ROW_AGAIN"
+msgid "Try again"
+msgstr "Riprova"
+
+#: core/ui/ui_menus.c
+msgctxt "WIPE_ROW_CLEAR_KEYS"
+msgid "Clear keys"
+msgstr "Cancella chiavi"
+
+#: core/ui/ui_menus.c
 msgctxt "WIPE_ROW_NOW"
 msgid "Wipe now"
 msgstr "Cancella ora"
 
 #: core/ui/ui_menus.c
-msgctxt "WIPE_ROW_AGAIN"
-msgid "Try again"
-msgstr "Riprova"
+msgctxt "WIPE_ASK_CLEAR_KEYS"
+msgid "Erase every key now? Channels stay"
+msgstr "Cancellare tutte le chiavi? I canali restano"
 
 #: core/ui/ui_menus.c
 msgctxt "WIPE_ASK_KEYS"
@@ -4693,6 +4708,11 @@ msgid "Wipe incomplete:"
 msgstr "Cancellazione incompleta:"
 
 #: core/ui/ui_menus.c
+msgctxt "WIPE_BODY_KEYS_DONE"
+msgid "Keys cleared. Restarting"
+msgstr "Chiavi cancellate. Riavvio"
+
+#: core/ui/ui_menus.c
 msgctxt "WIPE_BODY_DONE"
 msgid "Wiped. Restarting"
 msgstr "Cancellata. Riavvio"
@@ -4701,6 +4721,11 @@ msgstr "Cancellata. Riavvio"
 msgctxt "WIPE_BODY_RUNNING"
 msgid "Wiping. Don't switch off"
 msgstr "Cancellazione. Non spegnere"
+
+#: core/ui/ui_menus.c
+msgctxt "WIPE_HINT_CLEAR"
+msgid "OK clears  Other keys cancel"
+msgstr "OK cancella  Altri tasti annullano"
 
 #: core/ui/ui_menus.c
 msgctxt "WIPE_HINT_CONFIRM"

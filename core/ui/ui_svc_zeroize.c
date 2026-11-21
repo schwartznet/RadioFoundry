@@ -16,6 +16,7 @@ _Static_assert(UI_WIPE_FAIL_KEYS == ZEROIZE_FAIL_KEYS && UI_WIPE_FAIL_SETTINGS =
 static volatile uint8_t state;		// UI_WIPE_*: set by the UI task, then by the job
 static volatile uint8_t failed;
 static volatile bool posted;		// the job is in the slot or running
+static volatile bool keys_req;		// this wipe erases the keys only, whatever the scope setting (Clear all keys)
 
 bool ui_svc_wipe_code_set(const char code[4])
 {
@@ -30,7 +31,7 @@ bool ui_svc_wipe_code_check(const char code[4])
 static void wipe_job(void *ctx)
 {
 	(void)ctx;
-	uint8_t f = zeroize_run(zeroize_keys_only());
+	uint8_t f = zeroize_run(keys_req || zeroize_keys_only());
 	failed = f;
 	if (f == 0) {
 		state = UI_WIPE_DONE;
@@ -51,14 +52,25 @@ static void post(void)
 	}
 }
 
-bool ui_svc_wipe_start(void)
+static bool start(bool keys_only)
 {
 	if (!posted) {
+		keys_req = keys_only;
 		failed = 0;
 		state = UI_WIPE_RUNNING;
 		post();
 	}
 	return true;
+}
+
+bool ui_svc_wipe_start(void)
+{
+	return start(false);
+}
+
+bool ui_svc_clear_keys_start(void)
+{
+	return start(true);
 }
 
 uint8_t ui_svc_wipe_state(uint8_t *out)

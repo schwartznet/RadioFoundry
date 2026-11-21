@@ -6507,7 +6507,10 @@ typedef enum { ST_TOGGLE, ST_LIST, ST_NUMBER, ST_ACTION } set_type_t;
 enum { SA_DIAG, SA_FIRMWARE, SA_CODEPLUG, SA_RESET, SA_MY_RADIO, SA_CRASH, SA_LANGUAGE, SA_HARDWARE, SA_FIXED_POS,
 	SA_SAVE_GPS_POS, SA_DATA_SERVICES, SA_BL_TEST, SA_KEY_CHECK, SA_KEYS,
 	SA_SIG_BEGIN, SA_SIG_END, SA_SIG_IDLE,	// signaling tone steps, by sig_event_t
-	SA_WIPE_CODE };
+	SA_WIPE_CODE, SA_CLEAR_KEYS };
+// The wipe screen's arg: the emergency wipe's confirmation, then it going (ui_wipe_open); Clear all keys' confirmation,
+// then that going (keys only, whatever Wipe what says)
+enum { WIPE_ASK, WIPE_RUN, WIPE_ASK_KEYS_ONLY, WIPE_RUN_KEYS_ONLY };
 
 typedef struct {
 	tr_id_t name;			// TRN; TR_NONE for a key's row (set_name)
@@ -6852,6 +6855,8 @@ static const set_item_t s_privacy[] = {
 	TOGGLE(TRN(SET_LABEL_WIPE_CONFIRM, "Wipe confirm"), "emergency zeroize", UI_SET_WIPE_CONFIRM),
 	LIST(TRN(SET_LABEL_WIPE_AFTER, "Wipe after"), "emergency zeroize wrong codes", UI_SET_WIPE_TRIES, v_wipe_tries,
 		n_wipe_tries),
+	// Every key erased now, the channels kept (zeroize.md 3.2): the wipe's keys only steps, always after a confirmation
+	ACTION(TRN(SET_LABEL_CLEAR_KEYS, "Clear all keys"), "erase delete keys zeroize privacy aes", SA_CLEAR_KEYS),
 #endif
 };
 // The key lock's rules: when it locks by itself and what still works while locked
@@ -7635,6 +7640,7 @@ static void group_select(uint16_t i, bool hold)
 #endif
 #if CONFIG_ZEROIZE
 		case SA_WIPE_CODE: ui_push(SCR_WIPE_CODE, 0); break;
+		case SA_CLEAR_KEYS: ui_push(SCR_WIPE, WIPE_ASK_KEYS_ONLY); break;
 #endif
 #if CONFIG_SIG_TONES
 		case SA_SIG_BEGIN ... SA_SIG_IDLE: ui_push(SCR_SIG_CHAIN, (uint16_t)(s->id - SA_SIG_BEGIN)); break;
@@ -8244,33 +8250,56 @@ static const ui_scr_def_t wipe_code_screen = {
 };
 
 // ======================= The emergency wipe (docs/spec/zeroize.md 3, 4) =======================
-// arg 0: the confirmation, OK wipes and any other key goes back; arg 1: the wipe going, then what failed. Its keys come
-// here before the key lock (ui_app.c): a wipe typed on a locked radio is confirmed and followed without unlocking
+// arg WIPE_ASK: the confirmation, OK wipes and any other key goes back; WIPE_RUN: the wipe going, then what failed.
+// WIPE_ASK_KEYS_ONLY and WIPE_RUN_KEYS_ONLY: the same for Settings > Privacy > Clear all keys (zeroize.md 3.2). Its keys
+// come here before the key lock (ui_app.c): a wipe typed on a locked radio is confirmed and followed without unlocking
 
 void ui_wipe_open(bool confirm)
 {
-	ui_push(SCR_WIPE, confirm ? 0 : 1);
+	ui_push(SCR_WIPE, confirm ? WIPE_ASK : WIPE_RUN);
 	if (!confirm)
 		ui_svc_wipe_start();
+}
+
+static bool wipe_asking(void)
+{
+	return ui_frame()->arg == WIPE_ASK || ui_frame()->arg == WIPE_ASK_KEYS_ONLY;
+}
+
+static bool wipe_keys_only(void)
+{
+	return ui_frame()->arg == WIPE_ASK_KEYS_ONLY || ui_frame()->arg == WIPE_RUN_KEYS_ONLY;
+}
+
+// Start (or try again) the wipe this screen is for
+static void wipe_go(void)
+{
+	if (wipe_keys_only()) {
+		ui_frame()->arg = WIPE_RUN_KEYS_ONLY;
+		ui_svc_clear_keys_start();
+	} else {
+		ui_frame()->arg = WIPE_RUN;
+		ui_svc_wipe_start();
+	}
 }
 
 static uint8_t wipe_now(uint8_t *failed)
 {
 	*failed = 0;
-	return ui_frame()->arg == 0 ? UI_WIPE_IDLE : ui_svc_wipe_state(failed);
+	return wipe_asking() ? UI_WIPE_IDLE : ui_svc_wipe_state(failed);
 }
 
 static uint16_t wipe_count(void)
 {
 	uint8_t f, st = wipe_now(&f);
-	return ui_frame()->arg == 0 || st == UI_WIPE_FAILED ? 1 : 0;
+	return wipe_asking() || st == UI_WIPE_FAILED ? 1 : 0;
 }
 
 static void wipe_item(uint16_t i, ui_item_t *it)
 {
 	(void)i;
-	str_copy(it->label, sizeof it->label, ui_frame()->arg == 0 ? TR(WIPE_ROW_NOW, "Wipe now") :
-		TR(WIPE_ROW_AGAIN, "Try again"));
+	str_copy(it->label, sizeof it->label, !wipe_asking() ? TR(WIPE_ROW_AGAIN, "Try again") :
+		wipe_keys_only() ? TR(WIPE_ROW_CLEAR_KEYS, "Clear keys") : TR(WIPE_ROW_NOW, "Wipe now"));
 	it->flags |= UI_ITEM_WARN;
 }
 
@@ -8281,7 +8310,9 @@ static const char *wipe_body(void)
 	uint8_t f, st = wipe_now(&f);
 	sbuf_t b;
 	sb_init(&b, wipe_text, sizeof wipe_text);
-	if (ui_frame()->arg == 0) {
+	if (ui_frame()->arg == WIPE_ASK_KEYS_ONLY) {
+		sb_str(&b, TR(WIPE_ASK_CLEAR_KEYS, "Erase every key now? Channels stay"));
+	} else if (ui_frame()->arg == WIPE_ASK) {
 		sb_str(&b, ui_svc_setting_get(UI_SET_WIPE_SCOPE) ? TR(WIPE_ASK_KEYS, "Erase the keys now?") :
 			TR(WIPE_ASK_ALL, "Erase the keys and the codeplug now?"));
 	} else if (st == UI_WIPE_FAILED) {
@@ -8299,7 +8330,8 @@ static const char *wipe_body(void)
 			}
 		}
 	} else if (st == UI_WIPE_DONE) {
-		sb_str(&b, TR(WIPE_BODY_DONE, "Wiped. Restarting"));
+		sb_str(&b, wipe_keys_only() ? TR(WIPE_BODY_KEYS_DONE, "Keys cleared. Restarting") :
+			TR(WIPE_BODY_DONE, "Wiped. Restarting"));
 	} else {
 		sb_str(&b, TR(WIPE_BODY_RUNNING, "Wiping. Don't switch off"));
 	}
@@ -8309,7 +8341,8 @@ static const char *wipe_body(void)
 static const char *wipe_hint(void)
 {
 	uint8_t f, st = wipe_now(&f);
-	return ui_frame()->arg == 0 ? TR(WIPE_HINT_CONFIRM, "OK wipes  Other keys cancel") :
+	return ui_frame()->arg == WIPE_ASK_KEYS_ONLY ? TR(WIPE_HINT_CLEAR, "OK clears  Other keys cancel") :
+		ui_frame()->arg == WIPE_ASK ? TR(WIPE_HINT_CONFIRM, "OK wipes  Other keys cancel") :
 		st == UI_WIPE_FAILED ? TR(WIPE_HINT_FAILED, "OK again  Back") : "";
 }
 
@@ -8317,10 +8350,9 @@ static bool wipe_key(const input_event_t *ev)
 {
 	bool press = ev->gesture == GESTURE_PRESS || ev->gesture == GESTURE_LONG;
 	uint8_t f, st = wipe_now(&f);
-	if (ui_frame()->arg == 0) {
+	if (wipe_asking()) {
 		if (ev->action == ACT_SELECT && ev->gesture == GESTURE_PRESS) {
-			ui_frame()->arg = 1;
-			ui_svc_wipe_start();
+			wipe_go();
 		} else if (press || ev->action == ACT_ENC_STEP) {
 			ui_pop();	// anything else cancels
 		}
@@ -8329,7 +8361,7 @@ static bool wipe_key(const input_event_t *ev)
 	}
 	if (st == UI_WIPE_FAILED && ev->gesture == GESTURE_PRESS) {
 		if (ev->action == ACT_SELECT)
-			ui_svc_wipe_start();
+			wipe_go();
 		else if (ev->action == ACT_BACK)
 			ui_pop();
 	}

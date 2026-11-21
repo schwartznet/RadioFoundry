@@ -551,6 +551,12 @@
     "ZEROIZE"
    ]
   },
+  "clear_keys_confirm": {
+   "group": "settings",
+   "needs": [
+    "ZEROIZE"
+   ]
+  },
   "find_channel": {
    "group": "channels",
    "needs": []
