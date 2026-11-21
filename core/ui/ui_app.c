@@ -147,16 +147,14 @@ static void update_focus_target(void)
 		ui_svc_focus_target(0, false);
 }
 
-#if CONFIG_BACKLIGHT_TEST || CONFIG_KEY_FILL
+#if CONFIG_BACKLIGHT_TEST || CONFIG_SATELLITE_TLE || CONFIG_KEY_FILL
 // Screens from the top down to stack level `from` leave the stack: each runs its leave hook (the backlight tests give
 // the light back), and leaving the key fill screen ends its session (key-fill.md 9)
 static void left(uint8_t from)
 {
 	for (uint8_t i = sp; i >= from && i > 0; i--) {
-#if CONFIG_BACKLIGHT_TEST
 		if (ui_scr[stack[i].scr]->leave != NULL)
 			ui_scr[stack[i].scr]->leave();
-#endif
 #if CONFIG_KEY_FILL
 		if (stack[i].scr == SCR_KEY_FILL)
 			ui_svc_kf_end();
@@ -2454,6 +2452,10 @@ bool ui_app_tick(const radio_view_t *v, uint32_t now_ms)
 	ui_svc_keys_poll();
 #if CONFIG_ZONE_EDIT
 	ui_svc_zone_poll();
+#endif
+#if CONFIG_SATELLITE_TLE
+	ui_svc_satellite_poll();
+	ui_satellite_passes_tick();
 #endif
 #if CONFIG_CRASH_SCREEN
 	ui_crash_tick(now_ms);
