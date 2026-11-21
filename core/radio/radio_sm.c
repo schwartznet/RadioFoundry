@@ -74,9 +74,9 @@ static void cw_cancel(radio_sm_t *sm);
 #endif
 #if CONFIG_ZONE_SHARE
 #include "dmr/zone_share_api.h"
+#endif
 #if CONFIG_KEY_FILL
 #include "keyfill/keyfill_api.h"
-#endif
 #endif
 #if CONFIG_AM_RX
 #include "radio/radio_am.h"	// air band AM receive (docs/spec/airband-and-broadcast.md 3)
