@@ -497,6 +497,18 @@
     "ZONE_SHARE"
    ]
   },
+  "settings_privacy_check": {
+   "group": "settings",
+   "needs": [
+    "KEY_CHECK"
+   ]
+  },
+  "stored_keys": {
+   "group": "settings",
+   "needs": [
+    "KEY_CHECK"
+   ]
+  },
   "zone_share_to_id": {
    "group": "channels",
    "needs": [
@@ -771,6 +783,30 @@
     "APRS_RX"
    ]
   },
+    "satellite": {
+     "group": "tools",
+     "needs": [
+        "SATELLITE_TLE"
+     ]
+    },
+    "satellite_passes": {
+     "group": "tools",
+     "needs": [
+        "SATELLITE_TLE"
+     ]
+    },
+    "satellite_passes_predicting": {
+     "group": "tools",
+     "needs": [
+        "SATELLITE_TLE"
+     ]
+    },
+    "satellite_tle_text": {
+     "group": "tools",
+     "needs": [
+        "SATELLITE_TLE"
+     ]
+    },
   "gps_sky": {
    "group": "tools",
    "needs": [
