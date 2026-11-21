@@ -615,6 +615,11 @@ void radio_req_dmr_focus(uint32_t id, bool private_call);
 #if CONFIG_DMR_PRIVACY
 // Load a basic privacy key (type dmrPrivacyType_t, 0 = off). Held in RAM until changed or the radio restarts
 void radio_req_dmr_privacy(uint8_t type, uint16_t key);
+// The emergency wipe (CONFIG_ZEROIZE, docs/spec/zeroize.md 4.2): the radio core zeroes every key it holds (the privacy
+// key and its contexts, the NXDN engine's scramble keys) and turns privacy off. radio_zeroize_busy() is true from the
+// request until the radio task has done it
+void radio_req_zeroize(void);
+bool radio_zeroize_busy(void);
 #endif
 #endif
 // Scan (CONFIG_SCAN; no-ops otherwise). A zone scan starts from the current channel, a VFO scan steps the VFO by its

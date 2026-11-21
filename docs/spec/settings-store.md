@@ -76,7 +76,7 @@ so with two pages a sector is erased once every 64 saves.
 ### 2.1 Pages
 
 `settings_t` is longer than one slot's payload, so it is stored as pages: page k holds bytes `236 * k` on.
-`SETTINGS_PAGES` is the number its size needs (2 now, 408 bytes); the page field allows 16 (3776 bytes). Each page is
+`SETTINGS_PAGES` is the number its size needs (2 now, 432 bytes); the page field allows 16 (3776 bytes). Each page is
 a record with its own length, so `settings_t` grows by appending fields, and a short page fills the fields it has.
 
 | Rule | Why |
@@ -169,6 +169,7 @@ callsign. The own DMR ID is always the codeplug's.
 | Tier III stun | Page 1, appended after `power_levels`: `t3_stun`, a stun kept across a restart ([dmr-trunking.md](dmr-trunking.md) 7.9). Bit 7 (`SETTINGS_T3_STUN`) set: stunned on the codeplug system in slot bits 4-6, whose network ID and model hash to bits 0-3. Written by the radio core when a stun is taken or revived. 0 (an older record) = not stunned. Cleared by a factory reset |
 | Tier III kill | Page 1, appended after `t3_stun`: `t3_kill`, bit 0 (`SETTINGS_T3_KILLED`) a kill taken ([dmr-trunking.md](dmr-trunking.md) 7.9): no DMR at all, in any build, until a factory reset clears it; bits 1-7 reserved (0). Then `reserved10[2]` (0). 0 (an older record) = not killed |
 | signaling tones | Page 1, appended after `reserved10`, then `reserved11[2]` (0) (a record from before is shorter and reads these as 0): `sig_dmr[3]` and `sig_fm[3]`, where the start, end and idle tone sound in DMR and in FM (0 default, 1 off, 2 speaker, 3 on air, 4 speaker + air). 0, as an older record reads, is the radio's own tone. The chains of steps are not here: each event's is its codeplug record (`CODEPLUG_KEY_SIG_BEGIN` + event, [codeplug-settings.md](codeplug-settings.md) 3.3), read at start and on every change, so `settings_t` copies on task stacks stay small. `radio_settings_t.sig_dmr`, `sig_fm`, `sig_hz`, `sig_ms` ([radio-features.md](radio-features.md) 4.3) |
+| emergency wipe | Page 1, appended after `reserved11` (a record from before reads no code and the defaults): `zz_flags` (bit 0 a wipe code is set, bit 1 keys only, bit 2 no confirmation press, bits 4-7 the wrong codes typed while locked before a wipe, 0 off), `zz_reserved[3]` (0), `zz_salt` and `zz_hash[16]`, the first 16 octets of SHA-256 over a label, the MCU's UID, the salt and the code: never the code ([zeroize.md](zeroize.md) 2, 5). Here and not in the codeplug, which is shared with other radios. Cleared by a factory reset |
 | crash report | packed into spare bits, so an older record reads as off with no target: the mode (0 off, 1 ask, 2 send at once) in `accent` bits 4-5; the target's codeplug contact number (0 none, else 1..1024, 11 bits) bits 0-5 in `theme` bits 2-7 and bits 6-10 in `updown_home` bits 2-6. `theme` and `updown_home` keep their value in bits 0-1; read and write them through `settings_theme` / `settings_updown_home` and `settings_crash_*` (`settings.h`). Firmware from before reads a `theme` or `updown_home` with these bits as out of range: the dark theme and Up/Down = channel ([crash-log.md](crash-log.md) 5.2) |
 
 All of these are still layout 1: they were appended before any firmware with the settings store shipped. Page 0
@@ -213,6 +214,10 @@ Neither stops a determined reader, and basic privacy is weak anyway.
 
 A slot's key check value ([key-check.md](key-check.md) 2.1) is shown in Settings > Privacy; it doesn't hide a key this
 short.
+
+The emergency wipe ([zeroize.md](zeroize.md) 4.1) erases every sector of the ring and both journal sectors, so no old
+record keeps a key, then saves the settings without them as the ring's first record (`settings_scrub`,
+`storage_scrub`).
 
 ## 4. The sector journal
 
