@@ -339,6 +339,9 @@ bool ui_svc_wipe_code_check(const char code[4]);
 // Start the wipe (a storage job; posted as soon as the job slot is free, so a save going on delays it, never stops
 // it). False: not in this build
 bool ui_svc_wipe_start(void);
+// Start a wipe of the keys only, whatever Wipe what says (Settings > Privacy > Clear all keys, zeroize.md 3.2): the
+// same steps and restart as the emergency wipe's keys only scope. False: not in this build
+bool ui_svc_clear_keys_start(void);
 // Where it is, UI_WIPE_*; *failed the zeroize.h ZEROIZE_FAIL_* bits of a wipe that didn't finish
 enum { UI_WIPE_IDLE, UI_WIPE_RUNNING, UI_WIPE_DONE, UI_WIPE_FAILED };
 uint8_t ui_svc_wipe_state(uint8_t *failed);

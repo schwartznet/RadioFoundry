@@ -965,6 +965,14 @@ static const flow_t flows[] = {
 	  "screen=wipe shows=Wipe_incomplete: shows=settings,", 6, false },
 	{ "Z failed wipe: OK tries again", "wipecode:2468 wipefail:6 2 4 6 8 ctx ok", "ok", "wipes=2 screen=wipe", 1, false },
 	{ "Z failed wipe: BACK leaves", "wipecode:2468 wipefail:6 2 4 6 8 ctx ok", "back", "screen=home", 1, false },
+	// Settings > Privacy > Clear all keys (zeroize.md 3.2): always asks, no wipe code needed, the keys only whatever
+	// Wipe what says. keyclears = key clears started
+	{ "Z clear all keys asks first", "ok 7 4", "down down down down down down down down ok", "screen=wipe shows=Erase_every_key keyclears=0", 9, false },
+	{ "Z clear all keys: OK clears the keys only", "ok 7 4 down down down down down down down down ok", "ok",
+	  "screen=wipe keyclears=1 wipes=0 shows=Keys_cleared", 1, false },
+	{ "Z clear all keys: another key goes back", "ok 7 4 down down down down down down down down ok", "down", "screen=group keyclears=0", 1, false },
+	{ "Z clear all keys that fails: OK tries the keys again", "wipefail:6 ok 7 4 down down down down down down down down ok ok", "ok",
+	  "keyclears=2 wipes=0 screen=wipe", 1, false },
 	// Other digits do what they did: channel entry, the VFO's frequency; # after them too, and the code isn't either
 	{ "Z channel entry with a code set", "wipecode:2468", "1 2 ok", "pos=12 screen=home wipes=0", 3, false },
 	{ "Z a wrong code: # does what it does", "wipecode:2468 vfokey", "1 4 6 2 ctx",

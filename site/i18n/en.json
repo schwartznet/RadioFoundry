@@ -440,6 +440,7 @@
  "screen.wipe_code": "Setting the emergency wipe code",
  "screen.wipe_confirm": "The emergency wipe asks for a last press",
  "screen.wipe_failed": "An emergency wipe that could not finish",
+ "screen.clear_keys_confirm": "Clear all keys asks first",
  "radios.list_title": "All Radios",
  "radios.col_cpu": "Processor",
  "radio.cpu": "Processor",

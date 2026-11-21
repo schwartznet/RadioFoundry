@@ -4070,6 +4070,11 @@ msgid "Wipe after"
 msgstr "失败后清除"
 
 #: core/ui/ui_menus.c
+msgctxt "SET_LABEL_CLEAR_KEYS"
+msgid "Clear all keys"
+msgstr "清除所有密钥"
+
+#: core/ui/ui_menus.c
 msgctxt "SET_LABEL_AUTO_LOCK"
 msgid "Auto lock"
 msgstr "自动锁键"
@@ -4850,14 +4855,24 @@ msgid "0-9 type  Back"
 msgstr "0-9 输入  返回"
 
 #: core/ui/ui_menus.c
+msgctxt "WIPE_ROW_AGAIN"
+msgid "Try again"
+msgstr "重试"
+
+#: core/ui/ui_menus.c
+msgctxt "WIPE_ROW_CLEAR_KEYS"
+msgid "Clear keys"
+msgstr "清除密钥"
+
+#: core/ui/ui_menus.c
 msgctxt "WIPE_ROW_NOW"
 msgid "Wipe now"
 msgstr "立即清除"
 
 #: core/ui/ui_menus.c
-msgctxt "WIPE_ROW_AGAIN"
-msgid "Try again"
-msgstr "重试"
+msgctxt "WIPE_ASK_CLEAR_KEYS"
+msgid "Erase every key now? Channels stay"
+msgstr "清除所有密钥？信道保留"
 
 #: core/ui/ui_menus.c
 msgctxt "WIPE_ASK_KEYS"
@@ -4905,6 +4920,11 @@ msgid "Wipe incomplete:"
 msgstr "清除未完成:"
 
 #: core/ui/ui_menus.c
+msgctxt "WIPE_BODY_KEYS_DONE"
+msgid "Keys cleared. Restarting"
+msgstr "密钥已清除。重启中"
+
+#: core/ui/ui_menus.c
 msgctxt "WIPE_BODY_DONE"
 msgid "Wiped. Restarting"
 msgstr "已清除。重启中"
@@ -4913,6 +4933,11 @@ msgstr "已清除。重启中"
 msgctxt "WIPE_BODY_RUNNING"
 msgid "Wiping. Don't switch off"
 msgstr "清除中。请保持开机"
+
+#: core/ui/ui_menus.c
+msgctxt "WIPE_HINT_CLEAR"
+msgid "OK clears  Other keys cancel"
+msgstr "OK 清除  其他键取消"
 
 #: core/ui/ui_menus.c
 msgctxt "WIPE_HINT_CONFIRM"
