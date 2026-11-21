@@ -140,7 +140,7 @@ static void fresh(void)
 static void populate(void)
 {
 	memset(&sim_flash_data[CAL], 0xCA, 0x200);				// the calibration window
-	memcpy(&sim_flash_data[FL], "OpenGD77", 8);				// custom data (boot image, melody)
+	memcpy(&sim_flash_data[FL], "CUSTDATA", 8);				// custom data (boot image, melody)
 	memcpy(&sim_flash_data[FL + 0x30000u], "IdN\x59" "001", 7);		// the DMR ID database
 	memcpy(&sim_flash_data[FL + 0x8F400u], "VP\0\0", 4);			// the voice prompts, the next sector
 	memcpy(&sim_flash_data[FL + 0x7A000u], "below", 5);			// just below the flash codeplug
@@ -281,7 +281,7 @@ static void test_wipe_all(void)
 		{ STAGING, STAGING_SIZE }, { NATIVE, NATIVE_SIZE }, { SETTINGS, SETTINGS_SIZE } };
 	CHECK(unchanged_except(changed, sizeof(changed) / sizeof(changed[0])));
 	CHECK(sim_flash_data[CAL] == 0xCA && sim_flash_data[CAL + 0x1FF] == 0xCA);
-	CHECK(memcmp(&sim_flash_data[FL + 0x8F400u], "VP", 2) == 0 && memcmp(&sim_flash_data[FL], "OpenGD77", 8) == 0);
+	CHECK(memcmp(&sim_flash_data[FL + 0x8F400u], "VP", 2) == 0 && memcmp(&sim_flash_data[FL], "CUSTDATA", 8) == 0);
 	CHECK(sim_flash_violations() == 0);
 	// RAM: the radio core asked twice (before the settings and at the end), the hook, the crash record
 	CHECK(radio_zeroizes == 2 && hook_calls == 1 && crash_clears == 1);

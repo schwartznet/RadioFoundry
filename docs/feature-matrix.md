@@ -327,7 +327,7 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 | NXDN Scrambler (15-bit) | `NXDN_SCRAMBLER` | 468 | — | Needs `NXDN`; supports conventional voice calls. The NXDN air interface must support the requested direction. Checked on air against another radio running RadioFoundry and a commercial portable ([bring-up record](testing/dm32-bringup.md#nxdn-scrambler-interoperability)). |
 | Basic privacy (Motorola / Anytone BP) | `DMR_PRIVACY` | 1,936 | 1,992 |  |
 | Key check values: Settings > Privacy > Key check and Stored keys | `KEY_CHECK` | — | — | 1,676 B flash and no RAM on the DM-32UV default build (2026-11-20); the ARM figures are still to be measured. Untested on a radio |
-| Emergency wipe: a wipe code and `#` erase the keys (and the codeplug) from the flash and RAM | `ZEROIZE` | — | — | 4,312 B flash and 120 B RAM on the DM-32UV default build (2026-11-20, measured on and off); the ARM figures are still to be measured. Needs `UI_SETTINGS`. Untested on a radio |
+| Emergency wipe: a wipe code and `#` erase the keys (and the codeplug) from the flash and RAM | `ZEROIZE` | — | — | 4,480 B flash and 120 B RAM on the DM-32UV default build (2026-11-21, measured on and off); the ARM figures are still to be measured. Needs `UI_SETTINGS`. Untested on a radio |
 | Talker alias receive and send | `DMR_TALKER_ALIAS` | 984 | 1,300 |  |
 | ETSI GPS Info in the embedded LC | `DMR_GPS` | 2,208 | 2,152 |  |
 | DMR emergency (alarm, emergency call, hot mic) | `DMR_EMERGENCY` | 3,296 | 3,188 |  |
