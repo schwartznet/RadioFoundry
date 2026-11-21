@@ -171,6 +171,10 @@ static void left(uint8_t from)
 		if (stack[i].scr == SCR_KEY_FILL)
 			ui_svc_kf_end();
 #endif
+#if CONFIG_GROUP_KEY_FILL
+		if (stack[i].scr == SCR_GROUP_KEY)
+			ui_svc_gk_end();
+#endif
 	}
 }
 #else
@@ -2361,7 +2365,8 @@ void ui_app_key(const input_event_t *ev)
 	if (ev->action == ACT_QUICK && ev->gesture == GESTURE_PRESS && stack[sp].scr != SCR_QUICK &&
 			stack[sp].scr != SCR_DIAG && stack[sp].scr != SCR_HOME && !typing &&
 			!ON_BL_TEST() &&	// * steps the rate in the backlight tests
-			!(CONFIG_KEY_FILL && stack[sp].scr == SCR_KEY_FILL)) {	// a random key press there
+			!(CONFIG_KEY_FILL && stack[sp].scr == SCR_KEY_FILL) &&	// a random key press there
+			!(CONFIG_GROUP_KEY_FILL && stack[sp].scr == SCR_GROUP_KEY)) {
 		ui_push(SCR_QUICK, 0);
 		return;
 	}
@@ -2527,6 +2532,13 @@ bool ui_app_tick(const radio_view_t *v, uint32_t now_ms)
 	if (ui_svc_kf_tick(v, now_ms))
 		dirty = true;
 	if (stack[sp].scr == SCR_KEY_FILL)
+		wake_req = true;
+#endif
+#if CONFIG_GROUP_KEY_FILL
+	// The group key session runs here; its screen keeps the backlight on (group-key-fill.md 7)
+	if (ui_svc_gk_tick(v, now_ms))
+		dirty = true;
+	if (stack[sp].scr == SCR_GROUP_KEY)
 		wake_req = true;
 #endif
 #if CONFIG_DMR_TRUNK

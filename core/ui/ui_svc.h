@@ -126,6 +126,37 @@ void ui_svc_kf_end(void);
 // Every UI pass: runs the session (and the end of one left); true when what the screen shows may have changed
 bool ui_svc_kf_tick(const radio_view_t *v, uint32_t now);
 #endif
+#if CONFIG_GROUP_KEY_FILL
+// Group key fill (ui_svc_groupkey.c, docs/spec/group-key-fill.md): one session while the Group key screen is open.
+// What the screen shows
+typedef struct {
+	uint8_t state;		// UI_GK_*
+	uint8_t why;		// UI_GK_WHY_*: why it failed
+	bool send;		// the sender's session
+	uint8_t copies;		// sender: copies on air so far
+	uint8_t presses;	// sender: random key presses the pool still wants
+	uint32_t left_s;	// receiver: seconds the window stays open
+	uint32_t sender;	// receiver: who sent the key shown
+	uint32_t tg;		// sender: the talkgroup
+	uint8_t key_id;		// the key ID sent
+	uint8_t save_id;	// receiver: the key ID it will be saved as
+	bool kcv_ok;
+	uint8_t kcv[3];
+} ui_gk_view_t;
+enum { UI_GK_RANDOM, UI_GK_SENDING, UI_GK_SENT, UI_GK_LISTEN, UI_GK_GOT, UI_GK_SAVING, UI_GK_SAVED, UI_GK_FAILED };
+enum { UI_GK_WHY_NONE, UI_GK_WHY_CHANNEL, UI_GK_WHY_TARGET, UI_GK_WHY_NO_ID, UI_GK_WHY_KEY, UI_GK_WHY_BUSY,
+       UI_GK_WHY_SEND, UI_GK_WHY_TIMEOUT, UI_GK_WHY_STORE };
+// Start a session on the channel in v: receive (key < 0), or send stored key `key` (ui_svc_key's index, an AES-256
+// traffic key) to the channel's talkgroup. UI_GK_WHY_NONE, or why not
+uint8_t ui_svc_gk_start(int32_t key, const radio_view_t *v);
+bool ui_svc_gk_view(ui_gk_view_t *out);		// false: no session
+void ui_svc_gk_save_id(uint8_t id);		// the key ID the user typed for the key shown
+void ui_svc_gk_save(void);			// OK on the key shown: stored by a storage job
+void ui_svc_gk_drop(void);			// Back on the key shown: dropped, the window listens on
+void ui_svc_gk_end(void);			// the screen is left: wiped and freed by the next tick
+bool ui_svc_gk_tick(const radio_view_t *v, uint32_t now);
+void ui_svc_gk_zeroize(void);			// the emergency wipe's RAM step (zeroize_ram_hook)
+#endif
 bool ui_svc_monitor(bool on);			// FM monitor latch
 bool ui_svc_vox(bool on);
 // Make temporary channel changes permanent (storage-cps): false when busy, off a stored channel, or unavailable

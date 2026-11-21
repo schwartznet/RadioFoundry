@@ -2770,6 +2770,123 @@ static bool kf_sim_token(const char *arg)
 	return true;
 }
 #endif
+#if CONFIG_GROUP_KEY_FILL
+// ---------------- group key fill (ui_svc_groupkey.c): a believable session ----------------
+// The channel is an AES one only after the gk:aes token. The other radios come from tokens: gk:got (a key from
+// 4670502, key ID 5, arrives while listening), gk:copy (the sender's next copy goes on air), gk:fail (a copy fails),
+// gk:timeout (the receive window runs out). gksaved = the key ID the last save stored under, 0 none
+static struct {
+	bool on;
+	ui_gk_view_t v;
+	uint32_t saved;		// the key ID saved + 1
+} gk_sim;
+
+uint8_t ui_svc_gk_start(int32_t key, const radio_view_t *v)
+{
+	if (v->ch.mode != RADIO_MODE_DMR || v->ch.kind != CODEPLUG_KIND_DMR_AES || v->ch.aes_ref == 0)
+		return UI_GK_WHY_CHANNEL;
+	if (key >= 0 && (v->dmr.target_private || v->dmr.target_id == 0))
+		return UI_GK_WHY_TARGET;
+	if (v->dmr.own_id == 0)
+		return UI_GK_WHY_NO_ID;
+	static const uint8_t kcv[3] = { 0x95, 0x07, 0xA7 };
+	memset(&gk_sim.v, 0, sizeof gk_sim.v);
+	gk_sim.on = true;
+	gk_sim.v.send = key >= 0;
+	if (key >= 0) {
+		gk_sim.v.state = UI_GK_SENDING;
+		gk_sim.v.tg = v->dmr.target_id;
+		gk_sim.v.key_id = 7;
+		gk_sim.v.kcv_ok = true;
+		memcpy(gk_sim.v.kcv, kcv, sizeof kcv);
+	} else {
+		gk_sim.v.state = UI_GK_LISTEN;
+		gk_sim.v.left_s = 30u * 60u;
+	}
+	return UI_GK_WHY_NONE;
+}
+
+bool ui_svc_gk_view(ui_gk_view_t *out)
+{
+	memset(out, 0, sizeof *out);
+	if (!gk_sim.on)
+		return false;
+	*out = gk_sim.v;
+	return true;
+}
+
+void ui_svc_gk_save_id(uint8_t id)
+{
+	if (gk_sim.on && gk_sim.v.state == UI_GK_GOT)
+		gk_sim.v.save_id = id;
+}
+
+void ui_svc_gk_save(void)
+{
+	if (!gk_sim.on || gk_sim.v.state != UI_GK_GOT)
+		return;
+	gk_sim.v.state = UI_GK_SAVED;
+	gk_sim.saved = gk_sim.v.save_id + 1u;
+}
+
+void ui_svc_gk_drop(void)
+{
+	if (!gk_sim.on || gk_sim.v.state != UI_GK_GOT)
+		return;
+	gk_sim.v.state = UI_GK_LISTEN;
+	gk_sim.v.kcv_ok = false;
+}
+
+void ui_svc_gk_end(void)
+{
+	memset(&gk_sim.v, 0, sizeof gk_sim.v);
+	gk_sim.on = false;
+}
+
+bool ui_svc_gk_tick(const radio_view_t *v, uint32_t now)
+{
+	(void)v;
+	(void)now;
+	return false;
+}
+
+void ui_svc_gk_zeroize(void) {}
+
+static bool gk_sim_token(const char *arg)
+{
+	ui_gk_view_t *g = &gk_sim.v;
+	if (strcmp(arg, "aes") == 0) {
+		view.ch.kind = CODEPLUG_KIND_DMR_AES;
+		view.ch.aes_ref = 2;
+		changed();
+		return true;
+	}
+	if (!gk_sim.on)
+		return false;
+	if (strcmp(arg, "got") == 0 && g->state == UI_GK_LISTEN) {
+		static const uint8_t kcv[3] = { 0x95, 0x07, 0xA7 };
+		g->state = UI_GK_GOT;
+		g->sender = 4670502u;
+		g->key_id = 5;
+		g->save_id = 5;
+		g->kcv_ok = true;
+		memcpy(g->kcv, kcv, sizeof kcv);
+	} else if (strcmp(arg, "copy") == 0 && g->state == UI_GK_SENDING) {
+		if (++g->copies >= 4)
+			g->state = UI_GK_SENT;
+	} else if (strcmp(arg, "fail") == 0 && g->state == UI_GK_SENDING) {
+		g->state = UI_GK_FAILED;
+		g->why = UI_GK_WHY_SEND;
+	} else if (strcmp(arg, "timeout") == 0 && g->state == UI_GK_LISTEN) {
+		g->state = UI_GK_FAILED;
+		g->why = UI_GK_WHY_TIMEOUT;
+	} else {
+		return false;
+	}
+	changed();
+	return true;
+}
+#endif
 void sim_set_shot_dir(const char *dir, const char *prefix) { shot_dir = dir; shot_prefix = prefix; }
 static void (*tick_hook)(uint32_t now_ms);
 void sim_set_tick_hook(void (*hook)(uint32_t now_ms)) { tick_hook = hook; }
@@ -2853,6 +2970,9 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 	memset(sim_wipe_code, 0, sizeof sim_wipe_code);
 	sim_wipes = 0;
 	sim_key_clears = 0;
+#if CONFIG_GROUP_KEY_FILL
+	memset(&gk_sim, 0, sizeof gk_sim);
+#endif
 	sim_wipe_state = UI_WIPE_IDLE;
 	sim_wipe_fail = 0;
 	sim_foreign = sim_held = false;
@@ -3277,6 +3397,9 @@ static bool check(const char *kv, char *err, size_t len)
 	else if (strcmp(key, "pttblock") == 0) snprintf(got, sizeof got, "%u", ptt_blocked);
 	else if (strcmp(key, "wipes") == 0) snprintf(got, sizeof got, "%u", (unsigned)sim_wipes);	// emergency wipes started
 	else if (strcmp(key, "keyclears") == 0) snprintf(got, sizeof got, "%u", (unsigned)sim_key_clears);	// Clear all keys
+#if CONFIG_GROUP_KEY_FILL
+	else if (strcmp(key, "gksaved") == 0) snprintf(got, sizeof got, "%u", (unsigned)(gk_sim.saved ? gk_sim.saved - 1u : 0u));
+#endif
 	else if (strcmp(key, "wipecode") == 0) snprintf(got, sizeof got, "%d", (int)ui_svc_setting_get(UI_SET_WIPE_CODE));
 	else if (strcmp(key, "poweroff") == 0) snprintf(got, sizeof got, "%u", ui_app_power_off_due());
 	else if (strcmp(key, "wake") == 0) snprintf(got, sizeof got, "%u", ui_app_take_wake());	// the backlight asked for
@@ -3850,6 +3973,16 @@ static bool run_token(char *t, char *err, size_t len)
 	if (strcmp(t, "kf") == 0 && arg != NULL) {	// kf:full, kf:peer, kf:abort, kf:fail, kf:rpt (kf_sim)
 		if (!kf_sim_token(arg)) {
 			snprintf(err, len, "kf:%s: not now", arg);
+			return false;
+		}
+		advance(200);
+		return true;
+	}
+#endif
+#if CONFIG_GROUP_KEY_FILL
+	if (strcmp(t, "gk") == 0 && arg != NULL) {	// gk:aes, gk:got, gk:copy, gk:fail, gk:timeout (gk_sim)
+		if (!gk_sim_token(arg)) {
+			snprintf(err, len, "gk:%s: not now", arg);
 			return false;
 		}
 		advance(200);

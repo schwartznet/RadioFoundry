@@ -117,6 +117,11 @@ switch = "KEY_FILL"
 spec = "docs/spec/key-fill.md"
 source = ["core/keyfill", "core/support/entropy.c", "core/support/x25519.c"]
 
+[feature.group_key_fill]
+switch = "GROUP_KEY_FILL"
+spec = "docs/spec/group-key-fill.md"
+source = ["core/keyfill/groupkey.c", "core/keyfill/groupkey_svc.c", "core/ui/ui_svc_groupkey.c"]
+
 [feature.zeroize]
 switch = "ZEROIZE"
 spec = "docs/spec/zeroize.md"

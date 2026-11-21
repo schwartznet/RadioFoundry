@@ -6537,7 +6537,7 @@ static const ui_scr_def_t tools_screen = {
 
 typedef enum { ST_TOGGLE, ST_LIST, ST_NUMBER, ST_ACTION } set_type_t;
 enum { SA_DIAG, SA_FIRMWARE, SA_CODEPLUG, SA_RESET, SA_MY_RADIO, SA_CRASH, SA_LANGUAGE, SA_HARDWARE, SA_FIXED_POS,
-	SA_SAVE_GPS_POS, SA_DATA_SERVICES, SA_BL_TEST, SA_KEY_CHECK, SA_KEYS, SA_KEY_RECEIVE,
+	SA_SAVE_GPS_POS, SA_DATA_SERVICES, SA_BL_TEST, SA_KEY_CHECK, SA_KEYS, SA_KEY_RECEIVE, SA_GROUP_RECEIVE,
 	SA_SIG_BEGIN, SA_SIG_END, SA_SIG_IDLE,	// signaling tone steps, by sig_event_t
 	SA_WIPE_CODE, SA_CLEAR_KEYS };
 // The wipe screen's arg: the emergency wipe's confirmation, then it going (ui_wipe_open); Clear all keys' confirmation,
@@ -6881,6 +6881,11 @@ static const set_item_t s_privacy[] = {
 #if CONFIG_KEY_FILL
 	// key fill (key-fill.md): this radio takes a key another radio sends over DMR data
 	ACTION(TRN(SET_LABEL_KEY_RECEIVE, "Receive a key"), "key fill load transfer privacy encryption", SA_KEY_RECEIVE),
+#endif
+#if CONFIG_GROUP_KEY_FILL
+	// group key fill (group-key-fill.md): a key another radio broadcasts on this AES channel, at an agreed time
+	ACTION(TRN(SET_LABEL_GROUP_RECEIVE, "Receive group key"), "group key fill rekey broadcast net aes",
+	       SA_GROUP_RECEIVE),
 #endif
 #if CONFIG_ZEROIZE
 	// The emergency wipe (zeroize.md 3): the code typed on Home or while locked, what it erases, the confirmation
@@ -7676,6 +7681,9 @@ static void group_select(uint16_t i, bool hold)
 #endif
 #if CONFIG_KEY_FILL
 		case SA_KEY_RECEIVE: ui_kf_open(-1, 0); break;
+#if CONFIG_GROUP_KEY_FILL
+		case SA_GROUP_RECEIVE: ui_gk_open(-1); break;
+#endif
 #endif
 #if CONFIG_ZEROIZE
 		case SA_WIPE_CODE: ui_push(SCR_WIPE_CODE, 0); break;
@@ -8216,10 +8224,17 @@ static const ui_scr_def_t keys_screen = {
 static uint32_t kf_to;		// the receiver's ID typed
 static uint8_t kf_to_len;
 
-static uint16_t ksend_count(void) { return 1; }
+// With group key fill a second row: Send to group, the channel's talkgroup (group-key-fill.md 7)
+static uint16_t ksend_count(void) { return CONFIG_GROUP_KEY_FILL ? 2 : 1; }
 
 static void ksend_item(uint16_t i, ui_item_t *it)
 {
+#if CONFIG_GROUP_KEY_FILL
+	if (i == 1) {
+		str_copy(it->label, sizeof it->label, TR(GK_LABEL_SEND_GROUP, "Send to group"));
+		return;
+	}
+#endif
 	(void)i;
 	str_copy(it->label, sizeof it->label, TR(KF_LABEL_TO_ID, "To ID"));
 	sbuf_t b;
@@ -8246,8 +8261,14 @@ static const char *ksend_body(void)
 
 static void ksend_select(uint16_t i, bool hold)
 {
-	(void)i;
 	(void)hold;
+#if CONFIG_GROUP_KEY_FILL
+	if (i == 1) {
+		ui_gk_open(ui_frame()->arg);
+		return;
+	}
+#endif
+	(void)i;
 	if (kf_to_len == 0) {
 		ui_toast(TR(KF_TOAST_TYPE_ID, "Type the other radio's DMR ID"));
 		return;
@@ -8459,6 +8480,170 @@ static const ui_scr_def_t key_fill_screen = {
 	.name = "key-fill", .flags = SF_LIST | SF_HINT_FN, .prefix = TRN(KF_TITLE, "Key fill"),
 	.hint_fn = kf_hint,
 	.count = kf_count, .item = kf_item, .body = kf_body, .key = kf_key,
+};
+#endif
+
+#if CONFIG_GROUP_KEY_FILL
+// ======================= Group key fill (docs/spec/group-key-fill.md 7) =======================
+// One screen for both sides (arg 0 receive, 1 + the key's index send), its text the step the session is at. Receiving,
+// a key shown takes digits for the key ID it is saved as, OK saves, Back drops it and listens on. Back anywhere else
+// leaves, which ends the session (ui_app.c left)
+
+static const char *gk_why_text(uint8_t why)
+{
+	switch (why) {
+	case UI_GK_WHY_CHANNEL: return TR(GK_WHY_CHANNEL, "Group key fill needs an AES channel with its key");
+	case UI_GK_WHY_TARGET: return TR(GK_WHY_TARGET, "Group key fill needs a talkgroup as the target");
+	case UI_GK_WHY_NO_ID: return TR(KF_WHY_NO_DMR_ID, "Set this radio's DMR ID first");
+	case UI_GK_WHY_KEY: return TR(GK_WHY_KEY, "Only AES-256 keys go to a group");
+	case UI_GK_WHY_SEND: return TR(KF_WHY_SEND, "Couldn't send: check the channel");
+	case UI_GK_WHY_TIMEOUT: return TR(GK_WHY_TIMEOUT, "No key came");
+	case UI_GK_WHY_STORE: return TR(KF_RES_WRITE_FAILED, "The receiver couldn't save the key");
+	default: return TR(KF_WHY_BUSY, "Key fill busy: try again");
+	}
+}
+
+static uint8_t gk_typed;	// digits typed for the key ID to save as (0: the sent ID shown)
+
+void ui_gk_open(int32_t key)
+{
+	uint8_t why = ui_svc_gk_start(key, ui_view());
+	if (why != UI_GK_WHY_NONE) {
+		ui_toast(gk_why_text(why));
+		return;
+	}
+	if (ui_frame()->scr == SCR_KEY_SEND)
+		ui_pop();	// the session in its place: Back goes to Stored keys
+	gk_typed = 0;
+	ui_push(SCR_GROUP_KEY, key >= 0 ? (uint16_t)(1 + key) : 0);
+}
+
+static uint16_t gk_count(void) { return 0; }
+static void gk_item(uint16_t i, ui_item_t *it) { (void)i; (void)it; }
+
+static void gk_check(sbuf_t *b, const ui_gk_view_t *g)
+{
+	if (!g->kcv_ok)
+		return;
+	char t[KCV_TEXT];
+	kcv_text(g->kcv, t);
+	sb_chr(b, '\n');
+	sb_str(b, TR(KF_BODY_CHECK, "Check "));
+	sb_str(b, t);
+}
+
+static const char *gk_body(void)
+{
+	ui_gk_view_t g;
+	sbuf_t b;
+	sb_init(&b, id_body, sizeof id_body);
+	if (!ui_svc_gk_view(&g))
+		return id_body;
+	switch (g.state) {
+	case UI_GK_RANDOM:
+		sb_str(&b, TR(KF_BODY_PRESS_KEYS, "Press keys at random: "));
+		sb_u32(&b, g.presses, 1);
+		break;
+	case UI_GK_SENDING:
+		sb_str(&b, TR(GK_BODY_SENDING, "Sending to group "));
+		sb_u32(&b, g.copies + 1u, 1);
+		sb_str(&b, "/4\n");
+		sb_str(&b, TR(GK_BODY_TALKGROUP, "Talkgroup "));
+		sb_u32(&b, g.tg, 1);
+		break;
+	case UI_GK_SENT:
+		sb_str(&b, TR(GK_BODY_SENT, "Sent to group"));
+		gk_check(&b, &g);
+		break;
+	case UI_GK_LISTEN:
+		sb_str(&b, TR(GK_BODY_LISTEN, "Listening for a group key"));
+		sb_chr(&b, '\n');
+		sb_u32(&b, g.left_s / 60u, 1);
+		sb_chr(&b, ':');
+		sb_u32(&b, g.left_s % 60u, 2);
+		sb_str(&b, TR(GK_BODY_LEFT, " left"));
+		break;
+	case UI_GK_GOT:
+		if (gk_typed == 0 && g.save_id != g.key_id)
+			ui_svc_gk_save_id(g.key_id);	// a key shown anew starts from its sent ID
+		sb_str(&b, TR(GK_BODY_FROM, "Key from "));
+		sb_u32(&b, g.sender, 1);
+		sb_chr(&b, '\n');
+		sb_str(&b, TR(GK_BODY_KEY_ID, "Key ID "));
+		sb_u32(&b, g.key_id, 1);
+		gk_check(&b, &g);
+		sb_chr(&b, '\n');
+		sb_str(&b, TR(GK_BODY_SAVE_AS, "Save as key: "));
+		sb_u32(&b, g.save_id, 1);
+		sb_chr(&b, '_');
+		break;
+	case UI_GK_SAVING:
+		sb_str(&b, TR(KF_BODY_STORING, "Storing the key"));
+		break;
+	case UI_GK_SAVED:
+		sb_str(&b, TR(GK_BODY_SAVED, "Saved as key "));
+		sb_u32(&b, g.save_id, 1);
+		gk_check(&b, &g);
+		break;
+	default:
+		sb_str(&b, TR(KF_BODY_FAILED, "Failed: "));
+		sb_str(&b, gk_why_text(g.why));
+		break;
+	}
+	return id_body;
+}
+
+static const char *gk_hint(void)
+{
+	ui_gk_view_t g;
+	if (!ui_svc_gk_view(&g))
+		return TR(HINT_BACK, "Back");
+	switch (g.state) {
+	case UI_GK_GOT: return TR(GK_HINT_SAVE, "0-9 ID  OK save  Back drop");
+	case UI_GK_RANDOM: case UI_GK_SENDING: case UI_GK_LISTEN: return TR(HINT_BACK_CANCELS, "Back cancels");
+	default: return TR(HINT_BACK, "Back");
+	}
+}
+
+static bool gk_key(const input_event_t *ev)
+{
+	if (ev->gesture != GESTURE_PRESS)
+		return true;	// a random key press for the sender's pool: its time went in already (ui.c)
+	ui_gk_view_t g;
+	bool on = ui_svc_gk_view(&g);
+	if (on && g.state == UI_GK_GOT) {
+		// The key ID to save as: the sent one until a digit is typed, which starts a new one (up to 255). Back takes
+		// a typed digit back (none left: the sent ID again), then drops the key
+		if (ev->action >= ACT_DIGIT_0 && ev->action <= ACT_DIGIT_9) {
+			uint32_t d = (uint32_t)(ev->action - ACT_DIGIT_0);
+			uint32_t v = gk_typed == 0 ? d : (uint32_t)g.save_id * 10u + d;
+			if (v <= 255u && gk_typed < 3) {
+				gk_typed++;
+				ui_svc_gk_save_id((uint8_t)v);
+			}
+		} else if (ev->action == ACT_SELECT) {
+			ui_svc_gk_save();
+		} else if (ev->action == ACT_BACK && gk_typed > 0) {
+			gk_typed--;
+			ui_svc_gk_save_id(gk_typed == 0 ? g.key_id : (uint8_t)(g.save_id / 10u));
+		} else if (ev->action == ACT_BACK) {
+			ui_svc_gk_drop();
+		}
+		ui_dirty();
+		return true;
+	}
+	gk_typed = 0;
+	bool over = !on || g.state == UI_GK_SENT || g.state == UI_GK_SAVED || g.state == UI_GK_FAILED;
+	if (ev->action == ACT_BACK || (ev->action == ACT_SELECT && over))
+		ui_pop();	// leaving ends the session
+	ui_dirty();
+	return true;
+}
+
+static const ui_scr_def_t group_key_screen = {
+	.name = "group-key", .flags = SF_LIST | SF_HINT_FN, .prefix = TRN(GK_TITLE, "Group key fill"),
+	.hint_fn = gk_hint,
+	.count = gk_count, .item = gk_item, .body = gk_body, .key = gk_key,
 };
 #endif
 
@@ -8791,6 +8976,9 @@ const ui_scr_def_t *const ui_scr[SCR_COUNT] = {
 #endif
 #if CONFIG_KEY_FILL
 	[SCR_KEY_FILL] = &key_fill_screen,
+#endif
+#if CONFIG_GROUP_KEY_FILL
+	[SCR_GROUP_KEY] = &group_key_screen,
 #endif
 #if CONFIG_ZEROIZE
 	[SCR_WIPE_CODE] = &wipe_code_screen, [SCR_WIPE] = &wipe_screen,

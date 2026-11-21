@@ -216,6 +216,10 @@ ifeq ($(CONFIG_KEY_FILL),y)
 CORE_DIRS += core/keyfill
 APP_SRC += $(filter-out $(APP_SRC),core/keyfill/keyfill.c core/keyfill/keyfill_svc.c core/support/entropy.c core/support/x25519.c)
 endif
+# Group key fill: its message and transport (core/keyfill is in CORE_DIRS with key fill)
+ifeq ($(CONFIG_GROUP_KEY_FILL),y)
+APP_SRC += $(filter-out $(APP_SRC),core/keyfill/groupkey.c core/keyfill/groupkey_svc.c core/ui/ui_svc_groupkey.c)
+endif
 # The emergency wipe's code hash (core/support is globbed with SUPPORT_INFO): SHA-256 with its own switch, once
 ifeq ($(CONFIG_ZEROIZE),y)
 APP_SRC += $(filter-out $(APP_SRC),core/support/sha256.c)

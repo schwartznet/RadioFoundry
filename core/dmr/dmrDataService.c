@@ -19,6 +19,7 @@
 #endif
 #if CONFIG_KEY_FILL
 #include "keyfill/keyfill.h"
+#include "keyfill/groupkey.h"
 #endif
 
 #if CONFIG_DMR_DATA_CORE
@@ -2482,6 +2483,13 @@ static void handlePacket(const dmrDataPacket_t *packet)
 	if (!toPc && isUDP && (udp.dstPort == KF_PORT) && !packet->group)
 	{
 		dmrDataServiceKeyFillRx(packet->src, udp.payload, udp.length);
+	}
+#endif
+#if CONFIG_GROUP_KEY_FILL
+	// A group key fill message (docs/spec/group-key-fill.md 3): only to a talkgroup
+	if (!toPc && isUDP && (udp.dstPort == GK_PORT) && packet->group)
+	{
+		dmrDataServiceGroupKeyRx(packet->src, udp.payload, udp.length);
 	}
 #endif
 

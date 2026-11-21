@@ -320,7 +320,7 @@ RCORE   := radioCoreTest.c $(CORE)/radio/radio_sm.c $(CORE)/codeplug/codeplug_ke
            $(CORE)/radio/pa_sweep.c $(CORE)/radio/pa_keyrun.c \
            $(POSLIB) $(CORE)/ui/ui_svc_position.c $(CORE)/ui/i18n.c \
            $(CORE)/support/sha256.c $(CORE)/support/hkdf.c $(CORE)/support/kcv.c $(CORE)/codeplug/key_store.c \
-           $(CORE)/keyfill/keyfill_svc.c \
+           $(CORE)/keyfill/keyfill_svc.c $(CORE)/keyfill/groupkey_svc.c \
            $(CORE)/ui/ui_svc_zeroize.c $(CORE)/zeroize/zeroize.c
 
 radioCoreTest: $(RCORE) $(wildcard $(CORE)/radio/*.h) $(wildcard $(CORE)/dmr/call/*.h) $(CORE)/dmr/dmrDataService.h \
@@ -394,7 +394,7 @@ RFTEST  := radioFeaturesTest.c $(CORE)/radio/radio_sm.c $(CORE)/codeplug/codeplu
            $(CORE)/dmr/dmrPrivacy.c $(CORE)/dmr/dmrAes.c sim/dmr_sim_modem.c $(CORE)/dmr/dmrData.c $(CORE)/dmr/dmrDataService.c \
            $(CORE)/dmr/dmrLrrp.c $(CORE)/dmr/dmr_emergency.c $(CORE)/radio/morse.c $(CORE)/dmr/zoneShare.c $(CORE)/dmr/zoneShareSvc.c $(CORE)/dmr/dmrAirQueue.c \
            $(CORE)/settings/settings.c $(CORE)/storage/storage.c $(CORE)/usbaudio/audio_mux.c \
-           $(CORE)/usbaudio/pcm_slip.c $(CORE)/dmr/sfrRunner.c $(CORE)/dmr/sfr.c $(POSLIB) $(CORE)/keyfill/keyfill_svc.c
+           $(CORE)/usbaudio/pcm_slip.c $(CORE)/dmr/sfrRunner.c $(CORE)/dmr/sfr.c $(POSLIB) $(CORE)/keyfill/keyfill_svc.c $(CORE)/keyfill/groupkey_svc.c
 
 # CONFIG_NET_USRP without the gateway: only the radio core's half (host audio PTT, the shared stream) is tested here;
 # the network half is usrpNetTest
@@ -849,6 +849,16 @@ run: run-key-crypto
 run-key-crypto: keyCryptoTest
 	./keyCryptoTest
 .PHONY: run-key-crypto
+# Group key fill's message (core/keyfill/groupkey.c, docs/spec/group-key-fill.md 4): a known message, the round trip,
+# every octet altered
+TESTS   += groupKeyTest
+GROUPKEY := $(CORE)/keyfill/groupkey.c $(CORE)/support/sha256.c $(CORE)/support/hkdf.c
+groupKeyTest: groupKeyTest.c $(GROUPKEY) $(CORE)/keyfill/groupkey.h $(wildcard $(CORE)/support/*.h)
+	$(CC) $(CFLAGS) -Wshadow -DCONFIG_GROUP_KEY_FILL=1 -o $@ groupKeyTest.c $(GROUPKEY)
+run: run-group-key
+run-group-key: groupKeyTest
+	./groupKeyTest
+.PHONY: run-group-key
 # Key fill between radios (core/keyfill, docs/spec/key-fill.md): two engines end to end, the randomness pool, and the
 # emergency wipe of a running session (the UI glue's zeroize_ram_hook; stubs/keyfill_rtos holds the stand-in FreeRTOS
 # headers)
@@ -856,7 +866,7 @@ TESTS   += keyFillTest
 KEYFILL := $(CORE)/keyfill/keyfill.c $(CORE)/support/entropy.c $(KEYCRYPTO) $(CORE)/ui/ui_svc_keyfill.c $(KCV_AES)
 keyFillTest: keyFillTest.c $(KEYFILL) $(wildcard $(CORE)/keyfill/*.h $(CORE)/support/*.h stubs/keyfill_rtos/*.h) \
              $(CORE)/ui/ui_svc.h $(CORE)/zeroize/zeroize.h fuzz.h
-	$(CC) $(CFLAGS) -Istubs/keyfill_rtos -I$(ROOT)/hal -Wshadow -DCONFIG_KEY_FILL=1 -DCONFIG_ZEROIZE=1 -o $@ \
+	$(CC) $(CFLAGS) -Istubs/keyfill_rtos -I$(ROOT)/hal -Wshadow -DCONFIG_KEY_FILL=1 -DCONFIG_GROUP_KEY_FILL=0 -DCONFIG_ZEROIZE=1 -o $@ \
 		keyFillTest.c $(KEYFILL)
 run: run-key-fill
 run-key-fill: keyFillTest
@@ -988,7 +998,7 @@ DCHAIN  := dmrDataChainTest.c $(HRCDMR)/hrc6000_dmr.c $(HRC6K)/hrc6000.c $(HRCDM
            $(CORE)/dmr/sfr.c \
            $(CORE)/dmr/call/dmr_lc.c $(DATA) $(FRAME) $(CORE)/dmr/dmrDataService.c $(CORE)/dmr/dmrLrrp.c \
            $(CORE)/dmr/dmr_emergency.c $(CORE)/dmr/zoneShare.c $(CORE)/dmr/zoneShareSvc.c $(CORE)/dmr/dmrAirQueue.c $(CORE)/dmr/ambe/ambeFec.c \
-           $(CORE)/keyfill/keyfill_svc.c
+           $(CORE)/keyfill/keyfill_svc.c $(CORE)/keyfill/groupkey_svc.c
 
 dmrDataChainTest: $(DCHAIN) $(HRCDMR)/hrc6000_dmr.h $(ROOT)/hal/hal_dmr_modem.h $(wildcard $(CORE)/dmr/call/*.h) \
                   $(CORE)/dmr/dmrDataService.h $(CORE)/dmr/dmr_data_api.h

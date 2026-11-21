@@ -545,6 +545,24 @@
     "KEY_FILL"
    ]
   },
+  "group_key_listen": {
+   "group": "settings",
+   "needs": [
+    "GROUP_KEY_FILL"
+   ]
+  },
+  "group_key_got": {
+   "group": "settings",
+   "needs": [
+    "GROUP_KEY_FILL"
+   ]
+  },
+  "group_key_sent": {
+   "group": "settings",
+   "needs": [
+    "GROUP_KEY_FILL"
+   ]
+  },
   "zone_imported": {
    "group": "channels",
    "needs": [

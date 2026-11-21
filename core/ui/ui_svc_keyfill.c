@@ -13,6 +13,9 @@
 #include "ui_svc.h"
 #include "keyfill/keyfill.h"
 #include "keyfill/keyfill_api.h"
+#if CONFIG_GROUP_KEY_FILL
+#include "keyfill/groupkey_api.h"
+#endif
 #include "support/entropy.h"
 #include "support/hkdf.h"
 #include "codeplug/codeplug.h"
@@ -375,9 +378,15 @@ void zeroize_ram_hook(void)
 		c->ending = true;
 	}
 	wiped = true;
+#if CONFIG_GROUP_KEY_FILL
+	ui_svc_gk_zeroize();
+#endif
 	entropy_wipe();
 	(void)xTaskResumeAll();
 	key_fill_open(false);
+#if CONFIG_GROUP_KEY_FILL
+	group_key_open(false);
+#endif
 	radio_req_tx_low(false);
 }
 #endif

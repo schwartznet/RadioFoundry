@@ -81,6 +81,9 @@ static void cw_cancel(radio_sm_t *sm);
 #endif
 #if CONFIG_KEY_FILL
 #include "keyfill/keyfill_api.h"
+#if CONFIG_GROUP_KEY_FILL
+#include "keyfill/groupkey_api.h"
+#endif
 #endif
 #if CONFIG_AM_RX
 #include "radio/radio_am.h"	// air band AM receive (docs/spec/airband-and-broadcast.md 3)
@@ -3302,6 +3305,9 @@ static void data_init(radio_sm_t *sm)
 #endif
 #if CONFIG_KEY_FILL
 	key_fill_svc_init();
+#if CONFIG_GROUP_KEY_FILL
+	group_key_svc_init();
+#endif
 #endif
 	dmr_call_set_data_rx(data_rx, NULL);
 #if CONFIG_DMR_EMERGENCY

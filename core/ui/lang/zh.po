@@ -4050,6 +4050,11 @@ msgid "Receive a key"
 msgstr "接收密钥"
 
 #: core/ui/ui_menus.c
+msgctxt "SET_LABEL_GROUP_RECEIVE"
+msgid "Receive group key"
+msgstr "接收群组密钥"
+
+#: core/ui/ui_menus.c
 msgctxt "SET_LABEL_WIPE_CODE"
 msgid "Wipe code"
 msgstr "清除码"
@@ -4615,6 +4620,11 @@ msgid "No keys stored"
 msgstr "无密钥"
 
 #: core/ui/ui_menus.c
+msgctxt "GK_LABEL_SEND_GROUP"
+msgid "Send to group"
+msgstr "发往群组"
+
+#: core/ui/ui_menus.c
 msgctxt "KF_LABEL_TO_ID"
 msgid "To ID"
 msgstr "发往 ID"
@@ -4803,6 +4813,81 @@ msgstr "返回 取消"
 msgctxt "KF_TITLE"
 msgid "Key fill"
 msgstr "密钥注入"
+
+#: core/ui/ui_menus.c
+msgctxt "GK_WHY_CHANNEL"
+msgid "Group key fill needs an AES channel with its key"
+msgstr "群组密钥注入只用于带密钥的 AES 信道"
+
+#: core/ui/ui_menus.c
+msgctxt "GK_WHY_TARGET"
+msgid "Group key fill needs a talkgroup as the target"
+msgstr "群组密钥注入只能发往群组"
+
+#: core/ui/ui_menus.c
+msgctxt "GK_WHY_KEY"
+msgid "Only AES-256 keys go to a group"
+msgstr "只有 AES-256 密钥可发往群组"
+
+#: core/ui/ui_menus.c
+msgctxt "GK_WHY_TIMEOUT"
+msgid "No key came"
+msgstr "未收到密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "GK_BODY_SENDING"
+msgid "Sending to group "
+msgstr "正在发往群组 "
+
+#: core/ui/ui_menus.c
+msgctxt "GK_BODY_TALKGROUP"
+msgid "Talkgroup "
+msgstr "群组 "
+
+#: core/ui/ui_menus.c
+msgctxt "GK_BODY_SENT"
+msgid "Sent to group"
+msgstr "已发往群组"
+
+#: core/ui/ui_menus.c
+msgctxt "GK_BODY_LISTEN"
+msgid "Listening for a group key"
+msgstr "正在等待群组密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "GK_BODY_LEFT"
+msgid " left"
+msgstr " 后关闭"
+
+#: core/ui/ui_menus.c
+msgctxt "GK_BODY_FROM"
+msgid "Key from "
+msgstr "密钥来自 "
+
+#: core/ui/ui_menus.c
+msgctxt "GK_BODY_KEY_ID"
+msgid "Key ID "
+msgstr "密钥 ID "
+
+#: core/ui/ui_menus.c
+msgctxt "GK_BODY_SAVE_AS"
+msgid "Save as key: "
+msgstr "存为密钥: "
+
+#: core/ui/ui_menus.c
+msgctxt "GK_BODY_SAVED"
+msgid "Saved as key "
+msgstr "已存为密钥 "
+
+#: core/ui/ui_menus.c
+msgctxt "GK_HINT_SAVE"
+msgid "0-9 ID  OK save  Back drop"
+msgstr "0-9 ID  OK 保存  返回 删除"
+
+#: core/ui/ui_menus.c
+msgctxt "GK_TITLE"
+msgid "Group key fill"
+msgstr "群组密钥注入"
 
 #: core/ui/ui_menus.c
 msgctxt "WIPE_ROW_CLEAR"
