@@ -163,8 +163,10 @@ static void update_focus_target(void)
 static void left(uint8_t from)
 {
 	for (uint8_t i = sp; i >= from && i > 0; i--) {
+#if CONFIG_BACKLIGHT_TEST || CONFIG_SATELLITE_TLE
 		if (ui_scr[stack[i].scr]->leave != NULL)
 			ui_scr[stack[i].scr]->leave();
+#endif
 #if CONFIG_KEY_FILL
 		if (stack[i].scr == SCR_KEY_FILL)
 			ui_svc_kf_end();
