@@ -844,7 +844,7 @@ TESTS   += keyCryptoTest
 KCV_AES := $(CORE)/dmr/dmrAes.c $(CORE)/dmr/dmrPrivacy.c $(CORE)/dmr/ambe/ambeFec.c
 KEYCRYPTO := $(CORE)/support/sha256.c $(CORE)/support/hkdf.c $(CORE)/support/x25519.c $(CORE)/support/kcv.c
 keyCryptoTest: keyCryptoTest.c $(KEYCRYPTO) $(wildcard $(CORE)/support/*.h) ../vectors/key-check.txt
-	$(CC) $(CFLAGS) -Wshadow -o $@ keyCryptoTest.c $(KEYCRYPTO)
+	$(CC) $(CFLAGS) -Wshadow -o $@ keyCryptoTest.c $(KEYCRYPTO) $(KCV_AES) -I$(ROOT)/hal
 run: run-key-crypto
 run-key-crypto: keyCryptoTest
 	./keyCryptoTest
