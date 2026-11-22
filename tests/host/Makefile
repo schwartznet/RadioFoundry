@@ -84,7 +84,7 @@ ipGatewayTestAir440: $(IPGW) $(CORE)/dmr/ipGateway.h
 
 # The data service (replies, signaling, our SMS, ARS, LRRP, the API mailbox) on a fake host
 SVC     := dmrDataServiceTest.c $(DATA) $(FRAME) $(CORE)/dmr/dmrLrrp.c $(CORE)/dmr/dmr_emergency.c $(CORE)/dmr/call/dmr_lc.c \
-           $(CORE)/position/nmea.c
+           $(CORE)/position/nmea.c $(CORE)/radio/silence.c
 
 dmrDataServiceTest: $(SVC) $(CORE)/dmr/dmrDataService.c $(CORE)/radio/silence.c $(CORE)/dmr/dmrDataService.h $(CORE)/dmr/dmr_data_api.h
 	$(CC) $(CFLAGS) -o $@ $(SVC) -lm

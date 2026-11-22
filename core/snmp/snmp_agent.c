@@ -16,6 +16,7 @@
 #include "dmr/ipGateway.h"
 #include "dmr/dmr_data_api.h"
 #include "dmr/dmrDataService.h"
+#include "radio/silence.h"
 #if CONFIG_HOTSPOT
 #include "hotspot/hotspot.h"
 #if CONFIG_HOTSPOT && CONFIG_SFR
@@ -23,7 +24,6 @@
 #endif
 #if CONFIG_HOTSPOT && CONFIG_HOTSPOT_SPLIT
 #include "hotspot/hotspotSplit.h"
-#include "radio/silence.h"
 #endif
 #endif
 
