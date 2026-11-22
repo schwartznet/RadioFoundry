@@ -6326,7 +6326,8 @@ void ui_crash_tick(uint32_t now_ms)
 		crash_target(to, sizeof to);
 		if (to[0] == 0)
 			return;		// nowhere to send it: the menu shows it
-		if (mode == UI_CRASH_SEND_ASK) {
+		// Radio silence: a report never goes by itself; it asks instead, and sending it is then the user's own
+		if (mode == UI_CRASH_SEND_ASK || ui_svc_setting_get(UI_SET_SILENCE) != 0) {
 			ui_push(SCR_CRASH, 1);
 		} else if (ui_svc_crash_send()) {
 			ui_svc_crash_seen();
@@ -6601,6 +6602,9 @@ static const int16_t v_keyfn_press[] = { KEYFN_DEFAULT, KEYFN_NONE, KEYFN_MONITO
 #if CONFIG_DUAL_WATCH
 					 KEYFN_AB, KEYFN_DUAL_WATCH,
 #endif
+#if CONFIG_RADIO_SILENCE
+					 KEYFN_SILENCE,
+#endif
 };
 static const tr_id_t n_keyfn_press[] = { TRN(VALUE_DEFAULT, "Default"), TRN(KEYFN_VALUE_NOTHING, "Nothing"),
 	TRN(KEYFN_VALUE_MONITOR, "Monitor"), TRN(KEYFN_VALUE_TALK_TARGET, "Talk target"),
@@ -6622,6 +6626,9 @@ static const tr_id_t n_keyfn_press[] = { TRN(VALUE_DEFAULT, "Default"), TRN(KEYF
 #if CONFIG_DUAL_WATCH
 					     TRX(KEYFN_VALUE_A_B, "A/B"), TRN(WORD_DUAL_WATCH, "Dual watch"),
 #endif
+#if CONFIG_RADIO_SILENCE
+					     TRN(SET_LABEL_RADIO_SILENCE, "Radio silence"),
+#endif
 };
 static const int16_t v_keyfn_hold[] = { KEYFN_DEFAULT, KEYFN_NONE, KEYFN_TALK_TARGET, KEYFN_POWER, KEYFN_ZONE_UP,
 					KEYFN_ZONE_DOWN, KEYFN_SCAN,
@@ -6637,6 +6644,9 @@ static const int16_t v_keyfn_hold[] = { KEYFN_DEFAULT, KEYFN_NONE, KEYFN_TALK_TA
 #endif
 #if CONFIG_DUAL_WATCH
 					KEYFN_AB, KEYFN_DUAL_WATCH,
+#endif
+#if CONFIG_RADIO_SILENCE
+					KEYFN_SILENCE,
 #endif
 };
 static const tr_id_t n_keyfn_hold[] = { TRN(VALUE_DEFAULT, "Default"), TRN(KEYFN_VALUE_NOTHING, "Nothing"),
@@ -6657,6 +6667,9 @@ static const tr_id_t n_keyfn_hold[] = { TRN(VALUE_DEFAULT, "Default"), TRN(KEYFN
 #endif
 #if CONFIG_DUAL_WATCH
 					    TRX(KEYFN_VALUE_A_B, "A/B"), TRN(WORD_DUAL_WATCH, "Dual watch"),
+#endif
+#if CONFIG_RADIO_SILENCE
+					    TRN(SET_LABEL_RADIO_SILENCE, "Radio silence"),
 #endif
 };
 #endif
@@ -6831,6 +6844,12 @@ static const set_item_t s_privacy[] = {
 	LIST(TRN(SET_LABEL_PRIVACY_KEY_TYPE, "Key type"), "privacy encryption", UI_SET_PRIVACY_TYPE, v_ptype, n_ptype),
 	// the range follows the type (set_range)
 	NUMBER(TRN(SET_LABEL_PRIVACY_KEY, "Key"), "privacy BP", UI_SET_PRIVACY_KEY, 1, 255, 1, NULL),
+#if CONFIG_RADIO_SILENCE
+	// radio silence (radio-silence.md): the radio transmits only what its user starts. Last, so the rows above keep
+	// their places; a side key can toggle it too (Settings > Keys)
+	TOGGLE(TRN(SET_LABEL_RADIO_SILENCE, "Radio silence"), "emcon stealth no transmit silent auto reply beacon",
+	       UI_SET_SILENCE),
+#endif
 };
 // The key lock's rules: when it locks by itself and what still works while locked
 static const set_item_t s_lock[] = {

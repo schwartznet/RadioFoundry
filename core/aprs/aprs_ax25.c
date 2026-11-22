@@ -5,6 +5,7 @@
 // port, and receive (the demodulator, station list, messages to us, digipeater, iGate). Built with CONFIG_APRS_AFSK;
 // the engine (aprs.c) calls in through the aprs_ax25_* functions.
 #include "config.h"
+#include "radio/silence.h"
 #if CONFIG_APRS_AFSK
 #include <string.h>
 #include "aprs/aprs_int.h"
@@ -289,7 +290,7 @@ static uint8_t rf_block(void)
 // Queue an AX.25 UI frame from us (lock held); path: a comma list or "" / NULL
 static bool queue_frame(uint8_t kind, const char *path, const char *info, size_t n)
 {
-	if (aprs_s.qn >= QUEUE_LEN || !aprs_s.me_ok) {
+	if (aprs_s.qn >= QUEUE_LEN || !aprs_s.me_ok || silenced(kind)) {
 		return false;
 	}
 	ax25_frame_t f;
@@ -323,10 +324,18 @@ static bool queue_frame(uint8_t kind, const char *path, const char *info, size_t
 	return true;
 }
 
+// Radio silence (radio-silence.md): only the user's own frames go (a message and its retries, a status, a beacon they
+// asked for); acknowledgements, digipeated frames and frames from a host or the iGate don't. A beacon that falls due by
+// itself never reaches the queue (aprs.c)
+static bool silenced(uint8_t kind)
+{
+	return radio_silent() && (kind == K_ACK || kind == K_HOST || kind == K_GATE || kind == K_DIGI);
+}
+
 // Raw frame (digipeated, from the host) into the queue (lock held)
 static bool queue_raw(uint8_t kind, const uint8_t *frame, size_t n)
 {
-	if (aprs_s.qn >= QUEUE_LEN || n > AX25_FRAME_MAX) {
+	if (aprs_s.qn >= QUEUE_LEN || n > AX25_FRAME_MAX || silenced(kind)) {
 		return false;
 	}
 	qframe_t *q = &aprs_s.q[aprs_s.qn++];

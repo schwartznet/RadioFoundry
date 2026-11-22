@@ -695,6 +695,16 @@ msgid "Talkgroup number first"
 msgstr "通话组号码在前"
 
 #: core/ui/ui_app.c
+msgctxt "SILENCE_TOAST_ON"
+msgid "Radio silence: only PTT transmits"
+msgstr "无线电静默：仅 PTT 发射"
+
+#: core/ui/ui_app.c
+msgctxt "SILENCE_TOAST_OFF"
+msgid "Radio silence off"
+msgstr "无线电静默已关闭"
+
+#: core/ui/ui_app.c
 msgctxt "HOME_TOAST_VOLUME_USE_KNOB"
 msgid "Volume: use the knob"
 msgstr "音量：请用旋钮"
@@ -3729,6 +3739,11 @@ msgctxt "KEYFN_VALUE_TG_NAME_NUMBER"
 msgid "TG name / number"
 msgstr "TG 名称/号码"
 
+#: core/ui/ui_menus.c
+msgctxt "SET_LABEL_RADIO_SILENCE"
+msgid "Radio silence"
+msgstr "无线电静默"
+
 #: core/ui/ui_menus.c core/ui/ui_screens.c
 msgctxt "TITLE_EMERGENCY"
 msgid "Emergency"
@@ -4723,6 +4738,11 @@ msgstr "空闲"
 msgctxt "TOP_STATE_NO_TX"
 msgid "NO TX"
 msgstr "禁发"
+
+#: core/ui/ui_screens.c
+msgctxt "TOP_CHIP_SILENCE"
+msgid "SIL"
+msgstr "静默"
 
 #: core/ui/ui_screens.c
 msgctxt "TOP_CHIP_DUAL"

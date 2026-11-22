@@ -32,6 +32,11 @@
 #ifndef CONFIG_DMR_ARS
 #define CONFIG_DMR_ARS			1
 #endif
+// Radio silence (docs/spec/radio-silence.md): a setting that keeps the radio from transmitting anything its user didn't
+// start
+#ifndef CONFIG_RADIO_SILENCE
+#define CONFIG_RADIO_SILENCE		1
+#endif
 #ifndef CONFIG_DMR_LRRP
 #define CONFIG_DMR_LRRP			1
 #endif

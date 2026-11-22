@@ -8,6 +8,7 @@
 #include <string.h>
 #include "config.h"
 #include "dmr/dmrDataService.h"
+#include "radio/silence.h"
 #include "dmr/trunk/t3_pdu.h"
 #include "dmr/dmr_data_api.h"
 #if CONFIG_DMR_EMERGENCY
@@ -1545,9 +1546,10 @@ static bool arsSend(uint32_t server, bool registration)
 
 static void arsTick(void)
 {
-	if (!CONFIG_DMR_ARS || (ars.powerOff != ARS_POWER_OFF_NONE) || passthrough)
+	if (!CONFIG_DMR_ARS || (ars.powerOff != ARS_POWER_OFF_NONE) || passthrough || radio_silent())
 	{
-		return;// passthrough: the dispatch PC registers on the radio's behalf; our state is kept for afterwards
+		return;// passthrough: the dispatch PC registers on the radio's behalf; our state is kept for afterwards. Radio
+		       // silence: nothing sent, the state kept (registration resumes when it ends)
 	}
 
 	uint32_t server = settings.arsServer;
@@ -1725,9 +1727,10 @@ static void lrrpReceived(uint32_t src, const uint8_t *payload, int length)
 	uint8_t next = (lrrpWriteIdx + 1) % LRRP_QUEUE_SIZE;
 	lrrpPendingRequest_t *pending = &lrrpQueue[lrrpWriteIdx];
 
-	if (!CONFIG_DMR_LRRP || !settings.lrrpReply || (next == lrrpReadIdx) || !lrrpDecodeRequest(payload, length, &pending->request))
+	if (!CONFIG_DMR_LRRP || !settings.lrrpReply || radio_silent() || (next == lrrpReadIdx) ||
+		!lrrpDecodeRequest(payload, length, &pending->request))
 	{
-		return;// off, full (the server asks again), or not a request
+		return;// off, radio silence, full (the server asks again), or not a request
 	}
 
 	stats.lrrpRequests++;
@@ -1910,6 +1913,12 @@ __attribute__((noinline)) static void lrrpTick(void)
 			continue;
 		}
 
+		if (radio_silent())
+		{
+			t->due = now + t->intervalMs;// radio silence: this report skipped, the trigger kept
+			continue;
+		}
+
 		if (dmrDataServiceIsBusy() || !canTransmit())
 		{
 			return;// when the channel is free again
@@ -1984,9 +1993,9 @@ uint32_t dmrDataServiceLocationNeededInMs(void)
 // deregistration still has to go out; the caller gives up on it after a while (3 s, gotcha 7.4)
 bool dmrDataServicePowerOff(void)
 {
-	if (!CONFIG_DMR_ARS || passthrough)
+	if (!CONFIG_DMR_ARS || passthrough || radio_silent())
 	{
-		return false;// passthrough: the PC owns the registration
+		return false;// passthrough: the PC owns the registration; radio silence: no deregistration either
 	}
 	if (ars.powerOff == ARS_POWER_OFF_NONE)
 	{
@@ -2113,6 +2122,19 @@ void dmrDataServiceTick(uint32_t nowMs, const dmrDataChannel_t *ch)
 	dmrDataSetPrivacy(&channel.privacy);
 
 	takeMailbox();
+
+	// Radio silence (radio-silence.md): no automatic answers. A radio check or call alert goes unanswered, and confirmed
+	// data unacknowledged (the sender retries, then gives up); the replies are dropped, not held for later
+	if (radio_silent())
+	{
+		if (csbkAnswerPending || (replyReadIdx != replyWriteIdx))
+		{
+			stats.silenceHeld++;
+		}
+		csbkAnswerPending = false;
+		replyReadIdx = replyWriteIdx;
+		tmsAckPending = false;// a TMS ACK still to follow its response
+	}
 
 	if (csbkAnswerPending && !dmrDataServiceIsBusy() && canTransmit())
 	{

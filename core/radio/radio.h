@@ -81,6 +81,7 @@ typedef struct {
 	uint8_t bcl;		// radio_bcl_t
 	bool roger_beep;	// FM: a short tone pair at the end of each transmission (CONFIG_FM_TX_TONES)
 	bool tx_inhibit;	// refuse every transmission
+	bool silence;		// radio silence: transmit only what the user starts (docs/spec/radio-silence.md)
 	// Scan (CONFIG_SCAN)
 	uint8_t scan_resume;	// scan_resume_t (radio/scan.h): 0 time, 1 carrier, 2 stop
 	uint8_t scan_hold_s;	// time mode: move on after this long on a signal
@@ -453,6 +454,7 @@ typedef struct {
 	uint8_t sql_close;	// polls over the close line the squelch's last close took (1 or 2 as a carrier goes, more
 				// after a voice peak hold); 0 none yet
 	uint32_t tx_elapsed_ms;	// time in TX, while RS_TX
+	bool silence;		// radio silence is on (radio_settings_t.silence): Home shows it
 	bool tx_auto;		// that TX is the radio's own, not the user's: a data list (ARS, an ACK), a roaming probe, an
 				// APRS beacon. It doesn't light the screen (radio_view_wakes)
 	bool aprs_tx;		// APRS has keyed the FM transmitter; the channel in ch is not the one on air

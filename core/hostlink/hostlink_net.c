@@ -11,6 +11,7 @@
 #include "hal_time.h"
 #if CONFIG_NET_LOCAL
 #include "net/net.h"
+#include "radio/silence.h"
 #endif
 
 #define PACKETS_UP		2	// packets from the air waiting for the host
@@ -238,7 +239,8 @@ void ipGatewaySerialIn(const uint8_t *data, int length)
 bool ipGatewayIPToAir(bool group, uint32_t dst, uint32_t src_ip, uint32_t dst_ip, uint8_t ttl, uint8_t protocol,
 		      const uint8_t *l4, int length)
 {
-	bool ok = (air != NULL) && (air->ip_to_air != NULL) &&
+	// Radio silence (radio-silence.md): nothing from the PC or the radio's own IP services (SNMP) goes on air
+	bool ok = !radio_silent() && (air != NULL) && (air->ip_to_air != NULL) &&
 		  air->ip_to_air(group, dst, src_ip, dst_ip, ttl, protocol, l4, length);
 
 	if (ok) {
@@ -251,7 +253,7 @@ bool ipGatewayIPToAir(bool group, uint32_t dst, uint32_t src_ip, uint32_t dst_ip
 
 bool ipGatewayRawToAir(bool group, uint32_t dst, const uint8_t *data, int length)
 {
-	bool ok = (air != NULL) && (air->raw_to_air != NULL) && air->raw_to_air(group, dst, data, length);
+	bool ok = !radio_silent() && (air != NULL) && (air->raw_to_air != NULL) && air->raw_to_air(group, dst, data, length);
 
 	if (ok) {
 		stats.to_air++;

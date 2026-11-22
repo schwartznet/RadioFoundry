@@ -539,6 +539,12 @@ static int draw_top_as(const radio_view_t *v, radio_state_t st, const ui_state_t
 	if (v->aprs_tx)
 		mw = "FM";
 	int lx = gfx_text(f, x, ty, mw, sfg);
+#if CONFIG_RADIO_SILENCE
+	// Radio silence first: the one word that says the radio won't answer or beacon (radio-silence.md 4)
+	if (v->silence && strip_fits(f, lx, rx, TR(TOP_CHIP_SILENCE, "SIL")))
+		lx = gfx_text(f, lx + f->w, ty, TR(TOP_CHIP_SILENCE, "SIL"), swarn);
+	else
+#endif
 #if CONFIG_DUAL_WATCH
 	if (s->dual.on && !v->aprs_tx && strip_fits(f, lx, rx, TR(TOP_CHIP_DUAL, "DUAL")))
 		lx = gfx_text(f, lx + f->w, ty, TR(TOP_CHIP_DUAL, "DUAL"), swarn);
