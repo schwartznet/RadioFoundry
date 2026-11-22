@@ -79,6 +79,16 @@
 #ifndef CONFIG_VOICE_CAPTURE
 #define CONFIG_VOICE_CAPTURE		0
 #endif
+// Auto DMR ID (docs/spec/auto-dmr-id.md): off unless the build turns it on; its range
+#ifndef CONFIG_AUTO_DMR_ID
+#define CONFIG_AUTO_DMR_ID		0
+#endif
+#ifndef CONFIG_AUTO_DMR_ID_BASE
+#define CONFIG_AUTO_DMR_ID_BASE		4670000
+#endif
+#ifndef CONFIG_AUTO_DMR_ID_SPAN
+#define CONFIG_AUTO_DMR_ID_SPAN		10000
+#endif
 #ifndef CONFIG_ZONE_SHARE
 #define CONFIG_ZONE_SHARE		CONFIG_DMR
 #endif

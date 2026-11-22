@@ -476,8 +476,14 @@ static bool r_rx_am(uint32_t hz, radio_bw_t bw) { (void)hz; (void)bw; return tru
 static const hal_radio_t am_radio = { .rx_am = r_rx_am };
 
 // The support info on About (docs/spec/support-info.md): an STM32F4, a small image to hash, a DMR and an RF chip
+static bool sim_chip_uid;	// token chipuid: the chip reports a UID (a real radio's, docs/spec/auto-dmr-id.md)
 static bool s_chip(hal_chip_t *c)
 {
+	if (sim_chip_uid) {
+		c->uid[2] = 0x401065E4u;
+		c->uid[1] = 0x2855394Bu;
+		c->uid[0] = 0x68455CAFu;
+	}
 	c->idcode = 0x10076413u;
 	c->flash_kb = 1024;
 	c->family = HAL_CHIP_STM32F4;
@@ -3023,6 +3029,7 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 	ui_layout_init();
 	memset(&view, 0, sizeof view);
 	sim_late[UI_SET_SILENCE - UI_SET_RAM_COUNT] = 0;	// radio silence off in every flow, as the view is
+	sim_chip_uid = false;
 	memset(&sim_rec, 0, sizeof sim_rec);
 #if CONFIG_DMR_AES
 	sim_aes_keys = false;
@@ -4006,6 +4013,10 @@ static bool run_token(char *t, char *err, size_t len)
 		return true;
 	}
 #endif
+	if (strcmp(t, "chipuid") == 0) {	// the chip reports a UID (Tools > Auto DMR ID)
+		sim_chip_uid = true;
+		return true;
+	}
 	if (strcmp(t, "zoneexpire") == 0) {
 		zs_sim.pending = false;
 		advance(200);

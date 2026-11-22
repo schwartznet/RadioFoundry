@@ -3098,6 +3098,41 @@ msgid "OK edit  Back"
 msgstr "OK modifica  Indietro"
 
 #: core/ui/ui_menus.c
+msgctxt "AUTOID_LABEL_NOW"
+msgid "This radio"
+msgstr "Questa radio"
+
+#: core/ui/ui_menus.c
+msgctxt "AUTOID_LABEL_NEW"
+msgid "Auto ID"
+msgstr "ID auto"
+
+#: core/ui/ui_menus.c
+msgctxt "AUTOID_BODY_FROM_CHIP"
+msgid "From this radio's chip ID"
+msgstr "Dall'ID chip di questa radio"
+
+#: core/ui/ui_menus.c
+msgctxt "AUTOID_BODY_CANDIDATE"
+msgid "Candidate "
+msgstr "Candidato "
+
+#: core/ui/ui_menus.c
+msgctxt "AUTOID_TOAST_ALREADY"
+msgid "That is this radio's ID already"
+msgstr "È già l'ID di questa radio"
+
+#: core/ui/ui_menus.c
+msgctxt "AUTOID_TITLE"
+msgid "Auto DMR ID"
+msgstr "ID DMR auto"
+
+#: core/ui/ui_menus.c
+msgctxt "AUTOID_HINT"
+msgid "OK set  # next  Back"
+msgstr "OK imposta  # succ.  Indietro"
+
+#: core/ui/ui_menus.c
 msgctxt "DATA_LABEL_ARS_SERVER"
 msgid "ARS server"
 msgstr "Server ARS"
@@ -3581,6 +3616,11 @@ msgstr "Rete"
 msgctxt "TOOLS_VALUE_USB_SERIAL"
 msgid "Serial"
 msgstr "Seriale"
+
+#: core/ui/ui_menus.c
+msgctxt "AUTOID_WHY_NO_UID"
+msgid "This radio has no chip ID to use"
+msgstr "Questa radio non ha un ID chip"
 
 #: core/ui/ui_menus.c
 msgctxt "SET_VALUE_BACKLIGHT_10S_DIM"

@@ -3100,6 +3100,41 @@ msgid "OK edit  Back"
 msgstr "OK 编辑  返回"
 
 #: core/ui/ui_menus.c
+msgctxt "AUTOID_LABEL_NOW"
+msgid "This radio"
+msgstr "此电台"
+
+#: core/ui/ui_menus.c
+msgctxt "AUTOID_LABEL_NEW"
+msgid "Auto ID"
+msgstr "自动 ID"
+
+#: core/ui/ui_menus.c
+msgctxt "AUTOID_BODY_FROM_CHIP"
+msgid "From this radio's chip ID"
+msgstr "来自此电台的 UID"
+
+#: core/ui/ui_menus.c
+msgctxt "AUTOID_BODY_CANDIDATE"
+msgid "Candidate "
+msgstr "候选 "
+
+#: core/ui/ui_menus.c
+msgctxt "AUTOID_TOAST_ALREADY"
+msgid "That is this radio's ID already"
+msgstr "已是此电台的 ID"
+
+#: core/ui/ui_menus.c
+msgctxt "AUTOID_TITLE"
+msgid "Auto DMR ID"
+msgstr "自动 DMR ID"
+
+#: core/ui/ui_menus.c
+msgctxt "AUTOID_HINT"
+msgid "OK set  # next  Back"
+msgstr "OK 设置  # 下一个  返回"
+
+#: core/ui/ui_menus.c
 msgctxt "DATA_LABEL_ARS_SERVER"
 msgid "ARS server"
 msgstr "ARS 服务器"
@@ -3583,6 +3618,11 @@ msgstr "网络"
 msgctxt "TOOLS_VALUE_USB_SERIAL"
 msgid "Serial"
 msgstr "串口"
+
+#: core/ui/ui_menus.c
+msgctxt "AUTOID_WHY_NO_UID"
+msgid "This radio has no chip ID to use"
+msgstr "此电台无 UID"
 
 #: core/ui/ui_menus.c
 msgctxt "SET_VALUE_BACKLIGHT_10S_DIM"

@@ -16,6 +16,7 @@ Past bugs, by subsystem: [gotchas.md](gotchas.md). Contributors read [docs/dev](
 | [radio-features.md](radio-features.md) | Scan, the FM transmit extras (tones, burst, roger beep), beeps, battery and power management |
 | [radio-silence.md](radio-silence.md) | Radio silence: transmit only what the user starts (no answers, registrations, beacons, probes, repeating) |
 | [airband-and-broadcast.md](airband-and-broadcast.md) | Air band AM receive and broadcast FM receive, chosen by the frequency |
+| [auto-dmr-id.md](auto-dmr-id.md) | Auto DMR ID: the DMR ID from the chip UID (Tools), and the PC helper |
 | [aprs.md](aprs.md) | APRS on FM and over DMR |
 | [position.md](position.md) | The radio's position: sources, settings, who reads it |
 | [satellite.md](satellite.md) | PC-managed orbital data, satellite passes and Doppler frequency compensation |

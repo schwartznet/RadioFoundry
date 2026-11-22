@@ -3098,6 +3098,41 @@ msgid "OK edit  Back"
 msgstr "OK modif  Retour"
 
 #: core/ui/ui_menus.c
+msgctxt "AUTOID_LABEL_NOW"
+msgid "This radio"
+msgstr "Cette radio"
+
+#: core/ui/ui_menus.c
+msgctxt "AUTOID_LABEL_NEW"
+msgid "Auto ID"
+msgstr "ID auto"
+
+#: core/ui/ui_menus.c
+msgctxt "AUTOID_BODY_FROM_CHIP"
+msgid "From this radio's chip ID"
+msgstr "Depuis l'ID de puce de cette radio"
+
+#: core/ui/ui_menus.c
+msgctxt "AUTOID_BODY_CANDIDATE"
+msgid "Candidate "
+msgstr "Candidat "
+
+#: core/ui/ui_menus.c
+msgctxt "AUTOID_TOAST_ALREADY"
+msgid "That is this radio's ID already"
+msgstr "C'est déjà l'ID de cette radio"
+
+#: core/ui/ui_menus.c
+msgctxt "AUTOID_TITLE"
+msgid "Auto DMR ID"
+msgstr "ID DMR auto"
+
+#: core/ui/ui_menus.c
+msgctxt "AUTOID_HINT"
+msgid "OK set  # next  Back"
+msgstr "OK fixer  # suivant  Retour"
+
+#: core/ui/ui_menus.c
 msgctxt "DATA_LABEL_ARS_SERVER"
 msgid "ARS server"
 msgstr "Serveur ARS"
@@ -3581,6 +3616,11 @@ msgstr "Réseau"
 msgctxt "TOOLS_VALUE_USB_SERIAL"
 msgid "Serial"
 msgstr "Série"
+
+#: core/ui/ui_menus.c
+msgctxt "AUTOID_WHY_NO_UID"
+msgid "This radio has no chip ID to use"
+msgstr "Cette radio n'a pas d'ID de puce"
 
 #: core/ui/ui_menus.c
 msgctxt "SET_VALUE_BACKLIGHT_10S_DIM"

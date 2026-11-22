@@ -52,6 +52,10 @@ source = ["core/input", "core/ui/ui_menus.c", "core/ui/ui_svc_storage.c", "core/
 switch = "DTMF"
 spec = "docs/spec/radio-features.md"
 
+[feature.auto_dmr_id]
+switch = "AUTO_DMR_ID"
+spec = "docs/spec/auto-dmr-id.md"
+
 [feature.vox]
 switch = "VOX"
 spec = "docs/spec/radio-features.md"
