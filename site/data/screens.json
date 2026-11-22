@@ -552,19 +552,19 @@
    ]
   },
   "group_key_listen": {
-   "group": "settings",
+   "group": "tools",
    "needs": [
     "GROUP_KEY_FILL"
    ]
   },
   "group_key_got": {
-   "group": "settings",
+   "group": "tools",
    "needs": [
     "GROUP_KEY_FILL"
    ]
   },
   "group_key_sent": {
-   "group": "settings",
+   "group": "tools",
    "needs": [
     "GROUP_KEY_FILL"
    ]
