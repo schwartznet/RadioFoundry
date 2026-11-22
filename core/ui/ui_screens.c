@@ -1035,65 +1035,76 @@ bool ui_home_encrypted(const radio_view_t *v)
 	return v->dmr.privacy;
 }
 
-// A padlock h pixels high at (x, top), drawn from geometry so it scales with the font: a round-topped shackle, a body
-// with rounded corners and a keyhole (a round hole over a slot) cut back to the background. Returns its width
+// The padlock, hand drawn at three sizes ('#' set): a round-topped shackle, a body with rounded corners and a keyhole
+// (a round hole over a slot). The largest that fits the height asked for is used
+static const char *const lock_s[] = {	// 7 x 8
+	"..###..",
+	".#...#.",
+	".#...#.",
+	"#######",
+	"###.###",
+	"###.###",
+	"#######",
+	".#####.",
+};
+static const char *const lock_m[] = {	// 9 x 12
+	"...###...",
+	"..#...#..",
+	".#.....#.",
+	".#.....#.",
+	".#.....#.",
+	"#########",
+	"#########",
+	"####.####",
+	"###...###",
+	"####.####",
+	"####.####",
+	".#######.",
+};
+static const char *const lock_l[] = {	// 12 x 16
+	"....####....",
+	"...######...",
+	"..##....##..",
+	"..##....##..",
+	"..##....##..",
+	"..##....##..",
+	".##########.",
+	"############",
+	"############",
+	"#####..#####",
+	"####....####",
+	"####....####",
+	"#####..#####",
+	"#####..#####",
+	"############",
+	".##########.",
+};
+
+// The padlock in a box h pixels high whose bottom is at top + h, at x. Returns its width
 static int draw_padlock(int x, int top, int h, color_t c)
 {
-	if (h < 6)
-		h = 6;
-	int bw = h * 4 / 5;			// the body's width and height
-	int bh = h * 11 / 20;
-	int by = top + h - bh;
-	int sw = bw * 7 / 10;			// the shackle's outer width and its thickness
-	if ((bw - sw) & 1)
-		sw--;				// centred on whole pixels
-	int t = (bw + 5) / 8 < 1 ? 1 : (bw + 5) / 8;
-	int sx = x + (bw - sw) / 2;
-	int r = sw;				// the arc's radius, doubled (half pixels): its centre sw/2 down from the top
-	int rin = sw - 2 * t;
-	for (int py = top; py <= by; py++) {
-		int Y = 2 * (py - top) + 1 - sw;	// doubled, from the arc's centre row
-		for (int i = 0; i < sw; i++) {
-			int X = 2 * i + 1 - sw;
-			bool on;
-			if (Y < 0) {
-				int d = X * X + Y * Y;
-				on = d <= r * r && d >= rin * rin;
-			} else {
-				on = i < t || i >= sw - t;	// the legs, down into the body
-			}
-			if (on)
-				gfx_pixel(sx + i, py, c);
-		}
+	const char *const *rows = lock_s;
+	int n = (int)(sizeof lock_s / sizeof lock_s[0]);
+	if (h >= 16) {
+		rows = lock_l;
+		n = (int)(sizeof lock_l / sizeof lock_l[0]);
+	} else if (h >= 12) {
+		rows = lock_m;
+		n = (int)(sizeof lock_m / sizeof lock_m[0]);
 	}
-	// The body, its corners rounded on a radius of a sixth of its width
-	gfx_fill(x, by, bw, bh, c);
-	int cr = bw / 6;
-	for (int i = 0; i < cr; i++) {
-		for (int k = 0; k < cr; k++) {
-			int a = 2 * (cr - i) - 1, b = 2 * (cr - k) - 1;
-			if (a * a + b * b > 4 * cr * cr) {
-				gfx_pixel(x + i, by + k, ui_col.bg);
-				gfx_pixel(x + bw - 1 - i, by + k, ui_col.bg);
-				gfx_pixel(x + i, by + bh - 1 - k, ui_col.bg);
-				gfx_pixel(x + bw - 1 - i, by + bh - 1 - k, ui_col.bg);
-			}
-		}
-	}
-	// The keyhole: from about 9 pixels a round hole, a slot under it; smaller, a slot alone
-	int kx = x + bw / 2, ky = by + bh * 2 / 5;
-	int kr = bw / 8;
-	if (h >= 9 && kr >= 1) {
-		for (int dy = -kr; dy <= kr; dy++)
-			for (int dx = -kr; dx <= kr; dx++)
-				if (dx * dx + dy * dy <= kr * kr + kr / 2)
-					gfx_pixel(kx + dx - ((bw & 1) ? 0 : (dx > 0 ? 0 : 0)), ky + dy, ui_col.bg);
-		int slot_w = kr >= 2 ? 2 : 1;
-		gfx_fill(kx - slot_w / 2, ky, slot_w, by + bh * 4 / 5 - ky, ui_col.bg);
-	} else {
-		gfx_fill(kx, by + bh / 4, 1, bh / 2, ui_col.bg);
-	}
-	return bw;
+	int w = (int)strlen(rows[0]);
+	int y0 = top + h - n;			// on the text's baseline
+	for (int r = 0; r < n; r++)
+		for (int k = 0; k < w; k++)
+			if (rows[r][k] == '#')
+				gfx_pixel(x + k, y0 + r, c);
+	return w;
+}
+
+// The padlock's width for a height (draw_padlock's choice)
+static int padlock_width(int h)
+{
+	return h >= 16 ? 12 : h >= 12 ? 9 : 7;
 }
 
 static void draw_place(const radio_view_t *v, const ui_state_t *s)
@@ -1175,7 +1186,7 @@ static void draw_place(const radio_view_t *v, const ui_state_t *s)
 	bool lock = ui_home_encrypted(v);
 	int lock_h = L->medium->ascent;
 	if (lock)
-		avail -= lock_h * 4 / 5 + L->medium->w / 2;
+		avail -= padlock_width(lock_h) + L->medium->w / 2;
 	const font_t *nf = L->large;
 	if (gfx_text_width(nf, v->ch.name) > avail)
 		nf = L->medium;
