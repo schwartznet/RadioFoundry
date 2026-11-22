@@ -22,13 +22,13 @@
 // Privacy slot entry n (0 = the first slot holding a valid key): true and *e filled, else how many there are in *count
 static bool privacy_entry(uint16_t n, key_entry_t *e, uint8_t *key, uint16_t *count)
 {
-	settings_t st;
-	settings_read(&st);
+	// one field at a time (settings_read_field), not a whole settings_t on the caller's stack
 	uint16_t seen = 0;
 	bool found = false;
+	uint32_t value = 0;
 	for (uint8_t i = 0; i < SETTINGS_PRIVACY_KEYS && !found; i++) {
-		uint8_t type = st.privacy_type[i];
-		uint32_t value = st.privacy_key[i];
+		uint8_t type = SETTINGS_FIELD(privacy_type[i]);
+		value = SETTINGS_FIELD(privacy_key[i]);
 		if (type == DMR_PRIVACY_OFF || type >= DMR_PRIVACY_NUM_TYPES || value > 0xFFFFu ||
 		    !dmrPrivacyKeyIsValid((dmrPrivacyType_t)type, (uint16_t)value))
 			continue;
@@ -48,7 +48,7 @@ static bool privacy_entry(uint16_t n, key_entry_t *e, uint8_t *key, uint16_t *co
 		}
 		found = true;
 	}
-	crypto_wipe(&st, sizeof st);	// the keys were in this copy
+	crypto_wipe(&value, sizeof value);	// the key was in this copy
 	*count = seen;
 	return found;
 }
