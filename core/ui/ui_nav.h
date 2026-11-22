@@ -32,6 +32,7 @@ typedef enum {
 								// channel, Zone options, Delete zone
 	SCR_CHZONES,			// the channel editor's Zones: in which zones the channel is (arg = its number)
 	SCR_DMR_ID,			// the radio's own DMR ID (Settings > My radio)
+	SCR_AUTO_ID,			// Tools > Auto DMR ID (CONFIG_AUTO_DMR_ID, docs/spec/auto-dmr-id.md)
 	SCR_REF_TRIM,			// the reference trim (Settings > Advanced > Freq trim)
 	SCR_GPS,			// Tools > Position's pages (CONFIG_GPS_SKY): status, sky, signal, grid
 	SCR_CONTACT_EDIT,		// the contact editor (CONFIG_CONTACT_EDIT): a new contact, from ui_target

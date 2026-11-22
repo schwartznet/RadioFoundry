@@ -7,6 +7,7 @@
 #include <string.h>
 #include "board.h"
 #include "ui_nav.h"
+#include "support/auto_dmr_id.h"
 #include "ui_svc.h"
 #include "ui_svc_aprs.h"
 #include "aprs/aprs_fmt.h"
@@ -5057,6 +5058,105 @@ static const ui_scr_def_t dmr_id_screen = {
 	.body = dmr_id_body,
 };
 
+#if CONFIG_AUTO_DMR_ID && CONFIG_DMR
+// ======================= Tools > Auto DMR ID (docs/spec/auto-dmr-id.md) =======================
+// The DMR ID this radio's chip UID gives: BASE + SHA-256(UID) % SPAN, candidate 0; # the next candidate (SHA-256(UID ||
+// k)) when two radios land on the same ID. OK saves it as Settings > My Radio > DMR ID does (the codeplug). Works with
+// no PC, after a wipe too. tools/dmrid_from_uid.py prints the same IDs from the UID
+_Static_assert(CONFIG_AUTO_DMR_ID_BASE >= 1 && CONFIG_AUTO_DMR_ID_SPAN >= 1 &&
+	       CONFIG_AUTO_DMR_ID_BASE + CONFIG_AUTO_DMR_ID_SPAN - 1 <= CODEPLUG_DMR_ID_MAX,
+	       "CONFIG_AUTO_DMR_ID_BASE and _SPAN must give IDs 1 to 16776415");
+enum { AID_NOW, AID_NEW, AID_COUNT };
+static uint8_t aid_uid[AUTO_DMR_ID_UID_LEN];
+static uint8_t aid_k;		// the candidate shown
+static uint32_t aid_saved;	// the ID last saved here, shown until the codeplug's change is in
+static uint32_t aid_serial;
+
+static uint32_t aid_id(void)
+{
+	return auto_dmr_id(aid_uid, aid_k, CONFIG_AUTO_DMR_ID_BASE, CONFIG_AUTO_DMR_ID_SPAN);
+}
+
+static uint32_t aid_current(void)
+{
+	return aid_saved != 0 && codeplug_serial() == aid_serial ? aid_saved : (uint32_t)ui_svc_setting_get(UI_SET_DMR_ID);
+}
+
+static uint16_t aid_count(void) { return AID_COUNT; }
+
+static void aid_item(uint16_t i, ui_item_t *it)
+{
+	sbuf_t b;
+	sb_init(&b, it->value, sizeof it->value);
+	if (i == AID_NOW) {
+		str_copy(it->label, sizeof it->label, TR(AUTOID_LABEL_NOW, "This radio"));
+		uint32_t v = aid_current();
+		if (v != 0)
+			sb_u32(&b, v, 1);
+		else
+			sb_str(&b, TR(VALUE_NOT_SET, "Not set"));
+	} else {
+		str_copy(it->label, sizeof it->label, TR(AUTOID_LABEL_NEW, "Auto ID"));
+		sb_u32(&b, aid_id(), 1);
+	}
+}
+
+static const char *aid_body(void)
+{
+	sbuf_t b;
+	sb_init(&b, id_body, sizeof id_body);
+	sb_str(&b, TR(AUTOID_BODY_FROM_CHIP, "From this radio's chip ID"));
+	sb_chr(&b, '\n');
+	sb_str(&b, TR(AUTOID_BODY_CANDIDATE, "Candidate "));
+	sb_u32(&b, aid_k, 1);
+	return id_body;
+}
+
+static void aid_select(uint16_t i, bool hold)
+{
+	(void)i;
+	(void)hold;
+	uint32_t id = aid_id();
+	if (id == aid_current()) {
+		ui_toast(TR(AUTOID_TOAST_ALREADY, "That is this radio's ID already"));
+		return;
+	}
+	uint32_t serial = codeplug_serial();
+	if (!ui_svc_setting_set(UI_SET_DMR_ID, (int32_t)id)) {
+		ui_toast(TR(TOAST_SAVE_FAILED, "Couldn't save: try again"));
+		return;
+	}
+	aid_saved = id;
+	aid_serial = serial;
+	ui_toast(TR(MYID_TOAST_SAVED, "DMR ID saved"));
+}
+
+static bool aid_key(const input_event_t *ev)
+{
+	if (ev->action == ACT_CONTEXT && ev->gesture == GESTURE_PRESS) {
+		aid_k++;	// 255 wraps to 0
+		ui_dirty();
+		return true;
+	}
+	return false;
+}
+
+static void aid_enter(void)
+{
+	aid_k = 0;
+	aid_saved = 0;
+	if (!auto_dmr_id_uid(aid_uid))
+		memset(aid_uid, 0, sizeof aid_uid);
+}
+
+static const ui_scr_def_t auto_id_screen = {
+	.name = "auto-dmr-id", .flags = SF_LIST, .prefix = TRN(AUTOID_TITLE, "Auto DMR ID"),
+	.hint = TRN(AUTOID_HINT, "OK set  # next  Back"),
+	.count = aid_count, .item = aid_item, .select = aid_select, .key = aid_key, .enter = aid_enter,
+	.body = aid_body,
+};
+#endif
+
 #if DATA_IDS
 // ======================= Data services (Settings > Connections) =======================
 // The ARS presence server and the off-net IP gateway, both DMR IDs saved in the codeplug's settings area
@@ -6350,7 +6450,10 @@ void ui_crash_tick(uint32_t now_ms)
 
 // Every tool keeps its number on every radio and build, so a key path (OK 6 7: Diagnostics; tests/hil/test_ui.py and the
 // user guide) is the same everywhere. A build without diagnostics skips 7, and one without satellite skips 9.
-enum { T_SCAN, T_POSITION, T_HOTSPOT, T_USB_NET, T_SFR, T_ROAM, T_DIAG, T_APRS, T_SATELLITE, T_ZONE_OFFER, T_COUNT };
+// Auto DMR ID (CONFIG_AUTO_DMR_ID) comes after the zone offer's 0, so it has no digit: Up from the first tool reaches
+// it (a list wraps)
+enum { T_SCAN, T_POSITION, T_HOTSPOT, T_USB_NET, T_SFR, T_ROAM, T_DIAG, T_APRS, T_SATELLITE, T_ZONE_OFFER, T_AUTO_ID,
+       T_COUNT };
 
 // A tool this build doesn't have is left out of the list
 static bool tool_shown(uint16_t i)
@@ -6359,7 +6462,8 @@ static bool tool_shown(uint16_t i)
 	if (i == T_ZONE_OFFER)
 		return offer_waiting();	// 0 on the keypad: only while another radio's zone waits
 #endif
-	return (i != T_DIAG || CONFIG_DIAG) && i != T_ZONE_OFFER && (i != T_SATELLITE || CONFIG_SATELLITE_TLE);
+	return (i != T_DIAG || CONFIG_DIAG) && i != T_ZONE_OFFER && (i != T_SATELLITE || CONFIG_SATELLITE_TLE) &&
+	       (i != T_AUTO_ID || (CONFIG_AUTO_DMR_ID && CONFIG_DMR));
 }
 
 static uint16_t tools_last;	// the highest tool's number, found on each count (the list counts before the hint)
@@ -6405,7 +6509,8 @@ static void tools_item(uint16_t row, ui_item_t *it)
 	static const tr_id_t names[] = { TRN(WORD_SCAN, "Scan"), TRN(TITLE_POSITION, "Position"), TRN(TITLE_HOTSPOT, "Hotspot"),
 					 TRN(TOOLS_ROW_USB_NETWORK, "USB network"), TRN(TOOLS_ROW_SFR, "Single-freq repeater"),
 					 TRN(TITLE_ROAMING, "Roaming"), TRN(TITLE_DIAGNOSTICS, "Diagnostics"), TRX(WORD_APRS, "APRS"),
-					 TRN(SATELLITE_2, "Satellite"), TRN(TOOLS_ROW_SHARES_RECEIVED, "Zones/Chs Received") };
+					 TRN(SATELLITE_2, "Satellite"), TRN(TOOLS_ROW_SHARES_RECEIVED, "Zones/Chs Received"),
+					 TRN(AUTOID_TITLE, "Auto DMR ID") };
 	uint16_t i = tools_row(row);
 	if (i >= T_COUNT)
 		return;
@@ -6496,6 +6601,16 @@ static void tools_select(uint16_t row, bool hold)
 	case T_APRS: ui_push(SCR_APRS, 0); break;
 	case T_ZONE_OFFER: ui_push(SCR_OFFER, 0); break;
 	case T_SATELLITE: ui_push(SCR_SATELLITE_PASSES, 0); break;
+#if CONFIG_AUTO_DMR_ID && CONFIG_DMR
+	case T_AUTO_ID: {
+		uint8_t uid[AUTO_DMR_ID_UID_LEN];
+		if (!auto_dmr_id_uid(uid))
+			ui_toast(TR(AUTOID_WHY_NO_UID, "This radio has no chip ID to use"));
+		else
+			ui_push(SCR_AUTO_ID, 0);
+		break;
+	}
+#endif
 	default: break;
 	}
 }
@@ -8156,6 +8271,9 @@ const ui_scr_def_t *const ui_scr[SCR_COUNT] = {
 #endif
 	[SCR_VOLUME] = &volume_screen, [SCR_LANGUAGE] = &lang_screen,
 	[SCR_DMR_ID] = &dmr_id_screen,
+#if CONFIG_AUTO_DMR_ID && CONFIG_DMR
+	[SCR_AUTO_ID] = &auto_id_screen,
+#endif
 	[SCR_CP_FOREIGN] = &cpf_screen,
 #if DATA_IDS
 	[SCR_DATA_SERVICES] = &ds_screen,

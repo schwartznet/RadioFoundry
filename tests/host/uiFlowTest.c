@@ -827,6 +827,18 @@ static const flow_t flows[] = {
 	// back and with none typed leaves it; 0 is refused
 	{ "S DMR ID opens", "", "ok 7 0 ok", "screen=dmr-id shows=DMR_ID", 4, false },
 	{ "S About from My radio", "", "ok 7 0 down ok", "screen=about shows=Build:", 5, false },
+#if CONFIG_AUTO_DMR_ID
+	// Tools > Auto DMR ID (docs/spec/auto-dmr-id.md): the last tool (Up from the first); the ID of the simulator's chip
+	// UID, a real radio's (4678512, as tools/dmrid_from_uid.py gives); # the next candidate; OK saves it as the DMR ID
+	{ "A auto DMR ID is the last tool", "", "ok 6 up", "screen=tools shows=Auto_DMR_ID", 3, false },
+	{ "A auto DMR ID needs a chip ID", "", "ok 6 up ok", "screen=tools toast=This_radio_has_no_chip_ID", 4, false },
+	{ "A auto DMR ID shows the ID", "chipuid", "ok 6 up ok", "screen=auto-dmr-id shows=4678512 shows=Candidate_0", 4,
+	  false },
+	{ "A auto DMR ID: # the next candidate", "chipuid ok 6 up ok", "ctx", "shows=4676328 shows=Candidate_1", 1, false },
+	{ "A auto DMR ID saved", "chipuid ok 6 up ok", "ok", "set76=4678512 toast=DMR_ID_saved", 1, true },
+	{ "A auto DMR ID: a candidate saved", "chipuid ok 6 up ok ctx", "ok", "set76=4676328", 1, true },
+	{ "A auto DMR ID: Back leaves it", "chipuid ok 6 up ok", "back", "screen=tools", 1, false },
+#endif
 	{ "S DMR ID typed and saved", "ok 7 0 ok", "9 9 9 9 9 9 9 ok", "set76=9999999 toast=DMR_ID_saved", 8, false },
 	{ "S DMR ID: BACK takes a digit back", "ok 7 0 ok", "3 1 back ok", "set76=3 toast=DMR_ID_saved", 4, false },
 	{ "S DMR ID: BACK with none typed leaves it", "ok 7 0 ok 9 9 9 9 9 9 9 ok", "3 1 back back back",

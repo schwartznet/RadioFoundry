@@ -708,7 +708,7 @@ i18nTestDefault: i18nTest.c $(I18N) $(LANG_H) $(wildcard $(CORE)/ui/*.h $(CORE)/
 # (ui_svc_stub.c) give way to the simulator's.
 UIAPP   := $(UI) $(CORE)/ui/ui_app.c $(CORE)/ui/ui_menus.c $(CORE)/ui/ui_find.c $(CORE)/ui/ui_aprs.c $(CORE)/ui/ui_position.c $(CORE)/ui/ui_gps.c $(CORE)/ui/ui_satellite.c $(CORE)/ui/ui_dual.c $(CORE)/radio/tones.c \
            $(CORE)/codeplug/codeplug_talk.c $(CORE)/codeplug/zone_edit.c $(CORE)/codeplug/zone_shift.c $(CORE)/radio/radio_am.c \
-           $(CORE)/radio/radio_bcast.c $(CORE)/support/sha256.c $(CORE)/support/image_hash.c \
+           $(CORE)/radio/radio_bcast.c $(CORE)/support/sha256.c $(CORE)/support/image_hash.c $(CORE)/support/auto_dmr_id.c \
            $(CORE)/support/support_info.c sim/ui_sim.c sim/ui_png.c
 # The About page's data header, as the firmware build makes it (tools/gen_about.py; the STM32F4 list stands in)
 ABOUT_H := out/gen/rfoundry_about.h
@@ -720,7 +720,7 @@ TESTS   += uiFlowTest uiFlowTestNoColor uiSim
 TESTS   += uiFlowTestSatellite
 
 uiFlowTest: uiFlowTest.c $(UIDEPS)
-	$(CC) $(UIFLAGS) -DCONFIG_P25=1 -DCONFIG_P25_TRUNK=1 -DCONFIG_NXDN=1 -o $@ uiFlowTest.c $(UIAPP) -lz
+	$(CC) $(UIFLAGS) -DCONFIG_P25=1 -DCONFIG_P25_TRUNK=1 -DCONFIG_NXDN=1 -DCONFIG_AUTO_DMR_ID=1 -o $@ uiFlowTest.c $(UIAPP) -lz
 
 # The same flows built as a radio with only a monochrome screen builds them (CONFIG_UI_COLOR=n): no color rows;
 # without a translation (CONFIG_LANG_ES=n): the Language screen dims Spanish; and with the backlight tests
@@ -832,6 +832,16 @@ run-hwopt: hwoptTest hwoptTestNone
 	./hwoptTest
 	./hwoptTestNone
 .PHONY: run-hwopt
+# Auto DMR ID (core/support/auto_dmr_id.c, docs/spec/auto-dmr-id.md): the formula against tests/vectors/auto-dmr-id.txt,
+# the vectors tools/dmrid_from_uid.py --self-test checks too
+TESTS   += autoDmrIdTest
+AUTOIDT := autoDmrIdTest.c $(CORE)/support/auto_dmr_id.c $(CORE)/support/sha256.c
+autoDmrIdTest: $(AUTOIDT) $(CORE)/support/auto_dmr_id.h ../vectors/auto-dmr-id.txt
+	$(CC) $(CFLAGS) -I$(ROOT)/hal -DCONFIG_AUTO_DMR_ID=1 -DAUTO_DMR_ID_NO_BOARD -o $@ $(AUTOIDT)
+run: run-auto-dmr-id
+run-auto-dmr-id: autoDmrIdTest
+	./autoDmrIdTest
+.PHONY: run-auto-dmr-id
 # The support info (core/support, docs/spec/support-info.md): SHA-256, the image hash, the hardware lines and the debug
 # link's SUPPORT command, English only (no catalogs linked)
 TESTS   += supportInfoTest
