@@ -36,6 +36,22 @@ uint32_t hal_millis(void) { return 1000u; }
 static settings_t settings;
 static int settings_ends;
 void settings_read(settings_t *out) { *out = settings; }
+uint32_t settings_read_field(size_t offset, size_t size)	// as settings.c: one 1, 2 or 4-byte field
+{
+	uint32_t v = 0;
+	if ((size != 1 && size != 2 && size != 4) || offset > sizeof settings || size > sizeof settings - offset)
+		return 0;
+	if (size == 1) {
+		v = ((const uint8_t *)&settings)[offset];
+	} else if (size == 2) {
+		uint16_t h;
+		memcpy(&h, (const uint8_t *)&settings + offset, sizeof h);
+		v = h;
+	} else {
+		memcpy(&v, (const uint8_t *)&settings + offset, sizeof v);
+	}
+	return v;
+}
 settings_t *settings_begin(void) { return &settings; }
 void settings_end(uint32_t now_ms) { (void)now_ms; settings_ends++; }
 

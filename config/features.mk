@@ -25,15 +25,15 @@ CONFIG_DMR_PRIVACY ?= $(CONFIG_DMR)
 # Key check and Stored keys; docs/spec/key-check.md). Lists privacy key slots and traffic keys, where the build has them
 CONFIG_KEY_CHECK ?= y
 # key fill between radios over DMR data: X25519, a six-digit code the users compare, the key sent encrypted and
-# authenticated (Settings > Privacy > Receive a key, Stored keys > Send; docs/spec/key-fill.md). Needs DMR and KEY_CHECK
+# authenticated (Tools > Key fill: Receive a key, Send a key; docs/spec/key-fill.md). Needs DMR and KEY_CHECK
 CONFIG_KEY_FILL ?= $(if $(filter y,$(CONFIG_DMR)),$(CONFIG_KEY_CHECK),n)
 # AES-256 voice encryption, the DMRA scheme (PI header ALG 0x25, docs/spec/dmr-voice.md 5.1): calls with a PI header
 # decrypted, and our overs encrypted, on channels bound to a traffic key in the codeplug. Needs DMR_PRIVACY (its AMBE
 # FEC helpers)
 CONFIG_DMR_AES ?= $(CONFIG_DMR_PRIVACY)
 # group key fill: one radio broadcasts a stored AES-256 key to every radio listening on the same AES channel; each
-# receiver shows the sender and check value and saves it under a key ID of its user's choice (Settings > Privacy >
-# Receive group key, Stored keys > Send to group; docs/spec/group-key-fill.md). Needs KEY_FILL and DMR_AES
+# receiver shows the sender and check value and saves it under a key ID of its user's choice (Tools > Key fill >
+# Receive group key, Send a key > Send to group; docs/spec/group-key-fill.md). Needs KEY_FILL and DMR_AES
 CONFIG_GROUP_KEY_FILL ?= $(if $(and $(filter y,$(CONFIG_KEY_FILL)),$(filter y,$(CONFIG_DMR_AES))),y,n)
 # talker alias decode and TX of our radio name (needs DMR)
 CONFIG_DMR_TALKER_ALIAS ?= $(CONFIG_DMR)

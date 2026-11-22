@@ -51,8 +51,8 @@ from anyone who hears the exchange (7); low power only makes fewer receivers hea
 
 | Step | Sender | Receiver |
 |---|---|---|
-| 1 | | Settings > Privacy > Receive a key. The screen shows the radio's DMR ID and waits |
-| 2 | Settings > Privacy > Stored keys, OK on a key, then the receiver's DMR ID and OK | |
+| 1 | | Tools > Key fill > Receive a key. The screen shows the radio's DMR ID and waits |
+| 2 | Tools > Key fill > Send a key (the stored keys), OK on a key, then the receiver's DMR ID and OK | |
 | 3 | Both radios ask for random key presses until the randomness pool is full (6) | |
 | 4 | COMMIT | |
 | 5 | | RPUB |
@@ -246,10 +246,16 @@ written: result 5.
 
 ## 9. Radio UI
 
+Key fill is an operation, so it is a tool ([information-architecture.md](../ux/information-architecture.md) P1): Tools >
+Key fill, the last tool. It comes after the zone offer's 0, so it has no digit: Up from the first tool reaches it (the
+list wraps), `SELECT`, `6`, Up, `SELECT`. The key's setup stays in Settings > Privacy (Key type, Key, Key check, Stored
+keys).
+
 | Screen | Shows | Keys |
 |---|---|---|
-| Settings > Privacy > Receive a key | "Ready. This radio: 9991234", then the steps | Back cancels |
-| Settings > Privacy > Stored keys | Each key and its check value | OK on a key: Send this key |
+| Tools > Key fill | 1 Receive a key, 2 Send a key | Digits or OK, Back |
+| Receive a key | "Ready. This radio: 9991234", then the steps | Back cancels |
+| Send a key (Stored keys; also Settings > Privacy > Stored keys) | Each key and its check value | OK on a key: Send this key |
 | Send this key | The key and its check value, "To ID:" and the digits typed | Digits, OK starts, Back |
 | Randomness | "Press keys at random: 12" | Any key counts |
 | Compare | "Code 482 913", "Other radio 9991234", "Same on both? OK yes, Back no" | OK, Back |

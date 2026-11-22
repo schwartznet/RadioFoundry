@@ -361,8 +361,9 @@ see that no third radio got in between. Status: untested on a radio.
 
 1. Put both radios on the same DMR channel: side by side on a direct mode channel, or through a repeater when they
    are apart.
-2. On the radio that gets the key: **Settings > Privacy > Receive a key**. It shows its DMR ID and waits.
-3. On the radio that has the key: **Settings > Privacy > Stored keys**, pick the key, press **OK** (Send this key),
+2. On the radio that gets the key: **Tools > Key fill > Receive a key**. Key fill is the last tool: open Tools and
+   press **Up** once. It shows its DMR ID and waits.
+3. On the radio that has the key: **Tools > Key fill > Send a key**, pick the key, press **OK** (Send this key),
    type the other radio's DMR ID and press **OK**.
 4. When a radio asks for random key presses, press keys at random until the count reaches zero. Both radios may ask.
 5. Both screens show a six-digit code, such as `482 913`, and the other radio's ID. Look at the other radio's screen.
@@ -374,6 +375,25 @@ power") and go back to your level afterwards; through a repeater they use your n
 fewer receivers hear the exchange: the matching codes are what keep the key safe. When the radios are apart, compare the
 codes on a phone call with someone whose voice you know, or meet; a code read out over a radio channel proves nothing. Leaving the screen cancels. Without that kind of key in its codeplug (a traffic key needs a
 system of the same type), the receiving radio refuses it and says why. How it works: [key-fill.md](../spec/key-fill.md).
+
+### Sending a key to a whole group
+
+One radio can broadcast a stored AES-256 key to every radio listening on the same AES channel at once, for example to
+change a group's key at an agreed time. The radios must already share that channel's key: the new key travels
+encrypted under it, so a radio without the channel key hears nothing it can use. To give a radio its very first key,
+use key fill above. Status: untested on a radio.
+
+1. Agree on a time and an AES channel whose contact is a talkgroup.
+2. On every radio that gets the key: **Tools > Key fill > Receive group key**. It listens for 30 minutes.
+3. On the radio that has the key: **Tools > Key fill > Send a key**, pick an AES-256 key, press **OK**, then pick
+   **Send to group**. It sends the key to the channel's talkgroup four times, three seconds apart. It doesn't take a
+   key itself.
+4. Each receiver shows the sender's ID, the key ID and the check value. Type another key ID to save it under, if you
+   want, then press **OK** to save it or **Back** to drop it.
+
+Anyone with the channel key can receive the new key, so confirm the check value on a voice call. Through a repeater,
+keep the radios apart (in another room), as for key fill. How it works:
+[group-key-fill.md](../spec/group-key-fill.md).
 
 ## Position in calls
 

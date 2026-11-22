@@ -25,8 +25,8 @@ the channel key's: whoever holds the channel key can read a group key sent on th
 
 | Step | Sender (net control) | Receivers |
 |---|---|---|
-| 1 | | At the agreed time: Settings > Privacy > **Receive group key**. The screen shows the channel and a countdown from 30:00 |
-| 2 | Settings > Privacy > Stored keys, OK on an AES-256 key, then **Send to group** | |
+| 1 | | At the agreed time: Tools > Key fill > **Receive group key**. The screen shows the channel and a countdown from 30:00 |
+| 2 | Tools > Key fill > Send a key (the stored keys), OK on an AES-256 key, then **Send to group** | |
 | 3 | The message goes to the channel's talkgroup 4 times, 3 s apart. The screen says each copy and then "Sent" with the key's check value | |
 | 4 | | The first good copy shows "Key from 4670502", the sent key ID, the check value and "Save as key: 5" (the sent ID, editable) |
 | 5 | | OK saves it into the channel's AES system under that key ID (replacing a key of that ID), then shows "Saved as key 5" and the check value. Back drops it and listens on |
@@ -112,7 +112,7 @@ A receiver takes a message only when all of these hold. Otherwise it is dropped,
 
 | Screen | Shows | Keys |
 |---|---|---|
-| Settings > Privacy > Receive group key | "Listening on <channel>", "29:41 left" | Back ends |
+| Tools > Key fill > Receive group key | "Listening on <channel>", "29:41 left" | Back ends |
 | Key received | "Key from 4670502", "Key ID 5", "Check 9507A7", "Save as key: 5" | Digits edit the key ID (0-255), OK saves, Back drops it and listens on |
 | Saved | "Saved as key 5", "Check 9507A7" | Back |
 | Stored keys > OK on an AES-256 key > Send to group | "Sending to group 2/4", then "Sent to group", "Check 9507A7" | Back stops |

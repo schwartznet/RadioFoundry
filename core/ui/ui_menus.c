@@ -6382,8 +6382,10 @@ void ui_crash_tick(uint32_t now_ms)
 // ======================= Tools =======================
 
 // Every tool keeps its number on every radio and build, so a key path (OK 6 7: Diagnostics; tests/hil/test_ui.py and the
-// user guide) is the same everywhere. A build without diagnostics skips 7, and one without satellite skips 9.
-enum { T_SCAN, T_POSITION, T_HOTSPOT, T_USB_NET, T_SFR, T_ROAM, T_DIAG, T_APRS, T_SATELLITE, T_ZONE_OFFER, T_COUNT };
+// user guide) is the same everywhere. A build without diagnostics skips 7, and one without satellite skips 9. Key fill
+// comes after the zone offer's 0, so it has no digit: Up from the first tool reaches it (a list wraps)
+enum { T_SCAN, T_POSITION, T_HOTSPOT, T_USB_NET, T_SFR, T_ROAM, T_DIAG, T_APRS, T_SATELLITE, T_ZONE_OFFER, T_KEY_FILL,
+       T_COUNT };
 
 // A tool this build doesn't have is left out of the list
 static bool tool_shown(uint16_t i)
@@ -6392,7 +6394,8 @@ static bool tool_shown(uint16_t i)
 	if (i == T_ZONE_OFFER)
 		return offer_waiting();	// 0 on the keypad: only while another radio's zone waits
 #endif
-	return (i != T_DIAG || CONFIG_DIAG) && i != T_ZONE_OFFER && (i != T_SATELLITE || CONFIG_SATELLITE_TLE);
+	return (i != T_DIAG || CONFIG_DIAG) && i != T_ZONE_OFFER && (i != T_SATELLITE || CONFIG_SATELLITE_TLE) &&
+	       (i != T_KEY_FILL || CONFIG_KEY_FILL);
 }
 
 static uint16_t tools_last;	// the highest tool's number, found on each count (the list counts before the hint)
@@ -6438,7 +6441,8 @@ static void tools_item(uint16_t row, ui_item_t *it)
 	static const tr_id_t names[] = { TRN(WORD_SCAN, "Scan"), TRN(TITLE_POSITION, "Position"), TRN(TITLE_HOTSPOT, "Hotspot"),
 					 TRN(TOOLS_ROW_USB_NETWORK, "USB network"), TRN(TOOLS_ROW_SFR, "Single-freq repeater"),
 					 TRN(TITLE_ROAMING, "Roaming"), TRN(TITLE_DIAGNOSTICS, "Diagnostics"), TRX(WORD_APRS, "APRS"),
-					 TRN(SATELLITE_2, "Satellite"), TRN(TOOLS_ROW_SHARES_RECEIVED, "Zones/Chs Received") };
+					 TRN(SATELLITE_2, "Satellite"), TRN(TOOLS_ROW_SHARES_RECEIVED, "Zones/Chs Received"),
+					 TRN(KF_TITLE, "Key fill") };
 	uint16_t i = tools_row(row);
 	if (i >= T_COUNT)
 		return;
@@ -6529,6 +6533,9 @@ static void tools_select(uint16_t row, bool hold)
 	case T_APRS: ui_push(SCR_APRS, 0); break;
 	case T_ZONE_OFFER: ui_push(SCR_OFFER, 0); break;
 	case T_SATELLITE: ui_push(SCR_SATELLITE_PASSES, 0); break;
+#if CONFIG_KEY_FILL
+	case T_KEY_FILL: ui_push(SCR_KEY_FILL_MENU, 0); break;
+#endif
 	default: break;
 	}
 }
@@ -6545,7 +6552,7 @@ static const ui_scr_def_t tools_screen = {
 
 typedef enum { ST_TOGGLE, ST_LIST, ST_NUMBER, ST_ACTION } set_type_t;
 enum { SA_DIAG, SA_FIRMWARE, SA_CODEPLUG, SA_RESET, SA_MY_RADIO, SA_CRASH, SA_LANGUAGE, SA_HARDWARE, SA_FIXED_POS,
-	SA_SAVE_GPS_POS, SA_DATA_SERVICES, SA_BL_TEST, SA_KEY_CHECK, SA_KEYS, SA_KEY_RECEIVE, SA_GROUP_RECEIVE,
+	SA_SAVE_GPS_POS, SA_DATA_SERVICES, SA_BL_TEST, SA_KEY_CHECK, SA_KEYS,
 	SA_SIG_BEGIN, SA_SIG_END, SA_SIG_IDLE,	// signaling tone steps, by sig_event_t
 	SA_WIPE_CODE, SA_CLEAR_KEYS };
 // The wipe screen's arg: the emergency wipe's confirmation, then it going (ui_wipe_open); Clear all keys' confirmation,
@@ -6885,15 +6892,6 @@ static const set_item_t s_privacy[] = {
 #if KEY_STORE
 	// every stored key with its check value: the privacy slots and the systems' traffic keys
 	ACTION(TRN(SET_LABEL_PRIVACY_KEYS, "Stored keys"), "privacy encryption traffic keys kcv list", SA_KEYS),
-#endif
-#if CONFIG_KEY_FILL
-	// key fill (key-fill.md): this radio takes a key another radio sends over DMR data
-	ACTION(TRN(SET_LABEL_KEY_RECEIVE, "Receive a key"), "key fill load transfer privacy encryption", SA_KEY_RECEIVE),
-#endif
-#if CONFIG_GROUP_KEY_FILL
-	// group key fill (group-key-fill.md): a key another radio broadcasts on this AES channel, at an agreed time
-	ACTION(TRN(SET_LABEL_GROUP_RECEIVE, "Receive group key"), "group key fill rekey broadcast net aes",
-	       SA_GROUP_RECEIVE),
 #endif
 #if CONFIG_ZEROIZE
 	// The emergency wipe (zeroize.md 3): the code typed on Home or while locked, what it erases, the confirmation
@@ -7687,12 +7685,6 @@ static void group_select(uint16_t i, bool hold)
 #if KEY_STORE
 		case SA_KEYS: ui_push(SCR_KEYS, 0); break;
 #endif
-#if CONFIG_KEY_FILL
-		case SA_KEY_RECEIVE: ui_kf_open(-1, 0); break;
-#if CONFIG_GROUP_KEY_FILL
-		case SA_GROUP_RECEIVE: ui_gk_open(-1); break;
-#endif
-#endif
 #if CONFIG_ZEROIZE
 		case SA_WIPE_CODE: ui_push(SCR_WIPE_CODE, 0); break;
 		case SA_CLEAR_KEYS: ui_push(SCR_WIPE, WIPE_ASK_KEYS_ONLY); break;
@@ -8323,6 +8315,48 @@ static const ui_scr_def_t key_send_screen = {
 #endif
 
 #if CONFIG_KEY_FILL
+// ======================= Tools > Key fill (docs/spec/key-fill.md 9) =======================
+// Key fill is an operation, not a preference, so it lives under Tools (information-architecture.md P1); the key's
+// setup (Key type, Key, Key check, Stored keys) stays in Settings > Privacy. 1 waits for a key, 2 lists the stored
+// keys, where OK on one sends it (to a radio, or with group key fill to the channel's talkgroup); 3 waits for a group
+// key (group-key-fill.md 7)
+enum { KFM_RECEIVE, KFM_SEND, KFM_GROUP, KFM_COUNT };
+
+static uint16_t kfm_count(void) { return CONFIG_GROUP_KEY_FILL ? KFM_COUNT : KFM_GROUP; }
+
+static void kfm_item(uint16_t i, ui_item_t *it)
+{
+	static const tr_id_t names[KFM_COUNT] = { TRN(KF_ROW_RECEIVE, "Receive a key"), TRN(KF_ROW_SEND, "Send a key"),
+						  TRN(GK_ROW_RECEIVE, "Receive group key") };
+	if (i >= KFM_COUNT)
+		return;
+	str_copy(it->label, sizeof it->label, tr(names[i]));
+	item_num(it, (uint16_t)(i + 1u));
+}
+
+static void kfm_select(uint16_t i, bool hold)
+{
+	(void)hold;
+	switch (i) {
+	case KFM_RECEIVE: ui_kf_open(-1, 0); break;
+	case KFM_SEND:
+#if KEY_STORE
+		ui_push(SCR_KEYS, 0);	// OK on a key: Send this key
+#endif
+		break;
+#if CONFIG_GROUP_KEY_FILL
+	case KFM_GROUP: ui_gk_open(-1); break;
+#endif
+	default: break;
+	}
+}
+
+static const ui_scr_def_t key_fill_menu_screen = {
+	.name = "key-fill-menu", .flags = SF_LIST | SF_NUMBERED, .prefix = TRN(KF_TITLE, "Key fill"),
+	.hint = TRN(HINT_OK_PICK_BACK, "OK pick  Back"),
+	.count = kfm_count, .item = kfm_item, .select = kfm_select,
+};
+
 // ======================= Key fill: the session's steps (docs/spec/key-fill.md 9) =======================
 // One screen for both radios (arg 0 receive, 1 send), its text the step the session is at. Back leaves, which cancels
 // (ui_app.c left); in Compare it is the user's "no". Every other key is a random key press (6)
@@ -8983,7 +9017,7 @@ const ui_scr_def_t *const ui_scr[SCR_COUNT] = {
 #endif
 #endif
 #if CONFIG_KEY_FILL
-	[SCR_KEY_FILL] = &key_fill_screen,
+	[SCR_KEY_FILL] = &key_fill_screen, [SCR_KEY_FILL_MENU] = &key_fill_menu_screen,
 #endif
 #if CONFIG_GROUP_KEY_FILL
 	[SCR_GROUP_KEY] = &group_key_screen,
