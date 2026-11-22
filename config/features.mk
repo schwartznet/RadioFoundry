@@ -79,7 +79,7 @@ CONFIG_DMR_IP_GATEWAY ?= $(if $(and $(filter y,$(CONFIG_DMR)),$(filter y,$(CONFI
 CONFIG_ZONE_SHARE ?= $(CONFIG_DMR)
 # Auto DMR ID: Tools > Auto DMR ID sets this radio's DMR ID from its chip unique ID, BASE + a hash of the UID % SPAN
 # (docs/spec/auto-dmr-id.md; tools/dmrid_from_uid.py computes the same). Off by default; needs DMR
-CONFIG_AUTO_DMR_ID ?= n
+CONFIG_AUTO_DMR_ID ?= y	# local build: on for our fleet (upstream-style default off on feat/auto-dmr-id)
 # compressed UDP/IPv4 headers on transmit (SAP 3, ETSI TS 102 361-3 5.6 / 7.2): UDP packets whose header fits the
 # compression rules go with a 5 to 9 octet header instead of 28 (needs DMR; docs/spec/dmr-data.md 11)
 CONFIG_DMR_UDP_COMPRESS ?= $(CONFIG_DMR)
