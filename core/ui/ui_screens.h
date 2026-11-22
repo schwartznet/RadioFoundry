@@ -307,4 +307,7 @@ bool ui_sb_gw_caller(sbuf_t *b, uint32_t src);
 // name
 bool ui_home_encrypted(const radio_view_t *v);
 
+// The last Home frame drew the encryption type badge after the channel's name (else the padlock, or nothing)
+bool ui_home_badge_drawn(void);
+
 #endif

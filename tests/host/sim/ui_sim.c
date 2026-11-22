@@ -2984,6 +2984,7 @@ static bool check(const char *kv, char *err, size_t len)
 	else if (strcmp(key, "calls") == 0) snprintf(got, sizeof got, "%u", ui_st.dual.calls);
 #endif
 	else if (strcmp(key, "privacy") == 0) snprintf(got, sizeof got, "%u", view.dmr.privacy);
+	else if (strcmp(key, "encbadge") == 0) snprintf(got, sizeof got, "%u", ui_home_badge_drawn());	// the type badge
 	else if (strcmp(key, "padlock") == 0) snprintf(got, sizeof got, "%u", ui_home_encrypted(&view));	// Home's padlock
 	else if (strcmp(key, "hearall") == 0) snprintf(got, sizeof got, "%u", view.dmr.hear_all_latch);
 	else if (strcmp(key, "vox") == 0) snprintf(got, sizeof got, "%u", view.vox_on);
