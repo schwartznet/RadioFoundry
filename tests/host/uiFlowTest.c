@@ -885,6 +885,13 @@ static const flow_t flows[] = {
 	{ "S a private call lights the screen", "", "privcall:91", "wake=1", 0, false },
 	{ "S an emergency lights the screen", "", "emergency:91", "wake=1", 0, false },
 	{ "S nothing new, no wake", "", "wait:1000", "wake=0", 0, false },
+#if CONFIG_DMR_AES
+	// Home's padlock after the channel name: an AES channel with its key, or basic privacy on; not an AES channel
+	// with no key (it won't transmit) nor a clear one
+	{ "S padlock: a clear channel has none", "", "", "padlock=0", 0, false },
+	{ "S padlock: an AES channel with its key", "aeschan", "", "padlock=1 screen=home", 0, false },
+	{ "S padlock: an AES channel without a key", "aeschan0", "", "padlock=0", 0, false },
+#endif
 	{ "S privacy key typed", "", "ok 7 4 ok down ok 1 2 3 ok", "set31=1 set32=123", 10, false },
 	{ "S privacy key out of range", "ok 7 4 ok down", "ok 3 0 0 ok", "toast=Not_changed set32=0", 5, false },
 	{ "S privacy key needs a type", "ok 7 4 down", "ok", "toast=Pick_a_key", 1, false },

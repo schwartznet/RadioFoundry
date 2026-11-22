@@ -43,6 +43,9 @@ static const struct { const char *name, *script; } gallery[] = {
 	{ "home_dmr_lastheard", "call:9991234,91,g wait:11000" },
 	{ "home_reply", "call:9991234,91,g" },
 	{ "home_fm", "down" },
+#if CONFIG_DMR_AES
+	{ "home_encrypted", "aeschan" },	// the padlock after an AES channel's name
+#endif
 	{ "home_temporary", "down quick 1 2 up back" },
 	{ "home_vfo", "ok 4 up ok" },
 	{ "home_vfo_entry", "ok 4 up ok 4 4 6" },
