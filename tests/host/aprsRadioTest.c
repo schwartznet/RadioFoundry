@@ -7,6 +7,7 @@
 // messages with retries and acks, the station list, the digipeater and the iGate rules.
 #include <stdio.h>
 #include <string.h>
+#include "radio/silence.h"
 #include "board.h"
 #include "radio/radio_sm.h"
 #include "settings/settings.h"
@@ -2000,11 +2001,32 @@ static void test_rx_board_only(void)
 }
 #endif
 
+// Radio silence (docs/spec/radio-silence.md 3): a beacon that falls due by itself isn't keyed, and its timer goes on
+// as if it had gone; Send now still goes. Off again: the timed beacons come back
+static void test_silence(void)
+{
+#if CONFIG_RADIO_SILENCE
+	reset();
+	aprs_set_test_call("q1tst");
+	configure(60, false);
+	radio_silence_set(true);
+	run(130u * 1000u);
+	CHECK(hw.starts == 0 && hw.tx_calls == 0 && !hw.keyed);
+	CHECK(aprs_send_now());
+	CHECK(wait_start(1, 8000) && hw.tx_hz == APRS_HZ);
+	wait_idle();
+	radio_silence_set(false);
+	CHECK(wait_start(2, 65000));
+	wait_idle();
+#endif
+}
+
 int main(void)
 {
 	test_defaults();
 	test_beacon_on_air();
 	test_tx_limit();
+	test_silence();
 	test_min_interval();
 	test_busy_channel();
 	test_bcast_channel();

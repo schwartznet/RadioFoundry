@@ -8,6 +8,7 @@
 #include <string.h>
 // The caps change at run time here (a radio without a battery): defined writable, the core sees it const
 #define board board_as_declared
+#include "radio/silence.h"
 #include "board.h"
 #undef board
 #include "radio/radio_sm.h"
@@ -3494,6 +3495,42 @@ static void test_burst_stray_up(void)
 static void set_vox_all(radio_settings_t *s) { s->vox = RADIO_VOX_ALL; s->vox_level = 5; s->vox_tail_ms = 1000; }
 static void set_vox_channel(radio_settings_t *s) { s->vox = RADIO_VOX_CHANNEL; }
 static void set_vox_off(radio_settings_t *s) { s->vox = RADIO_VOX_OFF; }
+static void set_silence_on(radio_settings_t *s) { s->silence = true; }
+static void set_silence_off(radio_settings_t *s) { s->silence = false; }
+
+// Radio silence (docs/spec/radio-silence.md 3): the mic never keys the radio, PTT still does; the setting is saved
+// (rs_flags) and shown (view.silence). Off again: VOX keys as before. VOX on while silence comes on: unkeyed
+static void test_vox_silence(void)
+{
+	start();
+	settings(set_vox_all);
+	settings(set_silence_on);
+	CHECK(sm.view.silence && radio_silent());
+	settings_t st;
+	settings_read(&st);
+	CHECK((st.rs_flags & SETTINGS_RS_SILENCE) != 0);
+	hw.mic = 90;
+	run(500);
+	CHECK(sm.view.state == RS_IDLE && !sm.view.vox_keyed);
+	req(RREQ_PTT, 1);
+	run(200);
+	CHECK(sm.view.state == RS_TX);
+	req(RREQ_PTT, 0);
+	hw.mic = 0;
+	run(300);
+	CHECK(sm.view.state == RS_IDLE);
+	settings(set_silence_off);
+	CHECK(!sm.view.silence && !radio_silent());
+	hw.mic = 90;
+	run(200);
+	CHECK(sm.view.state == RS_TX && sm.view.vox_keyed);
+	settings(set_silence_on);
+	run(100);
+	CHECK(sm.view.state == RS_IDLE && !sm.view.vox_keyed);
+	hw.mic = 0;
+	settings(set_silence_off);
+	settings(set_vox_off);
+}
 
 static void test_vox_burst(void)
 {
@@ -4814,6 +4851,9 @@ int main(void)
 	test_dtmf_tail();
 	test_tot_tones_and_clamps();
 	test_vox();
+#if CONFIG_RADIO_SILENCE
+	test_vox_silence();
+#endif
 	test_vox_burst();
 	test_battery();
 	test_no_battery();
