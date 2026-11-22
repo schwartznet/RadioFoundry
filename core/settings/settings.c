@@ -469,7 +469,6 @@ bool settings_scrub(void)
 	storage_lock();		// one sequence: nothing writes the ring between its erase and the new record
 	bool ok = storage_scrub();
 	memset(slot_buf, 0, sizeof(slot_buf));	// the slots read last held records, keys in them
-	memset(slot_buf2, 0, sizeof(slot_buf2));
 	memset(put_buf, 0, sizeof(put_buf));
 	storage_quick_lock();
 	memset(&before, 0, sizeof(before));
