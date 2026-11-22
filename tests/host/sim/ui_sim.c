@@ -3704,6 +3704,7 @@ static bool run_token(char *t, char *err, size_t len)
 		view.ch.kind = CODEPLUG_KIND_DMR_AES;
 		view.ch.aes_ref = 2;
 		changed();
+		advance(200);
 		return true;
 	}
 	if (strcmp(t, "aeschan0") == 0) {	// the same with no key bound: no padlock
@@ -3711,6 +3712,7 @@ static bool run_token(char *t, char *err, size_t len)
 		view.ch.kind = CODEPLUG_KIND_DMR_AES;
 		view.ch.aes_ref = 0;
 		changed();
+		advance(200);
 		return true;
 	}
 	if (strcmp(t, "aeskeys") == 0) {
