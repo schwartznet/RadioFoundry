@@ -4618,6 +4618,22 @@ static void test_position(void)
 	run(1000);
 	dmr_call_get_stats(&cs1);
 	CHECK(cs1.tx_gps_lcs - cs0.tx_gps_lcs >= 1);
+#if CONFIG_RADIO_SILENCE
+	// Radio silence (radio-silence.md 3): the call still goes, never with the position, whatever asks for it
+	radio_settings_t rs = sm.set;
+	rs.silence = true;
+	radio_sm_set_settings(&sm, &rs, now);
+	position_nmea(rmc, strlen(rmc), true, now);
+	req(RREQ_PTT, 1);
+	run(360 * 4);
+	CHECK(sm.view.state == RS_TX);
+	req(RREQ_PTT, 0);
+	run(1000);
+	dmr_call_get_stats(&cs0);
+	CHECK(cs0.tx_gps_lcs == cs1.tx_gps_lcs);
+	rs.silence = false;
+	radio_sm_set_settings(&sm, &rs, now);
+#endif
 	chans[4].alias_tx = 0;
 	reload_channel();
 	CHECK(ui_svc_setting_set(UI_SET_POS_DMR_CALLS, 1));

@@ -56,6 +56,10 @@ spec = "docs/spec/radio-features.md"
 switch = "VOX"
 spec = "docs/spec/radio-features.md"
 
+[feature.radio_silence]
+switch = "RADIO_SILENCE"
+spec = "docs/spec/radio-silence.md"
+
 [feature.battery_save]
 switch = "BATTERY_SAVE"
 spec = "docs/spec/radio-features.md"

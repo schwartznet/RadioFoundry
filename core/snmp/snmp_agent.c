@@ -16,6 +16,7 @@
 #include "dmr/ipGateway.h"
 #include "dmr/dmr_data_api.h"
 #include "dmr/dmrDataService.h"
+#include "radio/silence.h"
 #if CONFIG_HOTSPOT
 #include "hotspot/hotspot.h"
 #if CONFIG_HOTSPOT && CONFIG_SFR
@@ -298,6 +299,15 @@ static void rf_stage(uint32_t dst, uint16_t dst_port, int n, uint32_t now)
 
 static void rf_poll(uint32_t now)
 {
+	if (radio_silent()) {
+		// Radio silence (radio-silence.md): no answer or trap over the air; what waits is dropped, not held
+		if (rf_out.pending || rf_req.full) {
+			counts.rf_dropped++;
+		}
+		rf_out.pending = false;
+		rf_req.full = false;
+		return;
+	}
 	if (rf_out.pending) {
 		if (ipGatewayIPToAir(false, rf_out.dst, IPGW_AIR_SRC_OURS, dmrDataIdAddress(false, rf_out.dst),
 				     DMR_IP_TTL_DEFAULT, UDP_PROTO, rf_out.data, rf_out.len)) {

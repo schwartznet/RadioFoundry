@@ -6,6 +6,7 @@
 // storage mutex, so they happen outside LOCK().
 #include <string.h>
 #include "aprs/aprs_int.h"
+#include "radio/silence.h"
 #include "aprs/aprs_dmr.h"
 #include "board.h"
 #include "settings/settings.h"
@@ -254,7 +255,11 @@ void aprs_tick(const aprs_radio_t *r, uint32_t now_ms)
 		bp.course = f->course;
 	}
 	uint8_t why = aprs_beacon_due(&aprs_s.bc, &aprs_s.bcfg, &bp, now_ms);
-	if (why != APRS_WHY_NONE && f != NULL) {
+	if (why != APRS_WHY_NONE && why != APRS_WHY_MANUAL && radio_silent()) {
+		// Radio silence (radio-silence.md): a beacon that fell due by itself is skipped, as if sent, so the timers
+		// go on; one the user asks for (Send now) still goes
+		aprs_beacon_sent(&aprs_s.bc, why, &bp, now_ms);
+	} else if (why != APRS_WHY_NONE && f != NULL) {
 		if (beacon(why, f)) {
 			aprs_beacon_sent(&aprs_s.bc, why, &bp, now_ms);
 		} else if (why == APRS_WHY_MANUAL) {

@@ -2119,6 +2119,9 @@ void ui_svc_apply(uint8_t id, int32_t value)
 	else if (id == UI_SET_VFO_STEP) {
 		sim_step = value;
 		changed();
+	} else if (id == UI_SET_SILENCE) {
+		view.silence = value != 0;	// as the radio core's view says it (Home's SIL)
+		changed();
 	}
 }
 bool ui_svc_scan_skip(void) { radio_req_channel_step(1); return true; }
@@ -3015,6 +3018,7 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 	gfx_invalidate();
 	ui_layout_init();
 	memset(&view, 0, sizeof view);
+	sim_late[UI_SET_SILENCE - UI_SET_RAM_COUNT] = 0;	// radio silence off in every flow, as the view is
 	memset(&sim_rec, 0, sizeof sim_rec);
 #if CONFIG_DMR_AES
 	sim_aes_keys = false;
@@ -3178,6 +3182,7 @@ static const struct { const char *name; uint8_t action; } keys[] = {
 	{ "dualkey", ACT_DUAL_WATCH }, { "abkey", ACT_AB },	// dual watch's side key functions
 	{ "vfokey", ACT_VFO_TOGGLE },		// a VFO/MR key in the board's key map, or a side key set to VFO/Channel
 	{ "labelkey", ACT_TALK_LABEL },
+	{ "silencekey", ACT_SILENCE },		// a side key set to Radio silence
 	{ "volkey", ACT_VOLUME },
 	{ "0", ACT_DIGIT_0 }, { "1", ACT_DIGIT_1 }, { "2", ACT_DIGIT_2 }, { "3", ACT_DIGIT_3 }, { "4", ACT_DIGIT_4 },
 	{ "5", ACT_DIGIT_5 }, { "6", ACT_DIGIT_6 }, { "7", ACT_DIGIT_7 }, { "8", ACT_DIGIT_8 }, { "9", ACT_DIGIT_9 },
@@ -3186,7 +3191,7 @@ static const struct { const char *name; uint8_t action; } keys[] = {
 static bool on_map(uint8_t action, bool lng)
 {
 	if ((action >= ACT_POWER && action <= ACT_VOLUME) || action == ACT_VFO_TOGGLE || action == ACT_DUAL_WATCH ||
-	    action == ACT_AB || action == ACT_TALK_TARGET || action == ACT_TALK_LABEL)
+	    action == ACT_AB || action == ACT_TALK_TARGET || action == ACT_TALK_LABEL || action == ACT_SILENCE)
 		// any side key can be set to send these; the few-key map has none, but a radio with side keys and no QUICK key
 		// is the case the key lock needs on it
 		return board.side_key_count != 0 || cur_map == SIM_MAP_F;

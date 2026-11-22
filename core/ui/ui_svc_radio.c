@@ -440,6 +440,9 @@ void ui_svc_apply(uint8_t id, int32_t value)
 	case UI_SET_TALK_PERMIT:
 		rs.talk_permit = value != 0;
 		break;
+	case UI_SET_SILENCE:
+		rs.silence = CONFIG_RADIO_SILENCE && value != 0;
+		break;
 	case UI_SET_SCAN_TONE:
 		rs.scan_beep = value != 0;
 		break;

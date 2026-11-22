@@ -693,6 +693,16 @@ msgid "Talkgroup number first"
 msgstr "Numéro du TG d'abord"
 
 #: core/ui/ui_app.c
+msgctxt "SILENCE_TOAST_ON"
+msgid "Radio silence: only PTT transmits"
+msgstr "Silence radio : seul le PTT émet"
+
+#: core/ui/ui_app.c
+msgctxt "SILENCE_TOAST_OFF"
+msgid "Radio silence off"
+msgstr "Silence radio désactivé"
+
+#: core/ui/ui_app.c
 msgctxt "HOME_TOAST_VOLUME_USE_KNOB"
 msgid "Volume: use the knob"
 msgstr "Volume : via bouton"
@@ -3762,6 +3772,11 @@ msgctxt "KEYFN_VALUE_TG_NAME_NUMBER"
 msgid "TG name / number"
 msgstr "Nom / numéro TG"
 
+#: core/ui/ui_menus.c
+msgctxt "SET_LABEL_RADIO_SILENCE"
+msgid "Radio silence"
+msgstr "Silence radio"
+
 #: core/ui/ui_menus.c core/ui/ui_screens.c
 msgctxt "TITLE_EMERGENCY"
 msgid "Emergency"
@@ -5256,6 +5271,11 @@ msgstr "IDLE"
 msgctxt "TOP_STATE_NO_TX"
 msgid "NO TX"
 msgstr "NO TX"
+
+#: core/ui/ui_screens.c
+msgctxt "TOP_CHIP_SILENCE"
+msgid "SIL"
+msgstr "SIL"
 
 #: core/ui/ui_screens.c
 msgctxt "TOP_CHIP_DUAL"

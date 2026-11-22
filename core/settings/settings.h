@@ -436,6 +436,7 @@ static inline void settings_set_tones_off(settings_t *s, uint8_t off)
 #define SETTINGS_RS_SCAN_BEEP		0x08u
 #define SETTINGS_RS_KEY_BEEP		0x10u
 #define SETTINGS_RS_NO_TALK_PERMIT	0x20u	// the talk permit tone off (0 = on, as before)
+#define SETTINGS_RS_SILENCE		0x40u	// radio silence (docs/spec/radio-silence.md; 0 = off, as before)
 // settings_t.rpt_beacon (taken with the roam_ fields)
 #define SETTINGS_RPT_BEACON		0x01u	// our repeater roles key an idle beacon
 #define SETTINGS_RPT_SFR_RX		0x06u	// an SFR user channel hears: 0 the repeat, 1 both (first), 2 both (dual-path RX)

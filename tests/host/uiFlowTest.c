@@ -886,6 +886,15 @@ static const flow_t flows[] = {
 	{ "S an emergency lights the screen", "", "emergency:91", "wake=1", 0, false },
 	{ "S nothing new, no wake", "", "wait:1000", "wake=0", 0, false },
 	{ "S privacy key typed", "", "ok 7 4 ok down ok 1 2 3 ok", "set31=1 set32=123", 10, false },
+	// Radio silence (docs/spec/radio-silence.md 4): Settings > Privacy, its last row (Up from the first); a side key;
+	// Home says SIL
+	{ "S radio silence on", "", "ok 7 4 up ok", "set165=1 shows=On", 6, false },
+	{ "S radio silence shows on Home", "ok 7 4 up ok", "long:back", "screen=home shows=SIL", 1, false },
+	{ "S radio silence off again", "ok 7 4 up ok", "ok", "set165=0", 1, false },
+	{ "S radio silence from a side key", "", "silencekey", "set165=1 toast=Radio_silence:_only_PTT screen=home shows=SIL",
+	  1, false },
+	{ "S radio silence side key again: off", "silencekey", "silencekey", "set165=0 toast=Radio_silence_off hides=SIL", 1,
+	  false },
 	{ "S privacy key out of range", "ok 7 4 ok down", "ok 3 0 0 ok", "toast=Not_changed set32=0", 5, false },
 	{ "S privacy key needs a type", "ok 7 4 down", "ok", "toast=Pick_a_key", 1, false },
 	// The key check value (docs/spec/key-check.md): Motorola key 1's, then every stored key's on the Keys screen
@@ -1476,7 +1485,7 @@ static const flow_t flows_k[] = {
 	  "set47=17 shows=VFO/Channel", 1, false },
 	{ "K top key hold: call back last", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=12 shows=Call_back",
 	  1, false },
-	{ "K top key hold wraps to default", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=0", 1,
+	{ "K top key hold wraps to default", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=0", 1,
 	  false },
 	{ "K top key hold: TG name / number after call back", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok", "ok",
 	  "set47=19 shows=TG_name", 1, false },

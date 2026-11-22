@@ -166,6 +166,7 @@ typedef struct
 	uint32_t tmsAcksSent;
 	uint32_t responsesSent;					// ETSI responses to confirmed data
 	uint32_t csbkAnswersSent;				// call alert acks and radio check answers
+	uint32_t silenceHeld;					// answers and acknowledgements radio silence dropped
 	uint32_t callAlertsReceived;
 	uint32_t radioChecksReceived;			// radio checks to us (answered when the setting allows)
 	uint32_t callAlertsSent;				// CSBKs sent, retries included

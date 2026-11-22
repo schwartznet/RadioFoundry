@@ -7,6 +7,7 @@
 #include <string.h>
 #include "board.h"
 #include "radio/radio_sm.h"
+#include "radio/silence.h"
 #include "radio/tones.h"
 #include "settings/settings.h"
 #include "config.h"
@@ -2081,7 +2082,7 @@ static bool sfr_rpt_wait(radio_sm_t *sm)
 		return true;
 	}
 #endif
-	return tx_check(sm) != TXDENY_NONE;
+	return tx_check(sm) != TXDENY_NONE || radio_silent();	// radio silence: no repeating, no beacon, no CW ID
 }
 
 #if CONFIG_SFR_CWID
@@ -2304,7 +2305,8 @@ static void dmr_gps_tx(const radio_sm_t *sm, uint32_t now_ms)
 	int32_t lat, lon;
 	uint32_t err_m;
 	bool send;
-	if (own_position(&lat, &lon, &err_m, &send, now_ms) && (send || sm->view.dmr.gps_tx_channel)) {
+	// Radio silence: the user's own call goes out, but never with the position in it
+	if (!radio_silent() && own_position(&lat, &lon, &err_m, &send, now_ms) && (send || sm->view.dmr.gps_tx_channel)) {
 		dmr_gps_t g = { .err = dmr_gps_err_code(err_m), .lat = lat, .lon = lon };
 		dmr_call_set_tx_gps(&g);
 	} else {
@@ -3542,6 +3544,12 @@ static void t3_send(radio_sm_t *sm, const t3_act_t *a, uint32_t now_ms)
 		t3_send_refused(&radio_t3v.send_slot, now_ms);
 		return;
 	}
+	// Radio silence: only the user's own call request (PTT held, waiting for the grant) goes; registration, answers to
+	// the control channel and data wait (radio-silence.md 3)
+	if (radio_silent() && !(sm->ptt && sm->t3_ptt_wait)) {
+		t3_send_refused(&radio_t3v.send_inhibit, now_ms);
+		return;
+	}
 	// PTT held while waiting for our grant is the request itself, not talking
 	if ((sm->ptt && !sm->t3_ptt_wait) || sm->view.state == RS_TX) {
 		t3_send_refused(&radio_t3v.send_talk, now_ms);
@@ -4415,7 +4423,7 @@ static void t3_ptt_up(radio_sm_t *sm, uint32_t now_ms)
 static void t3_als_tick(radio_sm_t *sm, uint32_t now_ms)
 {
 	bool want = t3_ms_als_tx(&t3m, now_ms);
-	if (want && !sm->t3_als_keyed && !sm->ptt) {
+	if (want && !sm->t3_als_keyed && !sm->ptt && !radio_silent()) {	// radio silence: never keyed from afar
 		ptt_down(sm, now_ms);
 		sm->t3_als_keyed = sm->ptt;
 		sm->t3_als_quiet_ms = 0;
@@ -5825,7 +5833,7 @@ static bool roam_probe(radio_sm_t *sm)
 {
 	const channel_t *ch = &sm->view.ch;
 	if (!sm->dmr_running || sm->ptt || sm->view.dmr.own_id == 0 || tx_check(sm) != TXDENY_NONE ||
-	    dmr_call_data_busy()) {
+	    dmr_call_data_busy() || radio_silent()) {	// radio silence: the roam search listens only
 		return false;
 	}
 	if (!sm->dmr_keyed) {
@@ -6870,7 +6878,7 @@ static void p25t_burst(radio_sm_t *sm, uint32_t hz)
 	static const subtone_t none = { TONE_NONE, 0 };
 
 	if (sm->set.tx_inhibit || !p25t_tx_ok(hz) || board_hwopt_pending() != NULL || sm->batt.level == BATT_CRITICAL ||
-	    sm->view.ch.rx_only) {
+	    sm->view.ch.rx_only || (radio_silent() && !sm->ptt)) {	// radio silence: only a PTT's own request
 		radio_p25_trunk_burst_drop();
 		return;
 	}
@@ -7296,7 +7304,7 @@ static void hotspot_arm(radio_sm_t *sm)
 	// for its end (radio_sm_poll). A hold (TX inhibit, a critical battery) drops the keying at once all the same
 	bool was = sm->dmr_keyed;
 	if (was) {
-		if (!tx_held(sm) && board.dmr != NULL && board.dmr->is_transmitting()) {
+		if (!tx_held(sm) && !radio_silent() && board.dmr != NULL && board.dmr->is_transmitting()) {
 			sm->hs_power_due = true;
 			return;
 		}
@@ -7304,9 +7312,9 @@ static void hotspot_arm(radio_sm_t *sm)
 		board.radio->tx_off();
 	}
 	sm->hs_power_due = false;
-	sm->dmr_keyed = key_tx(sm, sm->hs_tx_hz, RADIO_BW_12K5, sm->hs_power, &none);
+	sm->dmr_keyed = !radio_silent() && key_tx(sm, sm->hs_tx_hz, RADIO_BW_12K5, sm->hs_power, &none);
 	if (was && !sm->dmr_keyed) {
-		board.radio->rx(sm->hs_rx_hz, RADIO_BW_12K5, &none);	// refused now (TX inhibit): not left armed
+		board.radio->rx(sm->hs_rx_hz, RADIO_BW_12K5, &none);	// refused now (TX inhibit, radio silence): not left armed
 	}
 }
 
@@ -7504,8 +7512,9 @@ static void hotspot_enter(radio_sm_t *sm, uint32_t rx_hz, uint32_t now_ms)
 #if CONFIG_SFR
 	keyed = keyed && !sm->sfr_rpt;	// the repeater role's keying stays armed while it runs: dmr_end ends it
 #endif
-	if (sm->hotspot || board.dmr == NULL || sm->ptt || sm->view.state == RS_TX || keyed || sm->dmr_killed) {
-		return;		// refused for now: the hotspot asks again
+	if (sm->hotspot || board.dmr == NULL || sm->ptt || sm->view.state == RS_TX || keyed || sm->dmr_killed ||
+	    radio_silent()) {
+		return;		// refused for now: the hotspot asks again (radio silence: until it ends)
 	}
 #if CONFIG_AIR_RAW
 	if (sm->air_bench) {
@@ -8091,6 +8100,7 @@ static void settings_to_radio(const settings_t *st, radio_settings_t *s)
 	s->bcl = st->rs_bcl;
 	s->roger_beep = (st->rs_flags & SETTINGS_RS_ROGER_BEEP) != 0;
 	s->tx_inhibit = (st->rs_flags & SETTINGS_RS_TX_INHIBIT) != 0;
+	s->silence = CONFIG_RADIO_SILENCE && (st->rs_flags & SETTINGS_RS_SILENCE) != 0;
 	s->scan_priority = (st->rs_flags & SETTINGS_RS_SCAN_PRIORITY) != 0;
 	s->scan_beep = (st->rs_flags & SETTINGS_RS_SCAN_BEEP) != 0;
 	s->key_beep = (st->rs_flags & SETTINGS_RS_KEY_BEEP) != 0;
@@ -8121,7 +8131,7 @@ static void radio_to_settings(const radio_settings_t *s, uint32_t now_ms)
 	st->rs_flags = (uint8_t)((s->roger_beep ? SETTINGS_RS_ROGER_BEEP : 0) | (s->tx_inhibit ? SETTINGS_RS_TX_INHIBIT : 0) |
 				 (s->scan_priority ? SETTINGS_RS_SCAN_PRIORITY : 0) |
 				 (s->scan_beep ? SETTINGS_RS_SCAN_BEEP : 0) | (s->key_beep ? SETTINGS_RS_KEY_BEEP : 0) |
-				 (s->talk_permit ? 0 : SETTINGS_RS_NO_TALK_PERMIT));
+				 (s->talk_permit ? 0 : SETTINGS_RS_NO_TALK_PERMIT) | (s->silence ? SETTINGS_RS_SILENCE : 0));
 	st->rs_scan_resume = s->scan_resume;
 	st->rs_scan_hold_s = s->scan_hold_s;
 	st->rs_scan_delay_ms = s->scan_delay_ms;
@@ -8163,7 +8173,7 @@ static void radio_to_settings(const radio_settings_t *s, uint32_t now_ms)
 static void use_settings(radio_sm_t *sm, const radio_settings_t *s, uint32_t now_ms)
 {
 #if CONFIG_DMR
-	bool inhibit_changed = s->tx_inhibit != sm->set.tx_inhibit;
+	bool inhibit_changed = s->tx_inhibit != sm->set.tx_inhibit || s->silence != sm->set.silence;
 	bool reply_changed = s->reply_s != sm->set.reply_s || s->sfr_rx != sm->set.sfr_rx ||
 		s->talk_permit != sm->set.talk_permit	// the permit hold (permit_before_key)
 #if CONFIG_SIG_TONES
@@ -8173,6 +8183,8 @@ static void use_settings(radio_sm_t *sm, const radio_settings_t *s, uint32_t now
 #endif
 	sm->set = *s;
 	clamp_settings(&sm->set);
+	radio_silence_set(sm->set.silence);	// read by the services that transmit by themselves (radio/silence.h)
+	sm->view.silence = sm->set.silence;
 	apply_tot(sm);
 #if CONFIG_DMR_ROAMING
 	roam_cfg_t rc;
@@ -8189,7 +8201,7 @@ static void use_settings(radio_sm_t *sm, const radio_settings_t *s, uint32_t now
 	}
 #endif
 #if CONFIG_VOX
-	if (sm->vox_keyed && sm->set.vox == RADIO_VOX_OFF) {
+	if (sm->vox_keyed && (sm->set.vox == RADIO_VOX_OFF || radio_silent())) {
 		sm->vox_keyed = false;
 		sm->view.vox_keyed = false;
 		ptt_release(sm, false, now_ms);
@@ -8768,6 +8780,9 @@ void radio_sm_request(radio_sm_t *sm, const radio_req_t *req, uint32_t now_ms)
 			break;
 		}
 #endif
+		if (req->arg == 2 && radio_silent() && !sm->ptt) {
+			break;		// radio silence: network audio (USRP) never keys the radio
+		}
 		if (req->arg != 0) {
 			if (!sm->ptt) {
 				sm->host_audio = req->arg == 2;	// a transmission keeps the source it started with
@@ -9566,6 +9581,9 @@ static void vox_poll(radio_sm_t *sm, uint32_t now_ms)
 		}
 		sm->vox_count = 0;
 		sm->vox_quiet_ms = 0;
+		if (radio_silent()) {
+			return;		// radio silence: the mic never keys the radio, only the PTT does
+		}
 		ptt_down(sm, now_ms);
 		sm->vox_keyed = sm->ptt;
 		sm->view.vox_keyed = sm->vox_keyed;

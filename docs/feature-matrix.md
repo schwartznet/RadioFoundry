@@ -47,6 +47,7 @@ is `tools/bringup.py list --radio <id>`.
 | `tone_burst_key` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | partial, needs re-run |
 | `dtmf` | not recorded | not recorded | not recorded | not recorded | not written | not recorded | pass, needs re-run | ✕ |
 | `vox` | not written | not recorded | not recorded | not written | not recorded | not recorded | pass, needs re-run | not written |
+| `radio_silence` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | `battery_save` | pass (seed) | pass (seed) | not recorded | not recorded | not recorded | not recorded | pass, needs re-run | partial, needs re-run |
 | `am_rx` | not recorded | ✕ | not recorded | ✕ | ✕ | ✕ | ✕ | ✕ |
 | `bcast_fm` | not recorded | ✕ | not recorded | not written | ✕ | ✕ | ✕ | ✕ |
@@ -282,6 +283,7 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 | `FM_TX_TONES` | ● | ● | ● | ● | … | ● | ● | ● |
 | `DTMF` | ● | ● | ● | ● | … | ● | ● | ✕ |
 | `RX_EXT` | ● | ● | ● | ● | … | ● | … | ● |
+| `RADIO_SILENCE` | ● | ● | ● | ● | ● | ● | ● | ● |
 | `VOX` | … | ● | ● | … | ● | ● | ● | … |
 | `REF_TRIM` | ● | ● | ● | ● | ● | ● | ● | ● |
 | `BATTERY_SAVE` | ● | ● | ● | ● | ● | ● | ● | ● |
@@ -329,6 +331,7 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 | FM TX tones: roger beep, 1750 Hz burst | `FM_TX_TONES` | 568 | — | MD-380: TX tone path not written |
 | DTMF transmit from the keys | `DTMF` | 920 | — | MD-380: TX tone path not written |
 | FM VOX | `VOX` | 496 | 1,064 |  |
+| Radio silence: only what the user starts is transmitted (Settings > Privacy, a side key) | `RADIO_SILENCE` | — | — | 368 B flash and 1 B RAM on the DM-32UV default build (2026-11-22, measured on and off); the ARM figures are still to be measured. Untested on a radio |
 | Receiver battery saver | `BATTERY_SAVE` | 296 | 740 |  |
 | Frequency trim, Settings > Advanced | `REF_TRIM` | 2,156 | 2,232 | Figures from tools/ci.sh (2026-10-30); the hook on each radio, the page and the setting |
 | Air band AM receive (108-137 MHz) | `AM_RX` | 408* | — | Needs a receiver that does AM; DM-32 board glue not written yet, so nothing runs |

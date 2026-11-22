@@ -2296,6 +2296,18 @@ void ui_app_key(const input_event_t *ev)
 				TR(HOME_TOAST_TG_NUMBER_FIRST, "Talkgroup number first"));
 			return;
 #endif
+#if CONFIG_RADIO_SILENCE
+		case ACT_SILENCE: {
+			// Radio silence (radio-silence.md): saved like Settings > Privacy > Radio silence, so it holds over a
+			// restart (nothing registers at power-on while it is on)
+			bool on = ui_svc_setting_get(UI_SET_SILENCE) == 0;
+			ui_svc_setting_set(UI_SET_SILENCE, on);
+			ui_svc_apply(UI_SET_SILENCE, on);
+			ui_toast(on ? TR(SILENCE_TOAST_ON, "Radio silence: only PTT transmits") :
+				TR(SILENCE_TOAST_OFF, "Radio silence off"));
+			return;
+		}
+#endif
 		case ACT_VOLUME:
 			if (!(ui_svc_features() & UI_FEAT_VOLUME))
 				ui_toast(TR(HOME_TOAST_VOLUME_USE_KNOB, "Volume: use the knob"));

@@ -550,6 +550,7 @@ typedef enum {
 	// is set (1; 0 clears it; ui_svc_wipe_code_set sets one), keys only (1) or keys and codeplug (0), the confirmation
 	// press (1 on), the wrong codes typed while locked before a wipe (0 off, else 3, 5 or 10)
 	UI_SET_WIPE_CODE, UI_SET_WIPE_SCOPE, UI_SET_WIPE_CONFIRM, UI_SET_WIPE_TRIES,
+	UI_SET_SILENCE,		// radio silence (radio_settings_t.silence, docs/spec/radio-silence.md): 0 off, 1 on
 	UI_SET_COUNT
 } ui_setting_t;
 

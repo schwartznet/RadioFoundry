@@ -34,6 +34,12 @@
     "STUB_ENTRY"
    ]
   },
+  "home_radio_silence": {
+   "group": "home",
+   "needs": [
+    "RADIO_SILENCE"
+   ]
+  },
   "home_fm": {
    "group": "home",
    "needs": [

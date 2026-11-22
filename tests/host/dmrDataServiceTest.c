@@ -2722,6 +2722,54 @@ static void testPrivacy(void)
 }
 #endif
 
+// Radio silence (docs/spec/radio-silence.md 3): nothing goes out by itself. A call alert still rings and a radio
+// check is still counted, but neither is answered; a location request isn't answered; ARS doesn't register, and
+// doesn't deregister at power off. The user's own text still goes. Off again: answers and registration come back
+static void testSilence(void)
+{
+	reset();
+	settings.callAlertAck = true;
+	settings.radioCheckReply = true;
+	settings.hasGps = true;
+	haveLocation = true;
+	uint32_t held = stats.silenceHeld;
+	radio_silence_set(true);
+
+	receiveCSBK(DMR_CSBKO_CALL_ALERT, DMR_FID_ETSI, 0, OUR_ID, RADIO_A);
+	runMainTask(500);
+	CHECK(events[DMR_DATA_EV_CALL_ALERT] == 1);
+	receiveCSBK(DMR_CSBKO_RADIO_CHECK, DMR_FID_MOTOROLA, 0x00, RADIO_B, OUR_ID);
+	runMainTask(500);
+	CHECK(sentCount == 0);
+	CHECK(stats.silenceHeld >= held + 2);
+
+	receiveLrrp("050922040a0b0c0d516257");
+	runMainTask(3000);
+	CHECK(countLrrp(0x07) == 0);
+
+	settings.arsServer = ARS_SERVER;
+	runMainTask(60000);
+	CHECK(countSent('A', DMR_ARS_DEVICE_REGISTRATION) == 0);
+	CHECK(!dmrDataServicePowerOff());	// no deregistration to wait for
+#if CONFIG_DMR_TMS
+	// The user's own text goes
+	CHECK(sms_send(RADIO_A, false, "silent", true, DMR_SMS_FORMAT_TMS));
+	runMainTask(200);
+	CHECK((sentCount == 1) && (sent[0].kind == 'S') && (sent[0].dst == RADIO_A));
+#endif
+
+	// Off: a radio check is answered, ARS registers
+	radio_silence_set(false);
+	reset();
+	receiveCSBK(DMR_CSBKO_RADIO_CHECK, DMR_FID_MOTOROLA, 0x00, RADIO_B, OUR_ID);
+	runMainTask(500);
+	CHECK((sentCount >= 1) && (sent[0].kind == 'C') && (sent[0].seq == DMR_CSBKO_RADIO_CHECK));
+	runMainTask(30000);
+	CHECK(countSent('A', DMR_ARS_DEVICE_REGISTRATION) == 1);
+	settings.arsServer = 0;
+	reset();
+}
+
 int main(void)
 {
 	testNoRate34();
@@ -2763,6 +2811,11 @@ int main(void)
 #endif
 #if DMR_DATA_UDP_API
 	testUdpSend();
+#endif
+#if CONFIG_RADIO_SILENCE
+	ipSettings(DMR_UDPC_AUTO, DMR_IPC_OFF, 0, 0, 0);
+	testSilence();
+	ipSettings(DMR_UDPC_AUTO, DMR_IPC_RULES, 0, 0, 0);
 #endif
 #if CONFIG_DMR_TMS && CONFIG_DMR_PRIVACY
 	ipSettings(DMR_UDPC_AUTO, DMR_IPC_OFF, 0, 0, 0);
