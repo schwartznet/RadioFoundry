@@ -1952,8 +1952,20 @@ static void draw_chips_dmr(const radio_view_t *v, const ui_state_t *s)
 	const char *dmon = TR(HOME_CHIP_DMON, "DMon"), *priv = TR(HOME_CHIP_PRIVACY, "Priv");
 	if ((v->dmr.hear_all || s->hear_all) && x + gfx_text_width(f, dmon) <= gfx_width())
 		x = gfx_text(f, x, L->chips_y, dmon, ui_col.warn) + f->w;	// digital monitor (FM's is "Mon")
-	if ((s->privacy || v->dmr.privacy) && x + gfx_text_width(f, priv) <= gfx_width())
-		gfx_text(f, x, L->chips_y, priv, ui_col.priv);
+	// The encryption in force, by name (the padlock after the channel's name says it at a glance): AES256 on an AES
+	// channel with its key, BP Moto or BP Anytone for basic privacy (the scheme's own names, not translated)
+	const char *enc = NULL;
+#if CONFIG_DMR_AES
+	if (v->ch.kind == CODEPLUG_KIND_DMR_AES && v->ch.aes_ref != 0)
+		enc = "AES256";
+	else
+#endif
+	if (s->privacy || v->dmr.privacy) {
+		int32_t t = ui_svc_setting_get(UI_SET_PRIVACY_TYPE);
+		enc = t == 1 ? "BP Moto" : t == 2 ? "BP Anytone" : priv;
+	}
+	if (enc != NULL && x + gfx_text_width(f, enc) <= gfx_width())
+		gfx_text(f, x, L->chips_y, enc, ui_col.priv);
 }
 
 #if CONFIG_DMR_TRUNK
