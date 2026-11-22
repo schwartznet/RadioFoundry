@@ -124,15 +124,14 @@ static void privacy_store(uint8_t type, uint32_t key)
 #if CONFIG_KEY_CHECK
 bool ui_svc_privacy_kcv(char out[7])
 {
-	settings_t st;
-	settings_read(&st);
-	uint8_t type = st.privacy_type[0], kcv[KCV_LEN];
-	bool ok = type != DMR_PRIVACY_OFF && type < DMR_PRIVACY_NUM_TYPES &&
-		dmrPrivacyKeyIsValid((dmrPrivacyType_t)type, (uint16_t)st.privacy_key[0]) &&
-		kcv_privacy(type, st.privacy_key[0], kcv);
+	// the two fields alone (settings_read_field), not a whole settings_t on the UI task's stack
+	uint8_t type = SETTINGS_FIELD(privacy_type[0]), kcv[KCV_LEN];
+	uint32_t key = SETTINGS_FIELD(privacy_key[0]);
+	bool ok = type != DMR_PRIVACY_OFF && type < DMR_PRIVACY_NUM_TYPES && key <= 0xFFFFu &&
+		dmrPrivacyKeyIsValid((dmrPrivacyType_t)type, (uint16_t)key) && kcv_privacy(type, key, kcv);
 	if (ok)
 		kcv_text(kcv, out);
-	crypto_wipe(&st, sizeof st);	// the key was in this copy
+	crypto_wipe(&key, sizeof key);	// the key was in this copy
 	return ok;
 }
 #endif
