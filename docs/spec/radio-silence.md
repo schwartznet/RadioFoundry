@@ -12,7 +12,7 @@ Code: `core/radio/silence.{h,c}` (the flag), the checks at each source below, `c
 ## 1. Switch
 
 `CONFIG_RADIO_SILENCE` (default on). Off: `radio_silent()` is always false, and there is no setting, key function or
-word on Home. It costs a few hundred bytes of flash and one byte of RAM.
+word on Home. It costs 368 bytes of flash and one byte of RAM on the DM-32UV.
 
 ## 2. The setting
 
