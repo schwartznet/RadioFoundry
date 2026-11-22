@@ -14,6 +14,7 @@ Past bugs, by subsystem: [gotchas.md](gotchas.md). Contributors read [docs/dev](
 |---|---|
 | [capabilities.md](capabilities.md) | What a radio can do, by area, with the switch and spec behind each |
 | [radio-features.md](radio-features.md) | Scan, the FM transmit extras (tones, burst, roger beep), beeps, battery and power management |
+| [radio-silence.md](radio-silence.md) | Radio silence: transmit only what the user starts (no answers, registrations, beacons, probes, repeating) |
 | [airband-and-broadcast.md](airband-and-broadcast.md) | Air band AM receive and broadcast FM receive, chosen by the frequency |
 | [aprs.md](aprs.md) | APRS on FM and over DMR |
 | [position.md](position.md) | The radio's position: sources, settings, who reads it |

@@ -314,6 +314,7 @@
  "screen.contact_edit_save": "Salvataggio di un nuovo contatto",
  "screen.home_dmr_lastheard": "Home, DMR, ultimi sentiti",
  "screen.home_dmr": "Home, canale DMR",
+ "screen.home_radio_silence": "Home con il silenzio radio attivo: SIL nella barra di stato",
  "screen.home_fm": "Home, canale FM",
  "screen.home_gps_off": "Home, GPS spento: una parabola vuota accanto alle barre del segnale",
  "screen.home_gps_search": "Home, GPS acceso, in ricerca: una parabola piena",

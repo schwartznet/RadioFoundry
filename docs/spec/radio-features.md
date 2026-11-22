@@ -186,7 +186,8 @@ an ordinary reception again, its RX tone still counted as heard.
 
 TX inhibit, a critical battery and a hardware option still to be set or applied hold for every transmission, not only
 PTT: `key_tx`, which every keying goes through (the list below), refuses them too. What the radio sends by itself
-(DMR replies, trunking signaling, hotspot bursts, the CW ID, APRS beacons) is then not sent. The hotspot's keying,
+(DMR replies, trunking signaling, hotspot bursts, the CW ID, APRS beacons) is then not sent. Radio silence
+([radio-silence.md](radio-silence.md)) stops only that part and leaves PTT and what the user starts. The hotspot's keying,
 armed between bursts, is dropped when TX inhibit is set and armed again when it is cleared.
 
 The test TX limit (`core/radio/tx_limit.h`, built with `CONFIG_DEBUGLINK`) is a limit a test harness sets over the

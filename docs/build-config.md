@@ -93,6 +93,7 @@ below are for an STM32F4 radio.
 | `CONFIG_SUBTONE` | = FM | CTCSS / DCS encode and decode (in software from the ADC and PWM on a board without a tone chip) |
 | `CONFIG_FM_TX_TONES` | = FM (n where the tone path isn't written) | roger beep and 1750 Hz burst sent over the air (`docs/spec/radio-features.md` 3) |
 | `CONFIG_DTMF` | = FM (n where the tone path isn't written) | DTMF digits sent from the keys while PTT is held on FM (`docs/spec/radio-features.md` 3.7) |
+| `CONFIG_RADIO_SILENCE` | y | radio silence: a setting (Settings > Privacy, or a side key) under which the radio transmits only what its user starts, no answers, acknowledgements, registrations, beacons, probes, repeating or host traffic (`core/radio/silence.{h,c}`; `docs/spec/radio-silence.md`). A few hundred bytes of flash, one byte of RAM |
 | `CONFIG_VOX` | = FM (n where the mic level hook isn't written) | voice-operated transmit on FM, from the microphone level (`hal_power_t.mic_level`; `docs/spec/radio-features.md` 3.4) |
 | `CONFIG_BATTERY_SAVE` | = FM | receiver duty cycling on an idle FM channel (`docs/spec/radio-features.md` 5.4) |
 | `CONFIG_VIBRATE` | n (radios with a vibration motor: y) | vibration alerts on the board's motor (`hal_power_t.vibrate`) for messages, call alerts, private calls and emergencies, and Settings > Sound > Vibrate (`docs/spec/radio-features.md` 4.1). No radio on main has a motor yet; a board without one shows the row dimmed |

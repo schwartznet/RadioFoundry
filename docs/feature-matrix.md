@@ -319,6 +319,7 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 | FM TX tones: roger beep, 1750 Hz burst | `FM_TX_TONES` | 568 | — | MD-380: TX tone path not written |
 | DTMF transmit from the keys | `DTMF` | 920 | — | MD-380: TX tone path not written |
 | FM VOX | `VOX` | 496 | 1,064 |  |
+| Radio silence: only what the user starts is transmitted (Settings > Privacy, a side key) | `RADIO_SILENCE` | — | — | Not measured on the ARM radios yet. Untested on a radio |
 | Receiver battery saver | `BATTERY_SAVE` | 296 | 740 |  |
 | Frequency trim, Settings > Advanced | `REF_TRIM` | 2,156 | 2,232 | Figures from tools/ci.sh (2026-10-30); the hook on each radio, the page and the setting |
 | Air band AM receive (108-137 MHz) | `AM_RX` | 408* | — | Needs a receiver that does AM; DM-32 board glue not written yet, so nothing runs |
