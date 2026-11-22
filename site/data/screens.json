@@ -46,6 +46,9 @@
     "DMR_AES"
    ]
   },
+  "home_privacy": {
+   "group": "home"
+  },
   "home_fm": {
    "group": "home",
    "needs": [

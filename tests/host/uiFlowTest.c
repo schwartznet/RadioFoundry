@@ -908,7 +908,7 @@ static const flow_t flows[] = {
 	{ "S encryption type: AES256", "aeschan", "", "shows=AES256", 0, false },
 	{ "S encryption type: the badge after the name", "aeschan", "", "encbadge=1 padlock=1", 0, false },
 	{ "S encryption type: none on a clear channel", "", "", "hides=AES256 hides=BP_Moto", 0, false },
-	{ "S encryption type: BP Moto", "ok 7 4 ok down ok 1 2 3 ok long:back", "quick 6 back", "privacy=1 screen=home shows=BP_Moto shows=BP padlock=1", 3,
+	{ "S encryption type: BP Moto", "ok 7 4 ok down ok 1 2 3 ok long:back", "quick 6 back", "privacy=1 screen=home shows=BP_MOTO hides=BP_Moto encbadge=1 padlock=1", 3,
 	  false },
 #endif
 	{ "S privacy key typed", "", "ok 7 4 ok down ok 1 2 3 ok", "set31=1 set32=123", 10, false },
