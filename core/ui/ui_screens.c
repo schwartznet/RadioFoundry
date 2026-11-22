@@ -1101,7 +1101,19 @@ static int draw_padlock(int x, int top, int h, color_t c)
 	return w;
 }
 
-// The encryption's short name for Home's badge: AES256, or BP for basic privacy; NULL when the channel is clear
+// Basic privacy's name by its scheme (dmrPrivacyType_t): long on the chips line, short in the badge
+static const char *bp_name(bool shrt)
+{
+	int32_t t = ui_svc_setting_get(UI_SET_PRIVACY_TYPE);
+	if (t == 1)
+		return shrt ? "BP MOTO" : "BP Moto";
+	if (t == 2)
+		return shrt ? "BP ANY" : "BP Anytone";
+	return "BP";
+}
+
+// The encryption's short name for Home's badge: AES256, or BP MOTO / BP ANY for basic privacy (the scheme's own names,
+// not translated); NULL when the channel is clear
 static const char *enc_badge_text(const radio_view_t *v)
 {
 	if (!ui_home_encrypted(v))
@@ -1110,10 +1122,10 @@ static const char *enc_badge_text(const radio_view_t *v)
 	if (v->ch.kind == CODEPLUG_KIND_DMR_AES)
 		return "AES256";
 #endif
-	return "BP";
+	return bp_name(true);
 }
 
-static bool home_badge_drawn;	// this frame's name line has the type badge (the chips line then names AES no more)
+static bool home_badge_drawn;	// this frame's name line has the type badge (the chips line then leaves the type out)
 
 // The type badge: the text in the background color on a filled block of the privacy color, its bottom on the name's
 // baseline. Returns its width
@@ -1988,8 +2000,8 @@ static void draw_chips_dmr(const radio_view_t *v, const ui_state_t *s)
 	const char *dmon = TR(HOME_CHIP_DMON, "DMon"), *priv = TR(HOME_CHIP_PRIVACY, "Priv");
 	if ((v->dmr.hear_all || s->hear_all) && x + gfx_text_width(f, dmon) <= gfx_width())
 		x = gfx_text(f, x, L->chips_y, dmon, ui_col.warn) + f->w;	// digital monitor (FM's is "Mon")
-	// The encryption in force, by name: BP Moto or BP Anytone for basic privacy (the badge after the channel's name says
-	// only BP); AES256 where the name had no room for its badge (the scheme's own names, not translated)
+	// The encryption in force, by name, where the channel's name had no room for its badge (which names it already):
+	// AES256, BP Moto or BP Anytone (the scheme's own names, not translated)
 	const char *enc = NULL;
 #if CONFIG_DMR_AES
 	if (v->ch.kind == CODEPLUG_KIND_DMR_AES && v->ch.aes_ref != 0)
@@ -1998,7 +2010,7 @@ static void draw_chips_dmr(const radio_view_t *v, const ui_state_t *s)
 #endif
 	if (s->privacy || v->dmr.privacy) {
 		int32_t t = ui_svc_setting_get(UI_SET_PRIVACY_TYPE);
-		enc = t == 1 ? "BP Moto" : t == 2 ? "BP Anytone" : priv;
+		enc = home_badge_drawn ? NULL : t == 1 || t == 2 ? bp_name(false) : priv;	// the badge names it already
 	}
 	if (enc != NULL && x + gfx_text_width(f, enc) <= gfx_width())
 		gfx_text(f, x, L->chips_y, enc, ui_col.priv);
