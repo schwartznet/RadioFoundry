@@ -46,7 +46,7 @@ is `tools/bringup.py list --radio <id>`.
 | `fm_tx_tones` | not recorded | pass (seed) | not recorded | not recorded | not written | not recorded | pass, needs re-run | partial, needs re-run |
 | `tone_burst_key` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | partial, needs re-run |
 | `dtmf` | not recorded | not recorded | not recorded | not recorded | not written | not recorded | pass, needs re-run | ✕ |
-| `auto_dmr_id` | off | off | off | off | off | off | off | off |
+| `auto_dmr_id` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | `vox` | not written | not recorded | not recorded | not written | not recorded | not recorded | pass, needs re-run | not written |
 | `radio_silence` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | `battery_save` | pass (seed) | pass (seed) | not recorded | not recorded | not recorded | not recorded | pass, needs re-run | partial, needs re-run |
@@ -229,7 +229,7 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 | `VOICE_CAPTURE` | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
 | `DMR_IP_GATEWAY` | ● | ● | ● | ● | ● | ● | ● | ○ |
 | `ZONE_SHARE` | ● | ● | ● | ● | ● | ● | ● | ✕ |
-| `AUTO_DMR_ID` | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
+| `AUTO_DMR_ID` | ● | ● | ● | ● | ● | ● | ● | ● |
 | `DMR_UDP_COMPRESS` | ● | ● | ● | ● | ● | ● | ● | ● |
 | `NET_TCP` | ● | ● | ● | ● | ● | ● | ● | ○ |
 | `NET_KISS` | ● | ● | ● | ● | ● | ● | ● | ○ |
