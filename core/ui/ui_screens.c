@@ -1139,6 +1139,9 @@ static void draw_place(const radio_view_t *v, const ui_state_t *s)
 	int w = gfx_width();
 	char buf[40], fit[40];
 	sbuf_t b;
+	const char *badge = v->vfo ? NULL : enc_badge_text(v);
+	bool zone_badge = false;	// the type badge went on the zone line, the name keeps its whole width
+	home_badge_drawn = false;
 
 	if (L->zone_y >= 0) {
 		// Zone (or VFO and its step) left, position in the zone right
@@ -1176,7 +1179,19 @@ static void draw_place(const radio_view_t *v, const ui_state_t *s)
 		}
 		if (rw)
 			gfx_text(L->small, w - rw, L->zone_y, right, ui_col.dim);
-		gfx_text_fit(L->small, left, w - rw - L->small->w, fit, sizeof fit);
+		// An encrypted channel: its type in a reverse badge just left of the position, where the zone's name leaves
+		// at least six characters
+		int bw = 0;
+		if (badge != NULL) {
+			int b_w = gfx_text_width(L->small, badge) + 4;
+			int b_x = w - (rw ? rw + L->small->w : 0) - b_w;
+			if (b_x - L->small->w >= 6 * L->small->w) {
+				draw_enc_badge(L->small, b_x, L->zone_y + L->small->ascent + 1, badge);
+				bw = b_w + L->small->w;
+				zone_badge = home_badge_drawn = true;
+			}
+		}
+		gfx_text_fit(L->small, left, w - rw - L->small->w - bw, fit, sizeof fit);
 		gfx_text(L->small, 0, L->zone_y, fit, v->vfo ? ui_col.warn : ui_col.fg);
 	}
 
@@ -1208,16 +1223,15 @@ static void draw_place(const radio_view_t *v, const ui_state_t *s)
 	int avail = w - x;
 	if (v->temporary)
 		avail -= L->medium->w;
-	// An encrypted channel: its type in a reverse badge after the name (AES256, BP), or a padlock where the badge would
+	// No zone line (or no room on it): the type badge after the name (AES256, BP), or a padlock where the badge would
 	// squeeze the name below the small font; the medium font's height either way
-	const char *badge = enc_badge_text(v);
-	bool lock = badge != NULL;
+	bool lock = badge != NULL && !zone_badge;
+	bool name_badge = false;
 	int lock_h = L->medium->ascent;
-	int badge_w = badge != NULL ? gfx_text_width(L->small, badge) + 4 : 0;
-	home_badge_drawn = false;
-	if (badge != NULL && gfx_text_width(L->small, v->ch.name) <= avail - badge_w - L->medium->w / 2) {
+	int badge_w = lock ? gfx_text_width(L->small, badge) + 4 : 0;
+	if (lock && gfx_text_width(L->small, v->ch.name) <= avail - badge_w - L->medium->w / 2) {
 		avail -= badge_w + L->medium->w / 2;
-		home_badge_drawn = true;
+		name_badge = home_badge_drawn = true;
 	} else if (lock) {
 		avail -= padlock_width(lock_h) + L->medium->w / 2;
 	}
@@ -1228,9 +1242,9 @@ static void draw_place(const radio_view_t *v, const ui_state_t *s)
 		nf = L->small;
 	gfx_text_fit(nf, v->ch.name, avail, fit, sizeof fit);
 	x = gfx_text(nf, x, nf == L->large ? y : base - nf->ascent, fit, ui_col.fg);
-	if (home_badge_drawn)
+	if (name_badge)
 		x += L->medium->w / 2 + draw_enc_badge(L->small, x + L->medium->w / 2, base, badge);
-	else if (lock)
+	else if (lock && !name_badge)
 		x += L->medium->w / 2 + draw_padlock(x + L->medium->w / 2, base - lock_h, lock_h, ui_col.priv);
 	if (v->temporary)
 		gfx_text(L->medium, x, base - L->medium->ascent, GLYPH_DOT, ui_col.warn);
