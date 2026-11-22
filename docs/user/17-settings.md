@@ -181,6 +181,19 @@ When the keys lock by themselves and what still works while they are locked ([Ke
 | DMR ID and name | The radio model, then your DMR ID, the radio name and the two boot screen lines, as stored in the codeplug. On **DMR ID**, type a new ID with the digit keys (up to 16776415; the IDs above it are reserved for the network) and press **OK**: the radio writes it into the codeplug and uses it at once, and the Codeplug Editor or qdmr shows it on the next read. **Back** takes back the last digit, and with none left leaves the ID unchanged. On **Radio name**, **Boot 1** or **Boot 2**, **OK** opens text entry ([Text entry](07-channels-zones-vfo.md#text-entry)); **OK** there saves it, up to 16 characters |
 | About | The firmware version, its date and the radio model: the same page as **Settings > Advanced > About** (below) |
 
+#### Auto DMR ID
+
+On a radio built with Auto DMR ID, **Tools > Auto DMR ID** (the last tool: open Tools and press **Up**) sets the DMR ID
+from the radio's own chip ID, with no computer. It shows **This radio** (the ID now) and **Auto ID** (the one the chip
+ID gives), and "Candidate 0" above them. **OK** saves the Auto ID as **DMR ID** above does. **#** shows the next
+candidate, for when two of your radios land on the same ID. **Back** leaves the ID as it was. Each radio always gets
+the same Auto ID, so after an emergency wipe the same steps give it its ID back.
+
+The IDs come from a range set when the firmware is built (4670000 to 4679999 by default), for your own fleet off the
+networks: they aren't registered with RadioID. Before handing radios out, list every radio's chip ID
+(`tools/rfoundry_debug.py chip`) and run `tools/dmrid_from_uid.py --check` on them: it gives each radio's ID and says
+which candidate to use where two collide. [How it works](../spec/auto-dmr-id.md).
+
 ### Advanced (last row)
 
 | Item | What it does |
