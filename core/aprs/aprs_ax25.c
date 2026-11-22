@@ -287,6 +287,14 @@ static uint8_t rf_block(void)
 }
 
 
+// Radio silence (radio-silence.md): only the user's own frames go (a message and its retries, a status, a beacon they
+// asked for); acknowledgements, digipeated frames and frames from a host or the iGate don't. A beacon that falls due by
+// itself never reaches the queue (aprs.c)
+static bool silenced(uint8_t kind)
+{
+	return radio_silent() && (kind == K_ACK || kind == K_HOST || kind == K_GATE || kind == K_DIGI);
+}
+
 // Queue an AX.25 UI frame from us (lock held); path: a comma list or "" / NULL
 static bool queue_frame(uint8_t kind, const char *path, const char *info, size_t n)
 {
@@ -322,14 +330,6 @@ static bool queue_frame(uint8_t kind, const char *path, const char *info, size_t
 	aprs_s.qn++;
 	aprs_changed();
 	return true;
-}
-
-// Radio silence (radio-silence.md): only the user's own frames go (a message and its retries, a status, a beacon they
-// asked for); acknowledgements, digipeated frames and frames from a host or the iGate don't. A beacon that falls due by
-// itself never reaches the queue (aprs.c)
-static bool silenced(uint8_t kind)
-{
-	return radio_silent() && (kind == K_ACK || kind == K_HOST || kind == K_GATE || kind == K_DIGI);
 }
 
 // Raw frame (digipeated, from the host) into the queue (lock held)
