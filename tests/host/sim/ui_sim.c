@@ -3359,6 +3359,7 @@ static bool check(const char *kv, char *err, size_t len)
 	else if (strcmp(key, "calls") == 0) snprintf(got, sizeof got, "%u", ui_st.dual.calls);
 #endif
 	else if (strcmp(key, "privacy") == 0) snprintf(got, sizeof got, "%u", view.dmr.privacy);
+	else if (strcmp(key, "padlock") == 0) snprintf(got, sizeof got, "%u", ui_home_encrypted(&view));	// Home's padlock
 	else if (strcmp(key, "hearall") == 0) snprintf(got, sizeof got, "%u", view.dmr.hear_all_latch);
 	else if (strcmp(key, "vox") == 0) snprintf(got, sizeof got, "%u", view.vox_on);
 	else if (strcmp(key, "focusid") == 0) snprintf(got, sizeof got, "%u", (unsigned)view.dmr.focus_id);
@@ -4111,6 +4112,22 @@ static bool run_token(char *t, char *err, size_t len)
 		return true;
 	}
 #if CONFIG_DMR_AES
+	if (strcmp(t, "aeschan") == 0) {	// the channel on Home is a DMR AES one with its key (Home's padlock)
+		view.ch.mode = RADIO_MODE_DMR;
+		view.ch.kind = CODEPLUG_KIND_DMR_AES;
+		view.ch.aes_ref = 2;
+		changed();
+		advance(200);
+		return true;
+	}
+	if (strcmp(t, "aeschan0") == 0) {	// the same with no key bound: no padlock
+		view.ch.mode = RADIO_MODE_DMR;
+		view.ch.kind = CODEPLUG_KIND_DMR_AES;
+		view.ch.aes_ref = 0;
+		changed();
+		advance(200);
+		return true;
+	}
 	if (strcmp(t, "aeskeys") == 0) {
 		sim_aes_keys = true;
 		return true;

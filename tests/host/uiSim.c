@@ -46,6 +46,9 @@ static const struct { const char *name, *script; } gallery[] = {
 #if CONFIG_RADIO_SILENCE
 	{ "home_radio_silence", "silencekey wait:2500" },	// SIL on the status strip (radio-silence.md 4)
 #endif
+#if CONFIG_DMR_AES
+	{ "home_encrypted", "aeschan" },	// the padlock after an AES channel's name
+#endif
 	{ "home_temporary", "down quick 1 2 up back" },
 	{ "home_vfo", "ok 4 up ok" },
 	{ "home_vfo_entry", "ok 4 up ok 4 4 6" },

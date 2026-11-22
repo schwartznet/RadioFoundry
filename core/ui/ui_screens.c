@@ -1027,6 +1027,34 @@ static void draw_talk_dmr(const radio_view_t *v, bool label_first);
 static void draw_chips_dmr(const radio_view_t *v, const ui_state_t *s);
 #endif
 
+
+// The channel transmits encrypted (docs/ux/home.md, the padlock): an AES channel with its key (CONFIG_DMR_AES), or
+// basic privacy on for DMR. The VFO counts the same way
+bool ui_home_encrypted(const radio_view_t *v)
+{
+	if (v->ch.mode != RADIO_MODE_DMR)
+		return false;
+#if CONFIG_DMR_AES
+	if (v->ch.kind == CODEPLUG_KIND_DMR_AES)
+		return v->ch.aes_ref != 0;	// no key bound: the radio refuses to transmit there, no lock to promise
+#endif
+	return v->dmr.privacy;
+}
+
+// A padlock h pixels high at (x, top): a solid body and a shackle above it, as the key lock's on the status strip.
+// Returns its width
+static int draw_padlock(int x, int top, int h, color_t c)
+{
+	int w = h - h / 4;
+	int sw = w - 2 * (w / 5 > 1 ? w / 5 : 1);	// the shackle narrower than the body
+	int sx = x + (w - sw) / 2;
+	gfx_fill(x, top + h / 2, w, h - h / 2, c);		// body
+	gfx_rect(sx, top, sw, h / 2 + 1, c);			// shackle
+	if (h >= 16)
+		gfx_rect(sx + 1, top + 1, sw - 2, h / 2, c);	// a heavier shackle on the large fonts
+	return w;
+}
+
 static void draw_place(const radio_view_t *v, const ui_state_t *s)
 {
 	const ui_layout_t *L = &ui_layout;
@@ -1102,6 +1130,11 @@ static void draw_place(const radio_view_t *v, const ui_state_t *s)
 	int avail = w - x;
 	if (v->temporary)
 		avail -= L->medium->w;
+	// An encrypted channel: a padlock after the name, the medium font's height (it reads beside any name size)
+	bool lock = ui_home_encrypted(v);
+	int lock_h = L->medium->ascent;
+	if (lock)
+		avail -= lock_h - lock_h / 4 + L->medium->w / 2;
 	const font_t *nf = L->large;
 	if (gfx_text_width(nf, v->ch.name) > avail)
 		nf = L->medium;
@@ -1109,6 +1142,8 @@ static void draw_place(const radio_view_t *v, const ui_state_t *s)
 		nf = L->small;
 	gfx_text_fit(nf, v->ch.name, avail, fit, sizeof fit);
 	x = gfx_text(nf, x, nf == L->large ? y : base - nf->ascent, fit, ui_col.fg);
+	if (lock)
+		x += L->medium->w / 2 + draw_padlock(x + L->medium->w / 2, base - lock_h, lock_h, ui_col.priv);
 	if (v->temporary)
 		gfx_text(L->medium, x, base - L->medium->ascent, GLYPH_DOT, ui_col.warn);
 }

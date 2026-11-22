@@ -40,6 +40,12 @@
     "RADIO_SILENCE"
    ]
   },
+  "home_encrypted": {
+   "group": "home",
+   "needs": [
+    "DMR_AES"
+   ]
+  },
   "home_fm": {
    "group": "home",
    "needs": [
