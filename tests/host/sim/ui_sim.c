@@ -2638,6 +2638,7 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 	gfx_invalidate();
 	ui_layout_init();
 	memset(&view, 0, sizeof view);
+	sim_late[UI_SET_SILENCE - UI_SET_RAM_COUNT] = 0;	// radio silence off in every flow, as the view is
 	memset(&sim_rec, 0, sizeof sim_rec);
 #if CONFIG_SATELLITE_TLE
 	sim_satellite_predicting = false;
