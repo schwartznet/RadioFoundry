@@ -1,0 +1,905 @@
+ ██████╗  ██████╗██████╗     ███████╗███╗   ███╗███████╗
+ ██╔══██╗██╔════╝██╔══██╗    ██╔════╝████╗ ████║██╔════╝
+ ██║  ██║╚█████╗ ██║  ██║    █████╗  ██╔████╔██║█████╗  
+ ██║  ██║ ╚═══██╗██║  ██║    ██╔══╝  ██║╚██╔╝██║██╔══╝  
+ ██████╔╝██████╔╝██████╔╝    ██║     ██║ ╚═╝ ██║███████╗
+ ╚═════╝ ╚═════╝ ╚═════╝     ╚═╝     ╚═╝     ╚═╝╚══════╝
+Build Version: AW 2026-82-ga77609a 
+MBElib Version: 1.3.2
+CODEC2 Support Enabled
+Decoding DMR BS/MS Simplex
+Logging Frame Payload to console
+Writing raw audio to file keyfill1_raw.wav
+TCP Direct Link: 172.17.96.1:7355 
+TCP Connection Success!
+Audio In Device: tcp
+12:51:59 Sync: +DMR MS/DM MODE/MONO | Color Code=XX | CACH/Burst FEC ERR
+12:51:59 Sync: +DMR MS/DM MODE/MONO | Color Code=XX | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][17][47][44][25][47][44][26][E4][D5]
+12:51:59 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][16][47][44][25][47][44][26][5C][B4]
+12:51:59 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][15][47][44][25][47][44][26][84][36]
+12:51:59 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][14][47][44][25][47][44][26][3C][57]
+12:51:59 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][13][47][44][25][47][44][26][25][13]
+12:51:59 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][12][47][44][25][47][44][26][9D][72]
+12:51:59 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][11][47][44][25][47][44][26][45][F0]
+12:52:00 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][10][47][44][25][47][44][26][FD][91]
+12:52:00 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0F][47][44][25][47][44][26][40][03]
+12:52:00 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0E][47][44][25][47][44][26][F8][62]
+12:52:00 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0D][47][44][25][47][44][26][20][E0]
+12:52:00 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0C][47][44][25][47][44][26][98][81]
+12:52:00 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0B][47][44][25][47][44][26][81][C5]
+12:52:00 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0A][47][44][25][47][44][26][39][A4]
+12:52:00 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][09][47][44][25][47][44][26][E1][26]
+12:52:00 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][08][47][44][25][47][44][26][59][47]
+12:52:00 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA 
+ Slot 1 Data Header - Indiv - Confirmed Delivery - Response Requested - Source: 4670502 Target: 4670501 
+  SAP 03 [UDP Comp] - FMF 1 - BLOCKS 07 - PAD 09 - S 0 - NS 5 - FSN: [8] - Confirmed data single fragment 1; 
+ DMR PDU Payload [43][39][47][44][25][47][44][26][87][58][22][96]
+12:52:00 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA 
+ Slot 1 Data Header - Extended - SAP 03 [UDP Comp] - MFID 10 [Moto]
+ DMRA PDU ENC Header: MFID: 10; ENC: 1; Key ID: 01; ALG: 05; AES256; MI(32): 01A9F7F6
+ DMR PDU Payload [3F][10][51][01][00][00][01][A9][F7][F6][FF][07]
+12:52:00 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [74][84][C9][22][EB][FD][16][91][7A][D3]
+12:52:00 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [EE][FA][86][A4][64][66][05][C4][5D][95]
+12:52:00 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [64][F7][71][26][D7][AA][2E][94][BD][F5]
+12:52:00 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [39][13][6A][C9][9B][C0][35][15][A3][43]
+12:52:00 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [C9][23][93][D4][9A][20][4C][00][00][00]
+12:52:01 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ PDU ALG: 05; Key ID: 01; MI(32): 01A9F7F6; AES256;
+ Slot 1 DMR PI C- ALG ID: 25; KEY ID: 01; MI(128): 01A9F7F633283F4E191C043857665C5C; AES-256;
+ Slot 1 - Encrypted PDU;
+ Slot 1 - Multi Block PDU Message
+  7484C922EBFD16917AD3EEFA
+  86A4646605C45D9564F77126
+  D7AA2E94BDF539136AC99BC0
+  3515A343C92393D49A204C00
+  000000000000000028E9C9A2 
+ DMR PDU Payload [00][00][00][00][00][00][28][E9][C9][A2]
+Sync: no sync
+12:52:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CACH/Burst FEC ERR
+12:52:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][17][47][44][25][47][44][26][E4][D5]
+12:52:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][16][47][44][25][47][44][26][5C][B4]
+12:52:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][15][47][44][25][47][44][26][84][36]
+12:52:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][14][47][44][25][47][44][26][3C][57]
+12:52:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][13][47][44][25][47][44][26][25][13]
+12:52:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][12][47][44][25][47][44][26][9D][72]
+12:52:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][11][47][44][25][47][44][26][45][F0]
+12:52:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][10][47][44][25][47][44][26][FD][91]
+12:52:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0F][47][44][25][47][44][26][40][03]
+12:52:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0E][47][44][25][47][44][26][F8][62]
+12:52:05 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0D][47][44][25][47][44][26][20][E0]
+12:52:05 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0C][47][44][25][47][44][26][98][81]
+12:52:05 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0B][47][44][25][47][44][26][81][C5]
+12:52:05 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0A][47][44][25][47][44][26][39][A4]
+12:52:05 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][09][47][44][25][47][44][26][E1][26]
+12:52:05 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][08][47][44][25][47][44][26][59][47]
+12:52:05 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA 
+ Slot 1 Data Header - Indiv - Confirmed Delivery - Response Requested - Source: 4670502 Target: 4670501 
+  SAP 03 [UDP Comp] - FMF 0 - BLOCKS 07 - PAD 09 - S 0 - NS 5 - FSN: [8] - Confirmed data single fragment 1; 
+ DMR PDU Payload [43][39][47][44][25][47][44][26][07][58][39][0E]
+12:52:05 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA 
+ Slot 1 Data Header - Extended - SAP 03 [UDP Comp] - MFID 10 [Moto]
+ DMRA PDU ENC Header: MFID: 10; ENC: 1; Key ID: 01; ALG: 05; AES256; MI(32): 01A9F7F6
+ DMR PDU Payload [3F][10][51][01][00][00][01][A9][F7][F6][FF][07]
+12:52:05 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [74][84][C9][22][EB][FD][16][91][7A][D3]
+12:52:05 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [EE][FA][86][A4][64][66][05][C4][5D][95]
+12:52:05 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [64][F7][71][26][D7][AA][2E][94][BD][F5]
+12:52:05 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [39][13][6A][C9][9B][C0][35][15][A3][43]
+12:52:05 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [C9][23][93][D4][9A][20][4C][00][00][00]
+12:52:05 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ PDU ALG: 05; Key ID: 01; MI(32): 01A9F7F6; AES256;
+ Slot 1 DMR PI C- ALG ID: 25; KEY ID: 01; MI(128): 01A9F7F633283F4E191C043857665C5C; AES-256;
+ Slot 1 - Encrypted PDU;
+ Slot 1 - Multi Block PDU Message
+  7484C922EBFD16917AD3EEFA
+  86A4646605C45D9564F77126
+  D7AA2E94BDF539136AC99BC0
+  3515A343C92393D49A204C00
+  000000000000000028E9C9A2 
+ DMR PDU Payload [00][00][00][00][00][00][28][E9][C9][A2]
+Sync: no sync
+12:52:08 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CACH/Burst FEC ERR
+12:52:09 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][17][47][44][25][47][44][26][E4][D5]
+12:52:09 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][16][47][44][25][47][44][26][5C][B4]
+12:52:09 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][15][47][44][25][47][44][26][84][36]
+12:52:09 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][14][47][44][25][47][44][26][3C][57]
+12:52:09 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][13][47][44][25][47][44][26][25][13]
+12:52:09 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][12][47][44][25][47][44][26][9D][72]
+12:52:09 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][11][47][44][25][47][44][26][45][F0]
+12:52:09 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][10][47][44][25][47][44][26][FD][91]
+12:52:09 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0F][47][44][25][47][44][26][40][03]
+12:52:09 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0E][47][44][25][47][44][26][F8][62]
+12:52:09 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0D][47][44][25][47][44][26][20][E0]
+12:52:09 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0C][47][44][25][47][44][26][98][81]
+12:52:09 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0B][47][44][25][47][44][26][81][C5]
+12:52:10 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0A][47][44][25][47][44][26][39][A4]
+12:52:10 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][09][47][44][25][47][44][26][E1][26]
+12:52:10 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][08][47][44][25][47][44][26][59][47]
+12:52:10 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA 
+ Slot 1 Data Header - Indiv - Confirmed Delivery - Response Requested - Source: 4670502 Target: 4670501 
+  SAP 03 [UDP Comp] - FMF 0 - BLOCKS 07 - PAD 09 - S 0 - NS 5 - FSN: [8] - Confirmed data single fragment 1; 
+ DMR PDU Payload [43][39][47][44][25][47][44][26][07][58][39][0E]
+12:52:10 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA 
+ Slot 1 Data Header - Extended - SAP 03 [UDP Comp] - MFID 10 [Moto]
+ DMRA PDU ENC Header: MFID: 10; ENC: 1; Key ID: 01; ALG: 05; AES256; MI(32): 01A9F7F6
+ DMR PDU Payload [3F][10][51][01][00][00][01][A9][F7][F6][FF][07]
+12:52:10 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [74][84][C9][22][EB][FD][16][91][7A][D3]
+12:52:10 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [EE][FA][86][A4][64][66][05][C4][5D][95]
+12:52:10 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [64][F7][71][26][D7][AA][2E][94][BD][F5]
+12:52:10 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [39][13][6A][C9][9B][C0][35][15][A3][43]
+12:52:10 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [C9][23][93][D4][9A][20][4C][00][00][00]
+12:52:10 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ PDU ALG: 05; Key ID: 01; MI(32): 01A9F7F6; AES256;
+ Slot 1 DMR PI C- ALG ID: 25; KEY ID: 01; MI(128): 01A9F7F633283F4E191C043857665C5C; AES-256;
+ Slot 1 - Encrypted PDU;
+ Slot 1 - Multi Block PDU Message
+  7484C922EBFD16917AD3EEFA
+  86A4646605C45D9564F77126
+  D7AA2E94BDF539136AC99BC0
+  3515A343C92393D49A204C00
+  000000000000000028E9C9A2 
+ DMR PDU Payload [00][00][00][00][00][00][28][E9][C9][A2]
+Sync: no sync
+12:52:13 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CACH/Burst FEC ERR
+12:52:14 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][17][47][44][25][47][44][26][E4][D5]
+12:52:14 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][16][47][44][25][47][44][26][5C][B4]
+12:52:14 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][15][47][44][25][47][44][26][84][36]
+12:52:14 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][14][47][44][25][47][44][26][3C][57]
+12:52:14 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][13][47][44][25][47][44][26][25][13]
+12:52:14 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][12][47][44][25][47][44][26][9D][72]
+12:52:14 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][11][47][44][25][47][44][26][45][F0]
+12:52:14 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][10][47][44][25][47][44][26][FD][91]
+12:52:14 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0F][47][44][25][47][44][26][40][03]
+12:52:14 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0E][47][44][25][47][44][26][F8][62]
+12:52:14 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0D][47][44][25][47][44][26][20][E0]
+12:52:14 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0C][47][44][25][47][44][26][98][81]
+12:52:14 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0B][47][44][25][47][44][26][81][C5]
+12:52:14 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0A][47][44][25][47][44][26][39][A4]
+12:52:14 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][09][47][44][25][47][44][26][E1][26]
+12:52:14 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][08][47][44][25][47][44][26][59][47]
+12:52:15 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA 
+ Slot 1 Data Header - Indiv - Confirmed Delivery - Response Requested - Source: 4670502 Target: 4670501 
+  SAP 03 [UDP Comp] - FMF 0 - BLOCKS 07 - PAD 09 - S 0 - NS 5 - FSN: [8] - Confirmed data single fragment 1; 
+ DMR PDU Payload [43][39][47][44][25][47][44][26][07][58][39][0E]
+12:52:15 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA 
+ Slot 1 Data Header - Extended - SAP 03 [UDP Comp] - MFID 10 [Moto]
+ DMRA PDU ENC Header: MFID: 10; ENC: 1; Key ID: 01; ALG: 05; AES256; MI(32): 01A9F7F6
+ DMR PDU Payload [3F][10][51][01][00][00][01][A9][F7][F6][FF][07]
+12:52:15 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [74][84][C9][22][EB][FD][16][91][7A][D3]
+12:52:15 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [EE][FA][86][A4][64][66][05][C4][5D][95]
+12:52:15 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [64][F7][71][26][D7][AA][2E][94][BD][F5]
+12:52:15 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [39][13][6A][C9][9B][C0][35][15][A3][43]
+12:52:15 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [C9][23][93][D4][9A][20][4C][00][00][00]
+12:52:15 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ PDU ALG: 05; Key ID: 01; MI(32): 01A9F7F6; AES256;
+ Slot 1 DMR PI C- ALG ID: 25; KEY ID: 01; MI(128): 01A9F7F633283F4E191C043857665C5C; AES-256;
+ Slot 1 - Encrypted PDU;
+ Slot 1 - Multi Block PDU Message
+  7484C922EBFD16917AD3EEFA
+  86A4646605C45D9564F77126
+  D7AA2E94BDF539136AC99BC0
+  3515A343C92393D49A204C00
+  000000000000000028E9C9A2 
+ DMR PDU Payload [00][00][00][00][00][00][28][E9][C9][A2]
+Sync: no sync
+12:54:15 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | VC* 
+ AMBE 8E84C51C7CD800 err = [2] [4] 
+ AMBE 7D7272C999EE80 err = [1] [3] 
+ AMBE E839603A5D3400 err = [2] [3] 
+ AMBE 34A0025BE7AF80 err = [2] [4] 
+ AMBE 48F88E85748480 err = [3] [5] 
+ AMBE BBF5F3DB80DA00 err = [1] [2] 
+ AMBE D62126310B5D00 err = [2] [4] 
+ AMBE 00B6637B94FE00 err = [3] [4] 
+ AMBE 239AD219A1B600 err = [1] [3] 
+ AMBE 04EAC4159D1B00 err = [3] [3] 
+ AMBE 6CA089D4CAF480 err = [1] [4] 
+ AMBE 01903F25FDAA00 err = [1] [2] 
+ AMBE 57667085466880 err = [2] [4] 
+ AMBE B04BB78A09E400 err = [1] [2] 
+ AMBE F7722B839D6B80 err = [2] [3] 
+ AMBE 1A33CDB4537A80 err = [1] [3] 
+ AMBE D578AC07C6EE80 err = [2] [4] 
+ AMBE B1DC09619A8C80 err = [2] [3] 
+ SLOT 1 FLCO FEC ERR  (FEC ERR)
+ DMR PDU Payload [75][FF][EB][D0][5C][E6][93][D4][B1]
+Sync: no sync
+12:54:51 Sync: +DMR MS/DM MODE/MONO | Color Code=10 | CACH/Burst FEC ERR
+12:54:51 Sync: +DMR MS/DM MODE/MONO | Color Code=10 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][17][47][44][25][47][44][26][E4][D5]
+12:54:51 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][16][47][44][25][47][44][26][5C][B4]
+12:54:52 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][15][47][44][25][47][44][26][84][36]
+12:54:52 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][14][47][44][25][47][44][26][3C][57]
+12:54:52 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][13][47][44][25][47][44][26][25][13]
+12:54:52 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][12][47][44][25][47][44][26][9D][72]
+12:54:52 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][11][47][44][25][47][44][26][45][F0]
+12:54:52 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][10][47][44][25][47][44][26][FD][91]
+12:54:52 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0F][47][44][25][47][44][26][40][03]
+12:54:52 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0E][47][44][25][47][44][26][F8][62]
+12:54:52 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0D][47][44][25][47][44][26][20][E0]
+12:54:52 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0C][47][44][25][47][44][26][98][81]
+12:54:52 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0B][47][44][25][47][44][26][81][C5]
+12:54:52 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0A][47][44][25][47][44][26][39][A4]
+12:54:52 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][09][47][44][25][47][44][26][E1][26]
+12:54:52 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][08][47][44][25][47][44][26][59][47]
+12:54:52 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA 
+ Slot 1 Data Header - Indiv - Confirmed Delivery - Response Requested - Source: 4670502 Target: 4670501 
+  SAP 03 [UDP Comp] - FMF 1 - BLOCKS 07 - PAD 09 - S 0 - NS 5 - FSN: [8] - Confirmed data single fragment 1; 
+ DMR PDU Payload [43][39][47][44][25][47][44][26][87][58][22][96]
+12:54:52 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA 
+ Slot 1 Data Header - Extended - SAP 03 [UDP Comp] - MFID 10 [Moto]
+ DMRA PDU ENC Header: MFID: 10; ENC: 1; Key ID: 01; ALG: 05; AES256; MI(32): 33283F4E
+ DMR PDU Payload [3F][10][51][01][00][00][33][28][3F][4E][8B][C2]
+12:54:52 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [14][72][27][B3][3E][09][CD][EE][DC][BA]
+12:54:53 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [D7][7B][79][70][66][F3][43][DE][F8][8C]
+12:54:53 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [A7][D7][A3][40][55][10][B4][44][53][F2]
+12:54:53 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [E8][CE][65][6B][E0][3B][12][50][98][62]
+12:54:53 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [C1][A3][85][14][45][6E][7D][00][00][00]
+12:54:53 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ PDU ALG: 05; Key ID: 01; MI(32): 33283F4E; AES256;
+ Slot 1 DMR PI C- ALG ID: 25; KEY ID: 01; MI(128): 33283F4E191C043857665C5CBEC43E32; AES-256;
+ Slot 1 - Encrypted PDU;
+ Slot 1 - Multi Block PDU Message
+  147227B33E09CDEEDCBAD77B
+  797066F343DEF88CA7D7A340
+  5510B44453F2E8CE656BE03B
+  12509862C1A38514456E7D00
+  00000000000000005A52326F 
+ DMR PDU Payload [00][00][00][00][00][00][5A][52][32][6F]
+Sync: no sync
+12:54:54 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CACH/Burst FEC ERR
+Sync: no sync
+12:54:55 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CACH/Burst FEC ERR
+12:54:55 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][16][47][44][26][47][44][25][F7][0B]
+12:54:55 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][15][47][44][26][47][44][25][2F][89]
+12:54:55 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][14][47][44][26][47][44][25][97][E8]
+12:54:55 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][13][47][44][26][47][44][25][8E][AC]
+12:54:55 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][12][47][44][26][47][44][25][36][CD]
+12:54:55 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][11][47][44][26][47][44][25][EE][4F]
+12:54:55 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][10][47][44][26][47][44][25][56][2E]
+12:54:55 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][0F][47][44][26][47][44][25][EB][BC]
+12:54:55 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][0E][47][44][26][47][44][25][53][DD]
+12:54:55 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][0D][47][44][26][47][44][25][8B][5F]
+12:54:55 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][0C][47][44][26][47][44][25][33][3E]
+12:54:55 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][0B][47][44][26][47][44][25][2A][7A]
+12:54:55 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][0A][47][44][26][47][44][25][92][1B]
+12:54:56 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][09][47][44][26][47][44][25][4A][99]
+12:54:56 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][08][47][44][26][47][44][25][F2][F8]
+12:54:56 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA 
+ Slot 1 Data Header - Indiv - Confirmed Delivery - Response Requested - Source: 4670501 Target: 4670502 
+  SAP 03 [UDP Comp] - FMF 1 - BLOCKS 07 - PAD 09 - S 0 - NS 0 - FSN: [8] - Confirmed data single fragment 1; 
+ DMR PDU Payload [43][39][47][44][26][47][44][25][87][08][EF][D3]
+12:54:56 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA 
+ Slot 1 Data Header - Extended - SAP 03 [UDP Comp] - MFID 10 [Moto]
+ DMRA PDU ENC Header: MFID: 10; ENC: 1; Key ID: 01; ALG: 05; AES256; MI(32): F9E9A31E
+ DMR PDU Payload [3F][10][51][01][00][00][F9][E9][A3][1E][46][79]
+12:54:56 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [F6][ED][BB][7C][32][30][6A][6C][03][D6]
+12:54:56 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [3A][D0][5C][31][39][89][36][43][B2][15]
+12:54:56 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [8C][E3][4E][18][26][F7][45][53][C0][11]
+12:54:56 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [70][FF][9F][50][9E][ED][AC][48][07][4C]
+12:54:56 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [DD][BA][37][B4][A2][B0][7C][00][00][00]
+12:54:56 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ PDU ALG: 05; Key ID: 01; MI(32): F9E9A31E; AES256;
+ Slot 1 DMR PI C- ALG ID: 25; KEY ID: 01; MI(128): F9E9A31EA45CA164A8A1990588B16432; AES-256;
+ Slot 1 - Encrypted PDU;
+ Slot 1 - Multi Block PDU Message
+  F6EDBB7C32306A6C03D63AD0
+  5C3139893643B2158CE34E18
+  26F74553C01170FF9F509EED
+  AC48074CDDBA37B4A2B07C00
+  0000000000000000AA33035C 
+ DMR PDU Payload [00][00][00][00][00][00][AA][33][03][5C]
+Sync: no sync
+12:54:57 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA (FEC ERR)
+ DMR PDU Payload [00][D0][0E][44][27][43][58][44][4C][28][A1][A1]
+Sync: no sync
+12:54:58 Sync: +DMR MS/DM MODE/MONO | Color Code=08 | CACH/Burst FEC ERR
+12:54:58 Sync: +DMR MS/DM MODE/MONO | Color Code=08 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][16][47][44][25][47][44][26][5C][B4]
+12:54:58 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][15][47][44][25][47][44][26][84][36]
+12:54:58 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][14][47][44][25][47][44][26][3C][57]
+12:54:58 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][13][47][44][25][47][44][26][25][13]
+12:54:58 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][12][47][44][25][47][44][26][9D][72]
+12:54:58 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][11][47][44][25][47][44][26][45][F0]
+12:54:58 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][10][47][44][25][47][44][26][FD][91]
+12:54:58 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0F][47][44][25][47][44][26][40][03]
+12:54:59 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0E][47][44][25][47][44][26][F8][62]
+12:54:59 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0D][47][44][25][47][44][26][20][E0]
+12:54:59 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0C][47][44][25][47][44][26][98][81]
+12:54:59 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0B][47][44][25][47][44][26][81][C5]
+12:54:59 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0A][47][44][25][47][44][26][39][A4]
+12:54:59 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][09][47][44][25][47][44][26][E1][26]
+12:54:59 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][08][47][44][25][47][44][26][59][47]
+12:54:59 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA 
+ Slot 1 Data Header - Indiv - Confirmed Delivery - Response Requested - Source: 4670502 Target: 4670501 
+  SAP 03 [UDP Comp] - FMF 1 - BLOCKS 07 - PAD 09 - S 0 - NS 6 - FSN: [8] - Confirmed data single fragment 1; 
+ DMR PDU Payload [43][39][47][44][25][47][44][26][87][68][14][C5]
+12:54:59 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA 
+ Slot 1 Data Header - Extended - SAP 03 [UDP Comp] - MFID 10 [Moto]
+ DMRA PDU ENC Header: MFID: 10; ENC: 1; Key ID: 01; ALG: 05; AES256; MI(32): 191C0438
+ DMR PDU Payload [3F][10][51][01][00][00][19][1C][04][38][0A][7C]
+12:54:59 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [69][49][BB][63][38][28][A5][C4][9D][FD]
+12:54:59 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [50][FC][EC][84][34][80][C4][80][FA][7B]
+12:54:59 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [17][52][91][39][2A][69][BF][39][DE][91]
+12:54:59 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [3B][C6][6A][12][32][A2][35][1A][FD][35]
+12:54:59 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [93][07][FA][93][AB][5C][FD][00][00][00]
+12:54:59 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ PDU ALG: 05; Key ID: 01; MI(32): 191C0438; AES256;
+ Slot 1 DMR PI C- ALG ID: 25; KEY ID: 01; MI(128): 191C043857665C5CBEC43E323EFD28BA; AES-256;
+ Slot 1 - Encrypted PDU;
+ Slot 1 - Multi Block PDU Message
+  6949BB633828A5C49DFD50FC
+  EC843480C480FA7B17529139
+  2A69BF39DE913BC66A1232A2
+  351AFD359307FA93AB5CFD00
+  0000000000000000380ECC83 
+ DMR PDU Payload [00][00][00][00][00][00][38][0E][CC][83]
+Sync: no sync
+12:55:00 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA (FEC ERR)
+ DMR PDU Payload [21][B0][4A][08][24][0D][E0][04][8C][58][40][63]
+12:55:00 Sync: +DMR MS/DM MODE/MONO | Color Code=08 | R12U 
+ DMR PDU Payload [ED][FF][FF][FF][FF][FF][FF][FF][CC][41][DC][D6]
+Sync: no sync
+12:55:03 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CACH/Burst FEC ERR
+12:55:03 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][17][47][44][25][47][44][26][E4][D5]
+12:55:03 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][16][47][44][25][47][44][26][5C][B4]
+12:55:03 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][15][47][44][25][47][44][26][84][36]
+12:55:03 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][14][47][44][25][47][44][26][3C][57]
+12:55:03 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][13][47][44][25][47][44][26][25][13]
+12:55:03 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][12][47][44][25][47][44][26][9D][72]
+12:55:03 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][11][47][44][25][47][44][26][45][F0]
+12:55:03 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][10][47][44][25][47][44][26][FD][91]
+12:55:03 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0F][47][44][25][47][44][26][40][03]
+12:55:03 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0E][47][44][25][47][44][26][F8][62]
+12:55:03 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0D][47][44][25][47][44][26][20][E0]
+12:55:03 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0C][47][44][25][47][44][26][98][81]
+12:55:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0B][47][44][25][47][44][26][81][C5]
+12:55:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0A][47][44][25][47][44][26][39][A4]
+12:55:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][09][47][44][25][47][44][26][E1][26]
+12:55:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][08][47][44][25][47][44][26][59][47]
+12:55:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA 
+ Slot 1 Data Header - Indiv - Confirmed Delivery - Response Requested - Source: 4670502 Target: 4670501 
+  SAP 03 [UDP Comp] - FMF 0 - BLOCKS 07 - PAD 09 - S 0 - NS 6 - FSN: [8] - Confirmed data single fragment 1; 
+ DMR PDU Payload [43][39][47][44][25][47][44][26][07][68][0F][5D]
+12:55:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA 
+ Slot 1 Data Header - Extended - SAP 03 [UDP Comp] - MFID 10 [Moto]
+ DMRA PDU ENC Header: MFID: 10; ENC: 1; Key ID: 01; ALG: 05; AES256; MI(32): 191C0438
+ DMR PDU Payload [3F][10][51][01][00][00][19][1C][04][38][0A][7C]
+12:55:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [69][49][BB][63][38][28][A5][C4][9D][FD]
+12:55:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [50][FC][EC][84][34][80][C4][80][FA][7B]
+12:55:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [17][52][91][39][2A][69][BF][39][DE][91]
+12:55:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [3B][C6][6A][12][32][A2][35][1A][FD][35]
+12:55:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [93][07][FA][93][AB][5C][FD][00][00][00]
+12:55:04 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ PDU ALG: 05; Key ID: 01; MI(32): 191C0438; AES256;
+ Slot 1 DMR PI C- ALG ID: 25; KEY ID: 01; MI(128): 191C043857665C5CBEC43E323EFD28BA; AES-256;
+ Slot 1 - Encrypted PDU;
+ Slot 1 - Multi Block PDU Message
+  6949BB633828A5C49DFD50FC
+  EC843480C480FA7B17529139
+  2A69BF39DE913BC66A1232A2
+  351AFD359307FA93AB5CFD00
+  0000000000000000380ECC83 
+ DMR PDU Payload [00][00][00][00][00][00][38][0E][CC][83]
+Sync: no sync
+12:55:05 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CACH/Burst FEC ERR
+Sync: no sync
+12:55:24 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CACH/Burst FEC ERR
+12:55:24 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][15][47][44][26][47][44][25][2F][89]
+12:55:24 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][14][47][44][26][47][44][25][97][E8]
+12:55:24 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][13][47][44][26][47][44][25][8E][AC]
+12:55:24 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][12][47][44][26][47][44][25][36][CD]
+12:55:24 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][11][47][44][26][47][44][25][EE][4F]
+12:55:25 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][10][47][44][26][47][44][25][56][2E]
+12:55:25 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][0F][47][44][26][47][44][25][EB][BC]
+12:55:25 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][0E][47][44][26][47][44][25][53][DD]
+12:55:25 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][0D][47][44][26][47][44][25][8B][5F]
+12:55:25 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][0C][47][44][26][47][44][25][33][3E]
+12:55:25 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][0B][47][44][26][47][44][25][2A][7A]
+12:55:25 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][0A][47][44][26][47][44][25][92][1B]
+12:55:25 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][09][47][44][26][47][44][25][4A][99]
+12:55:25 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][08][47][44][26][47][44][25][F2][F8]
+12:55:25 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][07][47][44][26][47][44][25][78][11]
+12:55:25 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][06][47][44][26][47][44][25][C0][70]
+12:55:25 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA 
+ Slot 1 Data Header - Indiv - Confirmed Delivery - Response Requested - Source: 4670501 Target: 4670502 
+  SAP 03 [UDP Comp] - FMF 1 - BLOCKS 05 - PAD 05 - S 0 - NS 1 - FSN: [8] - Confirmed data single fragment 1; 
+ DMR PDU Payload [43][35][47][44][26][47][44][25][85][18][2E][90]
+12:55:25 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA 
+ Slot 1 Data Header - Extended - SAP 03 [UDP Comp] - MFID 10 [Moto]
+ DMRA PDU ENC Header: MFID: 10; ENC: 1; Key ID: 01; ALG: 05; AES256; MI(32): A45CA164
+ DMR PDU Payload [3F][10][51][01][00][00][A4][5C][A1][64][A6][74]
+12:55:25 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [57][85][B7][E4][42][F9][82][D7][42][5B]
+12:55:25 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [D5][9E][7D][81][85][AD][4C][DE][CA][35]
+12:55:25 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [EC][D1][74][CB][A8][77][91][2E][E1][D0]
+12:55:25 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ PDU ALG: 05; Key ID: 01; MI(32): A45CA164; AES256;
+ Slot 1 DMR PI C- ALG ID: 25; KEY ID: 01; MI(128): A45CA164A8A1990588B16432BC3788B5; AES-256;
+ Slot 1 - Encrypted PDU;
+ Slot 1 - Multi Block PDU Message
+  5785B7E442F982D7425BD59E
+  7D8185AD4CDECA35ECD174CB
+  A877912EE1D0770000000000
+  B8CC2524 
+ DMR PDU Payload [77][00][00][00][00][00][B8][CC][25][24]
+Sync: no sync
+12:55:26 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CACH/Burst FEC ERR
+Sync: no sync
+12:55:27 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CACH/Burst FEC ERR
+12:55:27 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][15][47][44][25][47][44][26][84][36]
+12:55:28 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][14][47][44][25][47][44][26][3C][57]
+12:55:28 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][13][47][44][25][47][44][26][25][13]
+12:55:28 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][12][47][44][25][47][44][26][9D][72]
+12:55:28 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][11][47][44][25][47][44][26][45][F0]
+12:55:28 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][10][47][44][25][47][44][26][FD][91]
+12:55:28 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0F][47][44][25][47][44][26][40][03]
+12:55:28 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0E][47][44][25][47][44][26][F8][62]
+12:55:28 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0D][47][44][25][47][44][26][20][E0]
+12:55:28 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0C][47][44][25][47][44][26][98][81]
+12:55:28 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0B][47][44][25][47][44][26][81][C5]
+12:55:28 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][0A][47][44][25][47][44][26][39][A4]
+12:55:28 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][09][47][44][25][47][44][26][E1][26]
+12:55:28 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][08][47][44][25][47][44][26][59][47]
+12:55:28 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670502 - Target: 4670501 
+ DMR PDU Payload [BD][00][80][07][47][44][25][47][44][26][D3][AE]
+12:55:28 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA 
+ Slot 1 Data Header - Indiv - Confirmed Delivery - Response Requested - Source: 4670502 Target: 4670501 
+  SAP 03 [UDP Comp] - FMF 1 - BLOCKS 06 - PAD 07 - S 0 - NS 7 - FSN: [8] - Confirmed data single fragment 1; 
+ DMR PDU Payload [43][37][47][44][25][47][44][26][86][78][46][B2]
+12:55:28 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA 
+ Slot 1 Data Header - Extended - SAP 03 [UDP Comp] - MFID 10 [Moto]
+ DMRA PDU ENC Header: MFID: 10; ENC: 1; Key ID: 01; ALG: 05; AES256; MI(32): 57665C5C
+ DMR PDU Payload [3F][10][51][01][00][00][57][66][5C][5C][72][47]
+12:55:28 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [FB][BA][16][82][F9][CB][88][AF][37][46]
+12:55:29 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [71][7B][49][E6][A5][2E][9C][62][27][52]
+12:55:29 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [FA][26][95][E6][A6][07][47][23][DC][8F]
+12:55:29 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [45][86][BA][34][6A][0C][92][D3][3A][00]
+12:55:29 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ PDU ALG: 05; Key ID: 01; MI(32): 57665C5C; AES256;
+ Slot 1 DMR PI C- ALG ID: 25; KEY ID: 01; MI(128): 57665C5CBEC43E323EFD28BA63126C28; AES-256;
+ Slot 1 - Encrypted PDU;
+ Slot 1 - Multi Block PDU Message
+  FBBA1682F9CB88AF3746717B
+  49E6A52E9C622752FA2695E6
+  A6074723DC8F4586BA346A0C
+  92D33A0000000000000064C3
+  6B64 
+ DMR PDU Payload [00][00][00][00][00][00][64][C3][6B][64]
+Sync: no sync
+12:55:30 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CACH/Burst FEC ERR
+Sync: no sync
+12:55:31 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CACH/Burst FEC ERR
+12:55:31 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][14][47][44][26][47][44][25][97][E8]
+12:55:31 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][13][47][44][26][47][44][25][8E][AC]
+12:55:31 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][12][47][44][26][47][44][25][36][CD]
+12:55:31 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][11][47][44][26][47][44][25][EE][4F]
+12:55:31 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][10][47][44][26][47][44][25][56][2E]
+12:55:31 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][0F][47][44][26][47][44][25][EB][BC]
+12:55:31 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][0E][47][44][26][47][44][25][53][DD]
+12:55:31 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][0D][47][44][26][47][44][25][8B][5F]
+12:55:31 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][0C][47][44][26][47][44][25][33][3E]
+12:55:31 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][0B][47][44][26][47][44][25][2A][7A]
+12:55:31 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][0A][47][44][26][47][44][25][92][1B]
+12:55:31 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][09][47][44][26][47][44][25][4A][99]
+12:55:31 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][08][47][44][26][47][44][25][F2][F8]
+12:55:31 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][07][47][44][26][47][44][25][78][11]
+12:55:32 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CSBK
+ Preamble CSBK - Individual Data - Source: 4670501 - Target: 4670502 
+ DMR PDU Payload [BD][00][80][06][47][44][26][47][44][25][C0][70]
+12:55:32 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA 
+ Slot 1 Data Header - Indiv - Confirmed Delivery - Response Requested - Source: 4670501 Target: 4670502 
+  SAP 03 [UDP Comp] - FMF 1 - BLOCKS 05 - PAD 01 - S 0 - NS 2 - FSN: [8] - Confirmed data single fragment 1; 
+ DMR PDU Payload [43][31][47][44][26][47][44][25][85][28][84][2C]
+12:55:32 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | DATA 
+ Slot 1 Data Header - Extended - SAP 03 [UDP Comp] - MFID 10 [Moto]
+ DMRA PDU ENC Header: MFID: 10; ENC: 1; Key ID: 01; ALG: 05; AES256; MI(32): A8A19905
+ DMR PDU Payload [3F][10][51][01][00][00][A8][A1][99][05][B8][FE]
+12:55:32 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [17][4F][80][51][4E][10][16][11][33][75]
+12:55:32 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [38][A5][E0][65][C2][A0][CA][A9][C1][50]
+12:55:32 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ DMR PDU Payload [49][AD][92][AC][0E][8E][3A][DC][61][17]
+12:55:32 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | R12C 
+ PDU ALG: 05; Key ID: 01; MI(32): A8A19905; AES256;
+ Slot 1 DMR PI C- ALG ID: 25; KEY ID: 01; MI(128): A8A1990588B16432BC3788B5EEC712D3; AES-256;
+ Slot 1 - Encrypted PDU;
+ Slot 1 - Multi Block PDU Message
+  174F80514E101611337538A5
+  E065C2A0CAA9C15049AD92AC
+  0E8E3ADC6117FBC9D9828500
+  98BEB9FD 
+ DMR PDU Payload [FB][C9][D9][82][85][00][98][BE][B9][FD]
+Sync: no sync
+12:55:33 Sync: +DMR MS/DM MODE/MONO | Color Code=01 | CACH/Burst FEC ERR
+Sync: no sync
+
+Total audio errors: 60
+Total header errors: 0
+Total irrecoverable header errors: 0
+Exiting.

@@ -1,0 +1,156 @@
+# up/zeroize at 3574eee6a, 2026-11-22T15:44:55Z
+dm32 build=0 warnings=0
+           FLASH:      777100 B       880 KB     86.24%
+             RAM:      206704 B     211456 B     97.75%
+stack check dm32: every task fits, the least free: prvIdleTask 120 bytes
+host tests=0
+  # textEditTest PASSED
+  # PASSED at1846sTest
+  # PASSED subaudioTest
+  # PASSED subaudioTest
+  # ambeFecTest: 9432 checks, PASSED
+  # ambeVoiceTest: 134 checks, PASSED
+  # ambeVoiceTest: 143 checks, PASSED
+  micGainTest: all passed
+  refTrimTest: all passed
+  paKeyupTest: all passed
+  paSweepTest: all passed
+  paKeyrunTest: all passed
+  # hrc6000DmrTest: PASSED
+  mmdvmTest: all passed
+  # hotspotSfrTest: 107 checks, PASSED
+  # splitDuplexTest: 6129 checks, PASSED
+  mmdvmTestSplit: all passed
+  # hotspotSfrTestSplit: 107 checks, PASSED
+  # hrc6000BsTest: 233 checks, PASSED
+  # hrc6000DmrTest: PASSED
+  # debuglinkDmrDataTest: 35 checks, PASSED
+  hrc7000DmrTest: all passed
+  # lis3dhTest: 17 checks, PASSED
+  # rda5807mTest: 120 checks, PASSED
+  fd6818Test: all passed
+  st7567Test: all passed
+  st7735Test PASSED
+  st7789Test: all passed
+  keymatrixTest: all passed
+  sharedPttTest: all passed
+  hrc7000DmrTest: all passed
+  bk4819Test: all passed
+  # at1141Test: 385 checks, PASSED
+  baofengCalTest: all passed
+  # fd6818shTest: 143 checks, PASSED
+  # rfbusI2cTest: 16 checks, PASSED
+  hrc7000ClockTest: all passed
+  # hrc7000UartFormatTest: 16 checks, PASSED
+  hrc7000IrqStallTest: all passed
+  hrc7000RfburstTest: all passed
+  # hostlinkNetTest: 87 checks, PASSED
+  # PASSED (439144 checks, 0 failures)
+  f4stub_wire_check PASSED (0 failures)
+  # PASSED
+  # PASSED
+  # PASSED (0 failures)
+  # PASSED (0 failures)
+  db25dCalTest: all passed
+  bootDb25dTest: all passed
+  # usrpNetTest: 122 checks, PASSED
+  # codeplugPowerTest PASSED
+  # codeplugPowerTest PASSED
+  # codeplugPowerTest PASSED
+  # PASSED (0 failures)
+  crashTest: all passed
+  crashCaptureTest: all passed
+  supportInfoTest: all passed
+  # dmrRxChainTest: PASSED
+  # dmrDataChainTest: PASSED
+  # codeplugTest PASSED
+  # mdnsTest: 99 checks, PASSED
+  # codeplugTest PASSED
+  calCurveTest: all passed
+  # satelliteStoreTest PASSED (329 checks, 0 failures)
+  # satelliteOrbitTest PASSED (197 checks, 0 failures)
+  satelliteServiceTest PASSED (389 checks, 0 failures)
+  zeroizeTest: all passed
+  codeplugTagTest: all passed
+  p25CodeplugTest: all passed
+  p25CodeplugTest: all passed
+  nxdnCodeplugTest: all passed
+  # cpsTest PASSED (0 failures)
+  dm1801proPinsTest: all passed
+  # PASSED (0 failures)
+  codeplugKvTest: all passed
+  md380PanelTest: PASSED
+  md380CalTest: all passed
+  t3CodeplugTest: all passed
+  # codeplugEditTest PASSED (0 failures)
+  # tftpTest: 1886 checks, PASSED
+  # md9600CalTest PASSED (0 failures)
+  # cpsFastTest: 722 checks, PASSED
+  # md9600StoreTest PASSED (0 failures)
+  rt10CalTest: all passed
+  # calibrationTest PASSED
+  # calibrationTest (MD-UV380) PASSED
+  hrc7000_codec self-test: all passed
+  # PASSED (0 failures)
+  # PASSED gfxTest
+  # spiNorTest PASSED (0 failures)
+  spiNandTest: all passed
+  # PASSED gfxTest
+  # PASSED i18nTest
+  # PASSED i18nTest
+  # PASSED i18nTest
+  # aprsRadioTest: 642 checks, PASSED
+  # radioCoreTest: 7099 checks, PASSED
+  # radioCoreTest: 6938 checks, PASSED
+  # radioCoreTest: 7346 checks, PASSED
+  # splitPairTest: 87 checks, PASSED
+  # dmr_cach selftest: PASSED
+  # radioCoreTest: 7215 checks, PASSED
+  zoneEditTest: all passed
+  # radioCoreTest: 7598 checks, PASSED
+  # radioCoreTest: 7354 checks, PASSED
+  # radioCoreTest: 7069 checks, PASSED
+  # radioCoreTest: 7054 checks, PASSED
+  # radioFeaturesTest: 1339 checks, PASSED
+  # radioFeaturesTest: 1073 checks, PASSED
+  # roamTest: 216 checks, PASSED
+  # radioListenBandsTest: 261 checks, PASSED
+  # inputTest: 55 checks, PASSED
+  miclevelTest: all passed
+  resampleTest: all passed
+  # keyassignTest: 382 checks, PASSED
+  boardBandTest: all passed
+  batteryTest: all passed
+  # cpsClientTest PASSED (0 failures)
+  nandSectorsTest: all passed
+  # cpsFastClientTest PASSED (0 failures)
+  # PASSED uiFlowTest
+  # PASSED uiFlowTest
+  # PASSED uiFlowTest
+  # dmrFecTest PASSED (0 failures)
+  dmrSoftBptcTest: all passed
+  dmrSoftCombTest: all passed
+  ./dmrDataTest > dmrDataTest.out; status=$?; grep -E "^(FAIL|# (PASSED|FAILED))" dmrDataTest.out; exit $status
+  # PASSED (0 failures)
+  # PASSED (0 failures)
+  # PASSED (0 failures)
+  # PASSED (0 failures)
+  # hotspotUplinkTest PASSED (0 failures)
+  # PASSED
+  # imbeEncTest PASSED: 58871 checks, 0 failures
+  PASSED: 56 checks, 0 failures
+  # PASSED (0 failures)
+  # PASSED (0 failures)
+  # PASSED (0 failures)
+  # PASSED (0 failures)
+  # PASSED (0 failures)
+  # PASSED
+  # aprsTest PASSED
+  # satelliteTleTest PASSED (53 checks, 0 failures)
+site tests=0
+# pass 799
+# fail 0
+i18n: 1185 strings, 4 catalogs ok
+boards: 8 boards, 2 platforms, consistent
+license_grep: clean
+check_generic: no radio named outside its own places
