@@ -9,9 +9,9 @@
 #include "dmr/ipGateway.h"
 #include "board.h"
 #include "hal_time.h"
+#include "radio/silence.h"
 #if CONFIG_NET_LOCAL
 #include "net/net.h"
-#include "radio/silence.h"
 #endif
 
 #define PACKETS_UP		2	// packets from the air waiting for the host

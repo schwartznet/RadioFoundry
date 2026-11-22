@@ -370,7 +370,7 @@ radioCoreTestP25Nxdn: $(RCP25NX) $(wildcard $(CORE)/radio/*.h) $(wildcard $(CORE
 
 # The same with APRS: what the data service hears goes into the station list (a DMR APRS position, docs/spec/aprs.md 8.2)
 TESTS   += radioCoreTestAprs
-RCAPRS  := $(RCORE) $(CORE)/aprs/aprs.c $(CORE)/radio/silence.c $(CORE)/aprs/aprs_ax25.c $(CORE)/aprs/aprs_dmr.c $(CORE)/aprs/aprs_host.c $(APRSLIB) \
+RCAPRS  := $(RCORE) $(CORE)/aprs/aprs.c $(CORE)/aprs/aprs_ax25.c $(CORE)/aprs/aprs_dmr.c $(CORE)/aprs/aprs_host.c $(APRSLIB) \
            $(CORE)/usbaudio/audio_mux.c $(CORE)/usbaudio/pcm_slip.c
 radioCoreTestAprs: $(RCAPRS) $(wildcard $(CORE)/radio/*.h) $(wildcard $(CORE)/dmr/call/*.h) $(CORE)/dmr/dmrDataService.h \
                    $(CORE)/ui/ui_svc.h $(wildcard $(CORE)/aprs/*.h)
@@ -378,7 +378,7 @@ radioCoreTestAprs: $(RCAPRS) $(wildcard $(CORE)/radio/*.h) $(wildcard $(CORE)/dm
 
 # The same with APRS over DMR only (CONFIG_APRS_AFSK=0): the engine and the DMR backend, nothing of AX.25 compiled
 TESTS   += radioCoreTestAprsDmr
-RCAPRSD := $(RCORE) $(CORE)/aprs/aprs.c $(CORE)/radio/silence.c $(CORE)/aprs/aprs_dmr.c $(CORE)/aprs/aprs_host.c $(CORE)/aprs/aprs_fmt.c \
+RCAPRSD := $(RCORE) $(CORE)/aprs/aprs.c $(CORE)/aprs/aprs_dmr.c $(CORE)/aprs/aprs_host.c $(CORE)/aprs/aprs_fmt.c \
            $(CORE)/aprs/aprs_beacon.c
 radioCoreTestAprsDmr: $(RCAPRSD) $(wildcard $(CORE)/radio/*.h) $(wildcard $(CORE)/dmr/call/*.h) $(CORE)/dmr/dmrDataService.h \
                       $(CORE)/ui/ui_svc.h $(wildcard $(CORE)/aprs/*.h)
