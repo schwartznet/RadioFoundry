@@ -3016,6 +3016,9 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 	ui_layout_init();
 	memset(&view, 0, sizeof view);
 	memset(&sim_rec, 0, sizeof sim_rec);
+#if CONFIG_DMR_AES
+	sim_aes_keys = false;
+#endif
 #if CONFIG_SATELLITE_TLE
 	sim_satellite_predicting = false;
 	sim_satellite_no_passes = false;
@@ -3026,9 +3029,6 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 	sim_satellite_empty = false;
 	sim_satellite_tle_age_days = 1u;
 	memset(&satellite_view, 0, sizeof satellite_view);
-#endif
-#if CONFIG_DMR_AES
-	sim_aes_keys = false;
 #endif
 	vfo_mode = RADIO_MODE_FM;	// a fresh VFO
 	vfo_cc = vfo_ts = 1;
