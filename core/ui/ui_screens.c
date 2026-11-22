@@ -1229,9 +1229,9 @@ static void draw_place(const radio_view_t *v, const ui_state_t *s)
 	gfx_text_fit(nf, v->ch.name, avail, fit, sizeof fit);
 	x = gfx_text(nf, x, nf == L->large ? y : base - nf->ascent, fit, ui_col.fg);
 	if (home_badge_drawn)
-		x += L->medium->w / 2 + draw_enc_badge(L->small, x + L->medium->w / 2, base, badge);
+		draw_enc_badge(L->small, w - badge_w, base, badge);	// right aligned, the name keeps its place
 	else if (lock)
-		x += L->medium->w / 2 + draw_padlock(x + L->medium->w / 2, base - lock_h, lock_h, ui_col.priv);
+		draw_padlock(w - padlock_width(lock_h), base - lock_h, lock_h, ui_col.priv);
 	if (v->temporary)
 		gfx_text(L->medium, x, base - L->medium->ascent, GLYPH_DOT, ui_col.warn);
 }
