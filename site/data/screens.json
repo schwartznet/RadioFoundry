@@ -521,26 +521,32 @@
     "ZONE_SHARE"
    ]
   },
+  "key_fill_menu": {
+   "group": "tools",
+   "needs": [
+    "KEY_FILL"
+   ]
+  },
   "key_fill_ready": {
-   "group": "settings",
+   "group": "tools",
    "needs": [
     "KEY_FILL"
    ]
   },
   "key_fill_compare": {
-   "group": "settings",
+   "group": "tools",
    "needs": [
     "KEY_FILL"
    ]
   },
   "key_fill_done": {
-   "group": "settings",
+   "group": "tools",
    "needs": [
     "KEY_FILL"
    ]
   },
   "key_send": {
-   "group": "settings",
+   "group": "tools",
    "needs": [
     "KEY_FILL"
    ]

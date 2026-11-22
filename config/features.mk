@@ -25,7 +25,7 @@ CONFIG_DMR_PRIVACY ?= $(CONFIG_DMR)
 # Key check and Stored keys; docs/spec/key-check.md). Lists privacy key slots and traffic keys, where the build has them
 CONFIG_KEY_CHECK ?= y
 # key fill between radios over DMR data: X25519, a six-digit code the users compare, the key sent encrypted and
-# authenticated (Settings > Privacy > Receive a key, Stored keys > Send; docs/spec/key-fill.md). Needs DMR and KEY_CHECK
+# authenticated (Tools > Key fill: Receive a key, Send a key; docs/spec/key-fill.md). Needs DMR and KEY_CHECK
 CONFIG_KEY_FILL ?= $(if $(filter y,$(CONFIG_DMR)),$(CONFIG_KEY_CHECK),n)
 # talker alias decode and TX of our radio name (needs DMR)
 CONFIG_DMR_TALKER_ALIAS ?= $(CONFIG_DMR)

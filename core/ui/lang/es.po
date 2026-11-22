@@ -3548,6 +3548,11 @@ msgid "Zones/Chs Received"
 msgstr "Zonas/Can recibidos"
 
 #: core/ui/ui_menus.c
+msgctxt "KF_TITLE"
+msgid "Key fill"
+msgstr "Carga de clave"
+
+#: core/ui/ui_menus.c
 msgctxt "WORD_DUAL_WATCH"
 msgid "Dual watch"
 msgstr "Doble escucha"
@@ -4016,11 +4021,6 @@ msgstr "Verif. clave"
 msgctxt "SET_LABEL_PRIVACY_KEYS"
 msgid "Stored keys"
 msgstr "Claves guardadas"
-
-#: core/ui/ui_menus.c
-msgctxt "SET_LABEL_KEY_RECEIVE"
-msgid "Receive a key"
-msgstr "Recibir una clave"
 
 #: core/ui/ui_menus.c
 msgctxt "SET_LABEL_AUTO_LOCK"
@@ -4578,6 +4578,16 @@ msgid "0-9 ID  OK send  Back"
 msgstr "0-9 ID  OK enviar  Atrás"
 
 #: core/ui/ui_menus.c
+msgctxt "KF_ROW_RECEIVE"
+msgid "Receive a key"
+msgstr "Recibir una clave"
+
+#: core/ui/ui_menus.c
+msgctxt "KF_ROW_SEND"
+msgid "Send a key"
+msgstr "Enviar una clave"
+
+#: core/ui/ui_menus.c
 msgctxt "KF_WHY_DMR_ONLY"
 msgid "Key fill: DMR channels only"
 msgstr "Carga de claves: solo canales DMR"
@@ -4736,11 +4746,6 @@ msgstr "OK sí  Atrás no"
 msgctxt "HINT_BACK_CANCELS"
 msgid "Back cancels"
 msgstr "Atrás cancela"
-
-#: core/ui/ui_menus.c
-msgctxt "KF_TITLE"
-msgid "Key fill"
-msgstr "Carga de clave"
 
 #: core/ui/ui_menus.c
 msgctxt "LANG_VALUE_IN_USE"

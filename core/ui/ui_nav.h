@@ -48,6 +48,7 @@ typedef enum {
 	SCR_SIG_CHAIN,			// Settings > Signaling tones: one event's five steps (arg = sig_event_t)
 	SCR_KEYS,			// Settings > Privacy > Keys: every stored key and its check value (codeplug/key_store.h)
 	SCR_KEY_SEND, SCR_KEY_FILL,	// key fill (CONFIG_KEY_FILL): a stored key's receiver; the session's steps
+	SCR_KEY_FILL_MENU,		// Tools > Key fill: receive, send (CONFIG_KEY_FILL)
 #if CONFIG_BACKLIGHT_TEST
 	SCR_BL_TEST,			// Settings > Advanced > Backlight tests
 #endif
