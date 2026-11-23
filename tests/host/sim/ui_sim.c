@@ -1625,7 +1625,7 @@ bool ui_svc_aes_key_there(uint8_t system, uint8_t kid)
 void radio_req_otar(uint8_t op, uint32_t value)
 {
 	radio_otar_view_t *o = &view.otar;
-	uint32_t hours = (value >> 8) & 0xFFu;
+	uint32_t mins = (value >> 8) & 0xFFFFu;
 	switch (op) {
 	case RADIO_OTAR_START:
 	case RADIO_OTAR_STOP: {
@@ -1646,14 +1646,14 @@ void radio_req_otar(uint8_t op, uint32_t value)
 		break;
 	}
 	case RADIO_OTAR_NEXT:
-		if (!o->on || (hours != 0 && !o->clock_ok))
+		if (!o->on || (mins != 0 && !o->clock_ok))
 			return;
 		if (!o->has_next)
 			o->next_keyset = (uint16_t)(o->keyset + 1u);
 		o->has_next = true;
 		o->next_kid = (uint8_t)value;
-		o->changeover = hours != 0 ? o->now_min + hours * 60u : 0;
-		o->by_clock = hours != 0;
+		o->changeover = mins != 0 ? o->now_min + mins : 0;
+		o->by_clock = mins != 0;
 		break;
 	case RADIO_OTAR_CLEAR_NEXT:
 		o->has_next = false;

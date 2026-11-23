@@ -643,7 +643,7 @@ void radio_req_power(int8_t dir);		// temporary change of power level, wraps
 void radio_req_tx_low(bool on);
 #if CONFIG_OTAR
 // OTAR keysets (docs/spec/otar.md 8), on the channel on view: START value = the key ID now in use (the channel's system
-// becomes managed), STOP, NEXT value = key ID | hours to the changeover << 8 (0: by hand), CLEAR_NEXT, NOW (change
+// becomes managed), STOP, NEXT value = key ID | minutes to the changeover << 8 (0: by hand), CLEAR_NEXT, NOW (change
 // over), CLOCK value = UTC seconds set by hand
 void radio_req_otar(uint8_t op, uint32_t value);
 #endif

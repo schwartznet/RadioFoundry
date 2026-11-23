@@ -8874,8 +8874,10 @@ static const ui_scr_def_t key_gen_screen = {
 // clock, or by hand), the radio's clock. Off: one row, which manages the channel on view's system with its key. On:
 // the rows below. Digits are typed on this screen for a key ID or the clock (nk_entry)
 enum { NK_MANAGE, NK_NEXT, NK_WHEN, NK_NOW, NK_DROP, NK_CLOCK, NK_STOP };
-static const uint8_t nk_hours[4] = { 0, 1, 6, 24 };	// the changeover: by hand, in 1, 6, 24 hours
-static uint8_t nk_when;		// index into nk_hours
+// The changeover: by hand, or in 5 minutes (a quick test, or a net that changes over at once), 1, 6, 24 hours
+static const uint16_t nk_mins[5] = { 0, 5, 60, 360, 1440 };
+#define NK_WHENS	(sizeof nk_mins / sizeof nk_mins[0])
+static uint8_t nk_when;		// index into nk_mins
 static uint8_t nk_entry;	// 0: none; NK_NEXT: a key ID; NK_CLOCK: the time, YYMMDDhhmm
 static char nk_digits[11];
 static uint8_t nk_n;
@@ -8918,11 +8920,15 @@ static void nk_item(uint16_t i, ui_item_t *it)
 		break;
 	case NK_WHEN:
 		sb_str(&b, TR(NK_WHEN, "Change over: "));
-		if (nk_hours[nk_when] == 0) {
+		if (nk_mins[nk_when] == 0) {
 			sb_str(&b, TR(NK_BY_HAND, "by hand"));
+		} else if (nk_mins[nk_when] < 60u) {
+			sb_str(&b, TR(NK_IN, "in "));
+			sb_u32(&b, nk_mins[nk_when], 1);
+			sb_str(&b, TR(NK_MINUTES, " min"));
 		} else {
 			sb_str(&b, TR(NK_IN, "in "));
-			sb_u32(&b, nk_hours[nk_when], 1);
+			sb_u32(&b, nk_mins[nk_when] / 60u, 1);
 			sb_str(&b, TR(NK_HOURS, " h"));
 		}
 		break;
@@ -8993,11 +8999,10 @@ static const char *nk_hint(void)
 	return nk_entry ? TR(NK_HINT_ENTRY, "0-9  OK set  Back") : TR(HINT_OK_PICK_BACK, "OK pick  Back");
 }
 
-// The changeover asked: hours from now, or 0 by hand (also when there is no clock to count them by)
+// The changeover asked: minutes from now, or 0 by hand
 static uint32_t nk_next_value(uint8_t kid)
 {
-	uint32_t h = nk_hours[nk_when];
-	return kid | (h << 8);
+	return kid | ((uint32_t)nk_mins[nk_when] << 8);
 }
 
 static void nk_select(uint16_t i, bool hold)
@@ -9022,8 +9027,8 @@ static void nk_select(uint16_t i, bool hold)
 		nk_digits[0] = '\0';
 		break;
 	case NK_WHEN:
-		nk_when = (uint8_t)((nk_when + 1u) % 4u);
-		if (nk_hours[nk_when] != 0 && !o->clock_ok) {
+		nk_when = (uint8_t)((nk_when + 1u) % NK_WHENS);
+		if (nk_mins[nk_when] != 0 && !o->clock_ok) {
 			nk_when = 0;
 			ui_toast(TR(NK_WHY_CLOCK, "No clock: set it, or wait for GPS"));
 		} else if (o->has_next) {
@@ -9068,7 +9073,7 @@ static void nk_enter_typed(void)
 			ui_toast(TR(NK_WHY_NO_KEY, "No key with that ID: load or generate it first"));
 			return;
 		}
-		if (nk_hours[nk_when] != 0 && !o->clock_ok)
+		if (nk_mins[nk_when] != 0 && !o->clock_ok)
 			nk_when = 0;
 		radio_req_otar(RADIO_OTAR_NEXT, nk_next_value((uint8_t)n));
 	} else {

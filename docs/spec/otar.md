@@ -210,7 +210,7 @@ KIDs: NC picks them; by default from the keyset number so consecutive keysets ne
 keyset 7". OK on a row: inventory, resend, revoke, or (if that radio allows it) zeroize.
 
 **Rekey:** by hand (Rekey now) or on a schedule (every 1, 7 or 30 days). NC fills the pool, generates the TEKs, takes
-the changeover time (in 1 h, 6 h, 24 h, at a time, or on command), then sends REKEY to every member one at a time. It
+the changeover time (in 5 min, 1 h, 6 h, 24 h, at a time, or on command), then sends REKEY to every member one at a time. It
 retries unanswered members every 5 minutes until the changeover, in the background while NC stays on the net's
 channel. A HELLO from a member behind gets its REKEY at once (warm start). At the changeover time NC sends CHANGEOVER.
 
@@ -295,7 +295,7 @@ the user's OK. UI flows for each screen.
 | Keys in use | `radio_aes.c`: on the managed system a channel's key reference 1-4 is its CKR, anything else CKR 1. TX uses the active keyset's key; RX holds the active, next and (through the 30-minute overlap) previous keys, `DMR_AES_KEY_SLOTS` 3, chosen by each call's key ID. Changes happen between overs only |
 | Changeover | By hand (Change over now), or at the changeover minute when the radio has a clock. The overlap is RAM: a restart ends it. When it ends, the previous keyset's keys that no keyset still names are removed from the codeplug by a storage job (`codeplug_kv_remove`; the flash sector keeps the bytes until the area is rewritten, as for any removed record) |
 | Clock | `core/support/utc_clock.c`, RAM only: GPS once a minute (`position_utc_fields`, with `CONFIG_SATELLITE_TLE`), or set by hand. A board's backed RTC is not read yet (each board's hardware spec has its registers) |
-| UI | Tools > Key fill > 5 Net keys: Manage keys (the channel on view's system, its key as keyset 1), Next key (typed key ID, which the system must hold: load it by key fill, group key fill or Generate), Change over (by hand, in 1, 6 or 24 h), Change over now, Drop the next key, Set the clock (UTC, YYMMDDhhmm), Stop managing keys. The info above the rows: keyset and key, the next key and when, the old key in its overlap, UTC |
+| UI | Tools > Key fill > 5 Net keys: Manage keys (the channel on view's system, its key as keyset 1), Next key (typed key ID, which the system must hold: load it by key fill, group key fill or Generate), Change over (by hand, in 5 min, in 1, 6 or 24 h), Change over now, Drop the next key, Set the clock (UTC, YYMMDDhhmm), Stop managing keys. The info above the rows: keyset and key, the next key and when, the old key in its overlap, UTC |
 | Requests | `radio_req_otar` (RREQ_OTAR): START, STOP, NEXT, CLEAR_NEXT, NOW, CLOCK. Refused while transmitting, except CLOCK |
 | Switch | `CONFIG_OTAR`, on where `DMR_AES` and `KEY_CHECK` are |
 

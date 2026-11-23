@@ -144,11 +144,11 @@ bool radio_aes_otar_request(uint8_t op, uint32_t value, const channel_t *ch, uin
 		otar_stop(&otar);
 		break;
 	case RADIO_OTAR_NEXT: {
-		// value: the key ID in bits 0-7, the hours to the changeover in bits 8-15 (0: by hand)
-		uint32_t hours = (value >> 8) & 0xFFu;
-		if (hours != 0 && !clock_minutes(now_ms, &min))
+		// value: the key ID in bits 0-7, the minutes to the changeover in bits 8-23 (0: by hand)
+		uint32_t mins = (value >> 8) & 0xFFFFu;
+		if (mins != 0 && !clock_minutes(now_ms, &min))
 			return false;	// no clock to change over by
-		if (!otar_set_next(&otar, 1, (uint8_t)value, hours != 0 ? min + hours * 60u : 0, hours != 0))
+		if (!otar_set_next(&otar, 1, (uint8_t)value, mins != 0 ? min + mins : 0, mins != 0))
 			return false;
 		break;
 	}

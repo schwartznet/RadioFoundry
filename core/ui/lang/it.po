@@ -5018,6 +5018,11 @@ msgid "in "
 msgstr "tra "
 
 #: core/ui/ui_menus.c
+msgctxt "NK_MINUTES"
+msgid " min"
+msgstr " min"
+
+#: core/ui/ui_menus.c
 msgctxt "NK_HOURS"
 msgid " h"
 msgstr " h"

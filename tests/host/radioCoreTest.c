@@ -3763,7 +3763,7 @@ static void test_dmr_voice_features(void)
 		o.arg2 = 1795442700u;	// 2026-11-23 14:05 UTC
 		radio_sm_request(&sm, &o, now);
 		o.arg = RADIO_OTAR_NEXT;
-		o.arg2 = 0u | (1u << 8);	// key 0, in 1 hour
+		o.arg2 = 0u | (60u << 8);	// key 0, in 60 minutes
 		radio_sm_request(&sm, &o, now);
 		run(50);
 		CHECK(sm.view.otar.has_next && sm.view.otar.by_clock &&

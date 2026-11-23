@@ -5020,6 +5020,11 @@ msgid "in "
 msgstr "再过 "
 
 #: core/ui/ui_menus.c
+msgctxt "NK_MINUTES"
+msgid " min"
+msgstr " 分钟"
+
+#: core/ui/ui_menus.c
 msgctxt "NK_HOURS"
 msgid " h"
 msgstr " 小时"
