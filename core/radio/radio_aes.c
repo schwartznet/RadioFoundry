@@ -71,6 +71,23 @@ bool radio_aes_configure(const channel_t *ch, dmr_call_config_t *cfg)
 	return true;
 }
 
+void radio_aes_data_privacy(dmrDataPrivacy_t *p)
+{
+	// AES-256 OFB, a new MI from the radio's sequence for every packet. Without the key no data packet goes, and none
+	// is sent in the clear
+	memset(p, 0, sizeof *p);
+	if (!dmrAesHasKeys(&channel_keys)) {
+		p->mode = DMR_DATA_PRIVACY_BLOCK;
+		return;
+	}
+	p->mode = DMR_DATA_PRIVACY_ENCRYPT;
+	p->alg = DMR_AES_DATA_ALG;
+	p->keyId = channel_keys.keys[0].key_id;
+	p->crypt = dmrAesDataCrypt;
+	p->newMi = dmrAesDataMi;
+	p->ctx = &channel_keys;
+}
+
 void radio_aes_poll(const channel_t *ch, uint32_t own_id, uint32_t now_ms)
 {
 	dmrAesSeqSettle(&aes_seq);

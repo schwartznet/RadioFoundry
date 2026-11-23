@@ -3276,17 +3276,7 @@ static void data_tick(radio_sm_t *sm, uint32_t now_ms)
 	if (ch->kind == CODEPLUG_KIND_DMR_AES) {
 		// The channel's AES key covers its data (docs/spec/dmr-data.md 13.4): AES-256 OFB, a new MI from the radio's
 		// sequence for every packet. Without the key no data packet goes, and none is sent in the clear
-		memset(&c.privacy, 0, sizeof c.privacy);
-		if (dmrAesHasKeys(&channel_keys)) {
-			c.privacy.mode = DMR_DATA_PRIVACY_ENCRYPT;
-			c.privacy.alg = DMR_AES_DATA_ALG;
-			c.privacy.keyId = channel_keys.keys[0].key_id;
-			c.privacy.crypt = dmrAesDataCrypt;
-			c.privacy.newMi = dmrAesDataMi;
-			c.privacy.ctx = &channel_keys;
-		} else {
-			c.privacy.mode = DMR_DATA_PRIVACY_BLOCK;
-		}
+		radio_aes_data_privacy(&c.privacy);
 	}
 #endif
 #endif
