@@ -396,6 +396,18 @@ Anyone with the channel key can receive the new key, so confirm the check value 
 keep the radios apart (in another room), as for key fill. How it works:
 [group-key-fill.md](../spec/group-key-fill.md).
 
+### Making a new key on the radio
+
+**Tools > Key fill > Generate a key**, on an AES channel, makes a new AES-256 key without a computer. Press keys at
+random until the count reaches 0 (the radio has no random number source of its own, so your presses' timing is the
+randomness). The radio shows the new key's check value and the key ID it will save it as: the channel's own key ID if
+that has no key yet, else the first free one. Type another ID if you want; if that ID already holds a key, the line reads
+"Replace key" instead of "Save as key". **OK** saves it, **Back** leaves without saving.
+
+Then give it to the other radios with key fill or **Send a key > Send to group**, and switch the channel to the new key
+ID (in the editor, or by saving it over the channel's key ID). Status: untested on a radio. How it works:
+[group-key-fill.md](../spec/group-key-fill.md) 8.
+
 ## Position in calls
 
 Some DMR radios send their position inside a voice call (ETSI GPS Info). When a caller does, the receive screen shows

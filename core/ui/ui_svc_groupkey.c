@@ -4,7 +4,8 @@
 // on the RTOS heap, wiped before it is freed on every way out. The sender builds the message once and hands the
 // transport (keyfill/groupkey_api.h) its copies; a receiver checks each message under its own channel key and, on the
 // user's OK, stores the key by a storage job on the housekeeping task. The emergency wipe clears a running session
-// (ui_svc_gk_zeroize, called by zeroize_ram_hook in ui_svc_keyfill.c).
+// (ui_svc_gk_zeroize, called by zeroize_ram_hook in ui_svc_keyfill.c). Generate a key (group-key-fill.md 8) is the
+// receiver's save with the key taken from the randomness pool instead of the air.
 #include "config.h"
 
 #if CONFIG_GROUP_KEY_FILL
@@ -29,6 +30,8 @@ typedef struct {
 	uint8_t state;			// UI_GK_*
 	uint8_t why;			// UI_GK_WHY_*
 	bool send;			// the sender's session
+	bool gen;			// Generate a key: the pool's key, saved like a received one
+	bool replaces;			// save_id holds a key in chan_system already
 	bool ending;
 	// Sender: the stored key as picked (class, record and check value must still match when it is read)
 	uint16_t pick_record;
@@ -81,6 +84,25 @@ static bool channel_key(const radio_view_t *v, uint8_t key[GK_KEY_LEN], uint8_t 
 	       GK_KEY_LEN;
 }
 
+// The channel on view an AES one (its key needn't be there yet: Generate can make it): its system into *system
+static bool channel_system(const radio_view_t *v, uint8_t *system)
+{
+	const channel_t *ch = &v->ch;
+	if (ch->mode != RADIO_MODE_DMR || ch->kind != CODEPLUG_KIND_DMR_AES || ch->aes_ref == 0 || ch->aes_ref > 256)
+		return false;
+	*system = ch->system;
+	return true;
+}
+
+// Whether system holds an AES-256 key under id
+static bool key_there(uint8_t system, uint8_t id)
+{
+	uint8_t k[GK_KEY_LEN];
+	bool there = codeplug_traffic_key(system, GK_ALG_AES256, id, k, sizeof k) == (int)sizeof k;
+	crypto_wipe(k, sizeof k);
+	return there;
+}
+
 static void store_job(void *ctx)
 {
 	gk_ctx_t *c = ctx;
@@ -98,6 +120,29 @@ uint8_t ui_svc_gk_start(int32_t key, const radio_view_t *v)
 	if (gk != NULL)
 		return UI_GK_WHY_BUSY;
 	uint8_t ck[GK_KEY_LEN], system = 0;
+	if (key == UI_GK_GENERATE) {
+		if (!channel_system(v, &system))
+			return UI_GK_WHY_GEN_CHANNEL;
+		gk_ctx_t *c = pvPortMalloc(sizeof *c);
+		if (c == NULL)
+			return UI_GK_WHY_BUSY;
+		memset(c, 0, sizeof *c);
+		gk_wiped = false;
+		c->gen = true;
+		c->state = UI_GK_RANDOM;
+		c->chan_system = system;
+		// Saved as the channel's own key ID while that is free (an AES channel without its key yet), else the first
+		// free ID: the user types another to replace a key
+		uint8_t id = (uint8_t)(v->ch.aes_ref - 1u);
+		for (uint16_t i = 1; key_there(system, id) && i <= 256u; i++)
+			id = (uint8_t)i;	// 1..255, then 0
+		if (key_there(system, id))
+			id = (uint8_t)(v->ch.aes_ref - 1u);	// none free: the channel's own, shown as replacing
+		c->got.key_id = id;
+		c->save_id = id;
+		gk = c;
+		return UI_GK_WHY_NONE;
+	}
 	bool have = channel_key(v, ck, &system);
 	if (!have) {
 		crypto_wipe(ck, sizeof ck);
@@ -156,6 +201,8 @@ bool ui_svc_gk_view(ui_gk_view_t *out)
 	out->state = gk->state;
 	out->why = gk->why;
 	out->send = gk->send;
+	out->gen = gk->gen;
+	out->replaces = gk->replaces;
 	out->copies = gk->copies;
 	uint32_t now = hal_millis();
 	out->left_s = gk->send || (int32_t)(gk->until - now) <= 0 ? 0 : (gk->until - now + 999u) / 1000u;
@@ -172,8 +219,10 @@ bool ui_svc_gk_view(ui_gk_view_t *out)
 
 void ui_svc_gk_save_id(uint8_t id)
 {
-	if (gk != NULL && gk->state == UI_GK_GOT)
+	if (gk != NULL && gk->state == UI_GK_GOT && gk->save_id != id) {
 		gk->save_id = id;
+		gk->replaces = key_there(gk->chan_system, id);
+	}
 }
 
 void ui_svc_gk_save(void)
@@ -204,7 +253,7 @@ void ui_svc_gk_save(void)
 
 void ui_svc_gk_drop(void)
 {
-	if (gk == NULL || gk->state != UI_GK_GOT)
+	if (gk == NULL || gk->state != UI_GK_GOT || gk->gen)
 		return;
 	gk_wipe(&gk->got);	// its session stays seen: a later copy of it isn't shown again
 	gk->kcv_ok = false;
@@ -229,6 +278,17 @@ static void remember(const uint8_t session[GK_SESSION_LEN])
 {
 	uint8_t i = gk->seen_n < 4 ? gk->seen_n++ : (uint8_t)(hal_millis() & 3u);
 	memcpy(gk->seen[i], session, GK_SESSION_LEN);
+}
+
+// Generate: once the pool is full, the key from it, shown with its check value for the user's OK (as a received one)
+static void gen_tick(void)
+{
+	if (gk->state != UI_GK_RANDOM || entropy_bits() < ENTROPY_FULL)
+		return;
+	entropy_take(gk->got.key, GK_KEY_LEN);
+	gk->kcv_ok = kcv_traffic(CODEPLUG_SYSTYPE_DMR_AES, GK_ALG_AES256, gk->got.key, GK_KEY_LEN, gk->kcv);
+	gk->replaces = key_there(gk->chan_system, gk->save_id);
+	gk->state = UI_GK_GOT;
 }
 
 static void listen_tick(uint32_t now)
@@ -356,7 +416,11 @@ bool ui_svc_gk_tick(const radio_view_t *v, uint32_t now)
 	}
 	if (gk->send)
 		send_tick(now);
-	else
+	else if (gk->gen && gk->state == UI_GK_RANDOM)
+		gen_tick();
+	else if (gk->gen && gk->state == UI_GK_SAVING)
+		listen_tick(now);	// the store's steps only: a generated key has no window
+	else if (!gk->gen)
 		listen_tick(now);
 	uint32_t s = gk->send || (int32_t)(gk->until - now) <= 0 ? 0 : (gk->until - now) / 1000u;
 	bool changed = gk->state != gk->seen_state || s != gk->seen_s;

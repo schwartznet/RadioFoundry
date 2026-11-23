@@ -133,6 +133,8 @@ typedef struct {
 	uint8_t state;		// UI_GK_*
 	uint8_t why;		// UI_GK_WHY_*: why it failed
 	bool send;		// the sender's session
+	bool gen;		// Generate a key: a new key from the pool, saved like a received one
+	bool replaces;		// the key ID to save as holds a key already: saving replaces it
 	uint8_t copies;		// sender: copies on air so far
 	uint8_t presses;	// sender: random key presses the pool still wants
 	uint32_t left_s;	// receiver: seconds the window stays open
@@ -145,9 +147,11 @@ typedef struct {
 } ui_gk_view_t;
 enum { UI_GK_RANDOM, UI_GK_SENDING, UI_GK_SENT, UI_GK_LISTEN, UI_GK_GOT, UI_GK_SAVING, UI_GK_SAVED, UI_GK_FAILED };
 enum { UI_GK_WHY_NONE, UI_GK_WHY_CHANNEL, UI_GK_WHY_TARGET, UI_GK_WHY_NO_ID, UI_GK_WHY_KEY, UI_GK_WHY_BUSY,
-       UI_GK_WHY_SEND, UI_GK_WHY_TIMEOUT, UI_GK_WHY_STORE };
-// Start a session on the channel in v: receive (key < 0), or send stored key `key` (ui_svc_key's index, an AES-256
-// traffic key) to the channel's talkgroup. UI_GK_WHY_NONE, or why not
+       UI_GK_WHY_SEND, UI_GK_WHY_TIMEOUT, UI_GK_WHY_STORE, UI_GK_WHY_GEN_CHANNEL };
+// Start a session on the channel in v: receive (key -1), generate a new key into the channel's AES system
+// (UI_GK_GENERATE), or send stored key `key` (ui_svc_key's index, an AES-256 traffic key) to the channel's talkgroup.
+// UI_GK_WHY_NONE, or why not
+#define UI_GK_GENERATE	(-2)
 uint8_t ui_svc_gk_start(int32_t key, const radio_view_t *v);
 bool ui_svc_gk_view(ui_gk_view_t *out);		// false: no session
 void ui_svc_gk_save_id(uint8_t id);		// the key ID the user typed for the key shown

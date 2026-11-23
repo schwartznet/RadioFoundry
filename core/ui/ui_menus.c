@@ -8472,15 +8472,16 @@ static const ui_scr_def_t key_send_screen = {
 // Key fill is an operation, not a preference, so it lives under Tools (information-architecture.md P1); the key's
 // setup (Key type, Key, Key check, Stored keys) stays in Settings > Privacy. 1 waits for a key, 2 lists the stored
 // keys, where OK on one sends it (to a radio, or with group key fill to the channel's talkgroup); 3 waits for a group
-// key (group-key-fill.md 7)
-enum { KFM_RECEIVE, KFM_SEND, KFM_GROUP, KFM_COUNT };
+// key (group-key-fill.md 7); 4 makes a new key from the randomness pool (group-key-fill.md 8)
+enum { KFM_RECEIVE, KFM_SEND, KFM_GROUP, KFM_GENERATE, KFM_COUNT };
 
 static uint16_t kfm_count(void) { return CONFIG_GROUP_KEY_FILL ? KFM_COUNT : KFM_GROUP; }
 
 static void kfm_item(uint16_t i, ui_item_t *it)
 {
 	static const tr_id_t names[KFM_COUNT] = { TRN(KF_ROW_RECEIVE, "Receive a key"), TRN(KF_ROW_SEND, "Send a key"),
-						  TRN(GK_ROW_RECEIVE, "Receive group key") };
+						  TRN(GK_ROW_RECEIVE, "Receive group key"),
+						  TRN(GK_ROW_GENERATE, "Generate a key") };
 	if (i >= KFM_COUNT)
 		return;
 	str_copy(it->label, sizeof it->label, tr(names[i]));
@@ -8499,6 +8500,7 @@ static void kfm_select(uint16_t i, bool hold)
 		break;
 #if CONFIG_GROUP_KEY_FILL
 	case KFM_GROUP: ui_gk_open(-1); break;
+	case KFM_GENERATE: ui_gk_open(UI_GK_GENERATE); break;
 #endif
 	default: break;
 	}
@@ -8694,6 +8696,7 @@ static const char *gk_why_text(uint8_t why)
 	case UI_GK_WHY_SEND: return TR(KF_WHY_SEND, "Couldn't send: check the channel");
 	case UI_GK_WHY_TIMEOUT: return TR(GK_WHY_TIMEOUT, "No key came");
 	case UI_GK_WHY_STORE: return TR(KF_RES_WRITE_FAILED, "The receiver couldn't save the key");
+	case UI_GK_WHY_GEN_CHANNEL: return TR(GK_WHY_GEN_CHANNEL, "Generate a key on an AES channel");
 	default: return TR(KF_WHY_BUSY, "Key fill busy: try again");
 	}
 }
@@ -8710,7 +8713,10 @@ void ui_gk_open(int32_t key)
 	if (ui_frame()->scr == SCR_KEY_SEND)
 		ui_pop();	// the session in its place: Back goes to Stored keys
 	gk_typed = 0;
-	ui_push(SCR_GROUP_KEY, key >= 0 ? (uint16_t)(1 + key) : 0);
+	if (key == UI_GK_GENERATE)
+		ui_push(SCR_KEY_GEN, 0);
+	else
+		ui_push(SCR_GROUP_KEY, key >= 0 ? (uint16_t)(1 + key) : 0);
 }
 
 static uint16_t gk_count(void) { return 0; }
@@ -8761,14 +8767,19 @@ static const char *gk_body(void)
 	case UI_GK_GOT:
 		if (gk_typed == 0 && g.save_id != g.key_id)
 			ui_svc_gk_save_id(g.key_id);	// a key shown anew starts from its sent ID
-		sb_str(&b, TR(GK_BODY_FROM, "Key from "));
-		sb_u32(&b, g.sender, 1);
-		sb_chr(&b, '\n');
-		sb_str(&b, TR(GK_BODY_KEY_ID, "Key ID "));
-		sb_u32(&b, g.key_id, 1);
+		if (g.gen) {
+			sb_str(&b, TR(GK_BODY_NEW_KEY, "New AES-256 key"));
+		} else {
+			sb_str(&b, TR(GK_BODY_FROM, "Key from "));
+			sb_u32(&b, g.sender, 1);
+			sb_chr(&b, '\n');
+			sb_str(&b, TR(GK_BODY_KEY_ID, "Key ID "));
+			sb_u32(&b, g.key_id, 1);
+		}
 		gk_check(&b, &g);
 		sb_chr(&b, '\n');
-		sb_str(&b, TR(GK_BODY_SAVE_AS, "Save as key: "));
+		// An ID that holds a key already says so on the same line, which fits the smallest screens
+		sb_str(&b, g.replaces ? TR(GK_BODY_REPLACE, "Replace key: ") : TR(GK_BODY_SAVE_AS, "Save as key: "));
 		sb_u32(&b, g.save_id, 1);
 		sb_chr(&b, '_');
 		break;
@@ -8794,7 +8805,8 @@ static const char *gk_hint(void)
 	if (!ui_svc_gk_view(&g))
 		return TR(HINT_BACK, "Back");
 	switch (g.state) {
-	case UI_GK_GOT: return TR(GK_HINT_SAVE, "0-9 ID  OK save  Back drop");
+	case UI_GK_GOT: return g.gen ? TR(GK_HINT_SAVE_GEN, "0-9 ID  OK save  Back") :
+				       TR(GK_HINT_SAVE, "0-9 ID  OK save  Back drop");
 	case UI_GK_RANDOM: case UI_GK_SENDING: case UI_GK_LISTEN: return TR(HINT_BACK_CANCELS, "Back cancels");
 	default: return TR(HINT_BACK, "Back");
 	}
@@ -8821,6 +8833,8 @@ static bool gk_key(const input_event_t *ev)
 		} else if (ev->action == ACT_BACK && gk_typed > 0) {
 			gk_typed--;
 			ui_svc_gk_save_id(gk_typed == 0 ? g.key_id : (uint8_t)(g.save_id / 10u));
+		} else if (ev->action == ACT_BACK && g.gen) {
+			ui_pop();	// a generated key not saved is wiped as the session ends
 		} else if (ev->action == ACT_BACK) {
 			ui_svc_gk_drop();
 		}
@@ -8837,6 +8851,13 @@ static bool gk_key(const input_event_t *ev)
 
 static const ui_scr_def_t group_key_screen = {
 	.name = "group-key", .flags = SF_LIST | SF_HINT_FN, .prefix = TRN(GK_TITLE, "Group key fill"),
+	.hint_fn = gk_hint,
+	.count = gk_count, .item = gk_item, .body = gk_body, .key = gk_key,
+};
+
+// Generate a key: the same session and steps under its own title
+static const ui_scr_def_t key_gen_screen = {
+	.name = "key-gen", .flags = SF_LIST | SF_HINT_FN, .prefix = TRN(GK_GEN_TITLE, "Generate a key"),
 	.hint_fn = gk_hint,
 	.count = gk_count, .item = gk_item, .body = gk_body, .key = gk_key,
 };
@@ -9173,7 +9194,7 @@ const ui_scr_def_t *const ui_scr[SCR_COUNT] = {
 	[SCR_KEY_FILL] = &key_fill_screen, [SCR_KEY_FILL_MENU] = &key_fill_menu_screen,
 #endif
 #if CONFIG_GROUP_KEY_FILL
-	[SCR_GROUP_KEY] = &group_key_screen,
+	[SCR_GROUP_KEY] = &group_key_screen, [SCR_KEY_GEN] = &key_gen_screen,
 #endif
 #if CONFIG_ZEROIZE
 	[SCR_WIPE_CODE] = &wipe_code_screen, [SCR_WIPE] = &wipe_screen,

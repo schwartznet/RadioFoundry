@@ -18,8 +18,8 @@ the channel key's: whoever holds the channel key can read a group key sent on th
 | Switch | `CONFIG_GROUP_KEY_FILL`, on where `CONFIG_KEY_FILL` and `CONFIG_DMR_AES` are |
 | Message | `core/keyfill/groupkey.{h,c}`: building, checking and opening a message. Pure: no RTOS, no allocation |
 | Transport | `core/keyfill/groupkey_svc.c`: UDP port 4102 through the air queue, the received message held for the UI |
-| UI | `core/ui/ui_svc_groupkey.c` and the screens in `core/ui/ui_menus.c` |
-| Tests | `tests/host/groupKeyTest.c`, `uiFlowTest` flows `G ...` |
+| UI | `core/ui/ui_svc_groupkey.c` and the screens in `core/ui/ui_menus.c`; Generate a key (8) is the same session |
+| Tests | `tests/host/groupKeyTest.c`, `tests/host/keyGenTest.c`, `uiFlowTest` flows `G ...` |
 
 ## 2. Roles and the flow
 
@@ -117,16 +117,45 @@ A receiver takes a message only when all of these hold. Otherwise it is dropped,
 | Saved | "Saved as key 5", "Check 9507A7" | Back |
 | Stored keys > OK on an AES-256 key > Send to group | "Sending to group 2/4", then "Sent to group", "Check 9507A7" | Back stops |
 | Refused | "Group key fill needs an AES channel with its key" or "... a talkgroup as the target" | Back |
+| Tools > Key fill > Generate a key (8) | "Press keys at random: 12", then "New AES-256 key", "Check 3C1A7E", "Save as key: 3" ("Replace key: 3" when that ID holds a key) | Digits edit the key ID (0-255), OK saves, Back takes a typed digit back, then leaves without saving |
 
-## 8. Limits
+## 8. Generate a key
+
+A new AES-256 key made on the radio, for a net that has no computer at hand: the net control radio makes it, then
+sends it with key fill or group key fill.
+
+1. Tools > Key fill > **Generate a key**, on an AES channel. The channel's key needn't be there yet (a channel set to
+   a key ID the codeplug doesn't hold yet is how a net's first key starts). Elsewhere: "Generate a key on an AES
+   channel" and nothing happens.
+2. The randomness pool ([key-fill.md](key-fill.md) 6) fills as for key fill: random key presses until 128 bits are
+   credited. Then 32 octets are taken from it (`entropy_take`), which moves the pool on.
+3. The screen shows the key's check value ([key-check.md](key-check.md)) and offers a key ID: the channel's own while
+   the channel's AES system has no key under it, else the first free ID (1-255, then 0), else the channel's own again.
+   Typing an ID the system already holds turns the line into "Replace key: 5".
+4. OK stores it into the channel's AES system under that ID, by the same storage job as a received group key
+   (`key_store_put`), replacing a key of that ID. "Saved as key 3" and the check value follow.
+
+Nothing goes on air and nothing is listened for. The key is in RAM only in the session's block, which is wiped when
+the screen closes, saved or not, and by the emergency wipe. The key is only as unpredictable as the pool: its credit
+comes from the timing of key presses, which is enough for a key but weaker than a hardware source; a hardware noise
+source for the pool (key-fill.md 6) would serve Generate as well. The web editor's Generate button (the browser's
+`crypto.getRandomValues`) stays the other way to make a key.
+
+## 9. Limits
 
 - AES-256 traffic keys only. A privacy slot or another system's key isn't offered for Send to group.
 - One key per message.
 - No acknowledgement: the sender can't know who got the key. The voice check is the acknowledgement.
 - Not checked against other makes: other makes ignore port 4102.
 
-## 9. Tests
+## 10. Tests
 
 `tests/host/groupKeyTest.c`: a known message from fixed inputs; round trip; every field and every octet of the tag
 altered; another channel key; the source ID not the message's; a short and a long message; the same session twice. The
 UI flows: the refusals, a received key saved under another ID, Back, the window running out, a send's four copies.
+
+`tests/host/keyGenTest.c` (8), with the pool and the check value real and the store and codeplug faked: only on an AES
+channel; no key before the pool is full; the ID offered (the channel's own, the first free one, none free); the
+replace warning; the key handed to the store, its system, class and ID, its check value the one shown; two keys not the
+same; nothing on air; the session's block wiped when saved, when left and by the emergency wipe. The UI flows: the
+menu row, the refusal, the key shown, saved under its ID and another, the warning, Back.

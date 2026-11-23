@@ -4718,6 +4718,11 @@ msgid "Receive group key"
 msgstr "Recibir clave grupo"
 
 #: core/ui/ui_menus.c
+msgctxt "GK_ROW_GENERATE"
+msgid "Generate a key"
+msgstr "Generar una clave"
+
+#: core/ui/ui_menus.c
 msgctxt "KF_WHY_DMR_ONLY"
 msgid "Key fill: DMR channels only"
 msgstr "Carga de claves: solo canales DMR"
@@ -4898,6 +4903,11 @@ msgid "No key came"
 msgstr "No llegó ninguna clave"
 
 #: core/ui/ui_menus.c
+msgctxt "GK_WHY_GEN_CHANNEL"
+msgid "Generate a key on an AES channel"
+msgstr "Genere la clave en un canal AES"
+
+#: core/ui/ui_menus.c
 msgctxt "GK_BODY_SENDING"
 msgid "Sending to group "
 msgstr "Enviando al grupo "
@@ -4923,6 +4933,11 @@ msgid " left"
 msgstr " restantes"
 
 #: core/ui/ui_menus.c
+msgctxt "GK_BODY_NEW_KEY"
+msgid "New AES-256 key"
+msgstr "Nueva clave AES-256"
+
+#: core/ui/ui_menus.c
 msgctxt "GK_BODY_FROM"
 msgid "Key from "
 msgstr "Clave de "
@@ -4931,6 +4946,11 @@ msgstr "Clave de "
 msgctxt "GK_BODY_KEY_ID"
 msgid "Key ID "
 msgstr "ID de clave "
+
+#: core/ui/ui_menus.c
+msgctxt "GK_BODY_REPLACE"
+msgid "Replace key: "
+msgstr "Sustituir clave: "
 
 #: core/ui/ui_menus.c
 msgctxt "GK_BODY_SAVE_AS"
@@ -4943,6 +4963,11 @@ msgid "Saved as key "
 msgstr "Guardada como clave "
 
 #: core/ui/ui_menus.c
+msgctxt "GK_HINT_SAVE_GEN"
+msgid "0-9 ID  OK save  Back"
+msgstr "0-9 ID  OK guarda  Atrás"
+
+#: core/ui/ui_menus.c
 msgctxt "GK_HINT_SAVE"
 msgid "0-9 ID  OK save  Back drop"
 msgstr "0-9 ID  OK guarda  Atrás descarta"
@@ -4951,6 +4976,11 @@ msgstr "0-9 ID  OK guarda  Atrás descarta"
 msgctxt "GK_TITLE"
 msgid "Group key fill"
 msgstr "Carga de grupo"
+
+#: core/ui/ui_menus.c
+msgctxt "GK_GEN_TITLE"
+msgid "Generate a key"
+msgstr "Generar una clave"
 
 #: core/ui/ui_menus.c
 msgctxt "WIPE_ROW_CLEAR"

@@ -903,6 +903,16 @@ run: run-key-fill
 run-key-fill: keyFillTest
 	./keyFillTest
 .PHONY: run-key-fill
+# Generate a key (core/ui/ui_svc_groupkey.c, group-key-fill.md 8): the key from the pool, the ID offered, the store,
+# the wipe on every way out
+TESTS   += keyGenTest
+KEYGEN := $(CORE)/ui/ui_svc_groupkey.c $(CORE)/keyfill/groupkey.c $(CORE)/support/entropy.c $(KEYCRYPTO) $(KCV_AES)
+keyGenTest: keyGenTest.c $(KEYGEN) $(wildcard $(CORE)/keyfill/*.h $(CORE)/support/*.h stubs/keyfill_rtos/*.h)             $(CORE)/ui/ui_svc.h
+	$(CC) $(CFLAGS) -Istubs/keyfill_rtos -I$(ROOT)/hal -Wshadow -DCONFIG_KEY_FILL=1 -DCONFIG_GROUP_KEY_FILL=1 		-DCONFIG_DMR_AES=1 -o $@ keyGenTest.c $(KEYGEN)
+run: run-key-gen
+run-key-gen: keyGenTest
+	./keyGenTest
+.PHONY: run-key-gen
 # Storing a filled key (core/codeplug/key_store.c, key-fill.md 8): privacy slots, traffic keys into the matching
 # system, on a simulated flash with an in-memory settings record
 TESTS   += keyStoreTest

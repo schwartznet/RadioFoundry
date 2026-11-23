@@ -584,6 +584,12 @@
     "GROUP_KEY_FILL"
    ]
   },
+  "key_gen": {
+   "group": "tools",
+   "needs": [
+    "GROUP_KEY_FILL"
+   ]
+  },
   "zone_imported": {
    "group": "channels",
    "needs": [
