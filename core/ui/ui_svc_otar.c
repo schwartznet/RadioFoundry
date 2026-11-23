@@ -696,7 +696,7 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 	return changed;
 }
 
-uint8_t ui_svc_net_rekey(const radio_view_t *v)
+uint8_t ui_svc_net_rekey(const radio_view_t *v, uint16_t mins)
 {
 	otar_net_t n;
 	net_read(&n);
@@ -724,7 +724,7 @@ uint8_t ui_svc_net_rekey(const radio_view_t *v)
 	rk->kid = kid;
 	rk->system = v->otar.system;
 	rk->keyset = (uint32_t)v->otar.keyset + 1u;
-	rk->changeover = v->otar.clock_ok ? v->otar.now_min + 5u : 0;	// in 5 minutes by the clocks, else by hand
+	rk->changeover = mins != 0 && v->otar.clock_ok ? v->otar.now_min + mins : 0;	// by the clocks, else by hand
 	rk->cur = 0xFF;
 	uint16_t total = 0, first = 0;
 	otar_member_t page[2];

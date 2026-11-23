@@ -4998,26 +4998,6 @@ msgid "Generate a key"
 msgstr "Générer une clé"
 
 #: core/ui/ui_menus.c
-msgctxt "NK_MANAGE"
-msgid "Manage keys"
-msgstr "Gérer les clés"
-
-#: core/ui/ui_menus.c
-msgctxt "NK_NEXT"
-msgid "Next key: "
-msgstr "Clé suivante : "
-
-#: core/ui/ui_menus.c
-msgctxt "NK_NONE"
-msgid "none"
-msgstr "aucune"
-
-#: core/ui/ui_menus.c
-msgctxt "NK_WHEN"
-msgid "Change over: "
-msgstr "Bascule : "
-
-#: core/ui/ui_menus.c
 msgctxt "NK_BY_HAND"
 msgid "by hand"
 msgstr "à la main"
@@ -5036,6 +5016,26 @@ msgstr " min"
 msgctxt "NK_HOURS"
 msgid " h"
 msgstr " h"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_MANAGE"
+msgid "Manage keys"
+msgstr "Gérer les clés"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_NEXT"
+msgid "Next key: "
+msgstr "Clé suivante : "
+
+#: core/ui/ui_menus.c
+msgctxt "NK_NONE"
+msgid "none"
+msgstr "aucune"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_WHEN"
+msgid "Change over: "
+msgstr "Bascule : "
 
 #: core/ui/ui_menus.c
 msgctxt "NK_NOW"
@@ -5201,6 +5201,11 @@ msgstr "Ajouter un membre"
 msgctxt "NET_REKEY"
 msgid "Rekey now"
 msgstr "Changer la clé"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_KEY_CHANGE"
+msgid "Key change"
+msgstr "Changement de clé"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_STATUS"

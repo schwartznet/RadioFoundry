@@ -158,7 +158,7 @@ bool ui_svc_net_member(uint16_t i, uint32_t *id, uint8_t *rank, uint8_t fp[3]);
 bool ui_svc_net_tick(const radio_view_t *v, uint32_t now);
 // Net control: rekey the net now (otar.md 9): a new key from the pool, sent to every member. UI_NET_* or 0 (started)
 enum { UI_NET_OK, UI_NET_NOT_NC, UI_NET_NOT_MANAGED, UI_NET_BUSY, UI_NET_NO_TG, UI_NET_NO_NEXT, UI_NET_NO_KID };
-uint8_t ui_svc_net_rekey(const radio_view_t *v);
+uint8_t ui_svc_net_rekey(const radio_view_t *v, uint16_t mins);
 // Net control: change the net over now: CHANGEOVER to the talkgroup, then this radio. UI_NET_*
 uint8_t ui_svc_net_change_over(const radio_view_t *v);
 // The rekey run as Net status shows it: the key it sends, how many have it, and member i's state

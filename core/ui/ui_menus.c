@@ -8882,6 +8882,22 @@ enum { NK_MANAGE, NK_NEXT, NK_WHEN, NK_NOW, NK_DROP, NK_CLOCK, NK_STOP };
 static const uint16_t nk_mins[5] = { 0, 5, 60, 360, 1440 };
 #define NK_WHENS	(sizeof nk_mins / sizeof nk_mins[0])
 static uint8_t nk_when;		// index into nk_mins
+
+// "by hand", "in 5 min", "in 6 h"
+static void nk_when_text(sbuf_t *b, uint16_t mins)
+{
+	if (mins == 0) {
+		sb_str(b, TR(NK_BY_HAND, "by hand"));
+	} else if (mins < 60u) {
+		sb_str(b, TR(NK_IN, "in "));
+		sb_u32(b, mins, 1);
+		sb_str(b, TR(NK_MINUTES, " min"));
+	} else {
+		sb_str(b, TR(NK_IN, "in "));
+		sb_u32(b, mins / 60u, 1);
+		sb_str(b, TR(NK_HOURS, " h"));
+	}
+}
 static uint8_t nk_entry;	// 0: none; NK_NEXT: a key ID; NK_CLOCK: the time, YYMMDDhhmm
 static char nk_digits[11];
 static uint8_t nk_n;
@@ -8924,17 +8940,7 @@ static void nk_item(uint16_t i, ui_item_t *it)
 		break;
 	case NK_WHEN:
 		sb_str(&b, TR(NK_WHEN, "Change over: "));
-		if (nk_mins[nk_when] == 0) {
-			sb_str(&b, TR(NK_BY_HAND, "by hand"));
-		} else if (nk_mins[nk_when] < 60u) {
-			sb_str(&b, TR(NK_IN, "in "));
-			sb_u32(&b, nk_mins[nk_when], 1);
-			sb_str(&b, TR(NK_MINUTES, " min"));
-		} else {
-			sb_str(&b, TR(NK_IN, "in "));
-			sb_u32(&b, nk_mins[nk_when] / 60u, 1);
-			sb_str(&b, TR(NK_HOURS, " h"));
-		}
+		nk_when_text(&b, nk_mins[nk_when]);
 		break;
 	case NK_NOW: sb_str(&b, TR(NK_NOW, "Change over now")); break;
 	case NK_DROP: sb_str(&b, TR(NK_DROP, "Drop the next key")); break;
@@ -9132,8 +9138,11 @@ static void nk_enter(void)
 // ======================= Tools > Key fill > Net (docs/spec/otar.md 5, 6, phase 2) =======================
 // This radio's net and key pair. Not in a net: 1 Start a net (this radio net control 1), 2 Join a net (key fill with
 // the net control's radio). In a net: 1 Members, 2 Add a member (net control: its DMR ID typed, then key fill), 3 Leave.
+// The net control's rows add Rekey now, Key change (when the rekey's changeover falls: Net keys' choices, 5 min first),
+// Net status and Change over the net; a member's are Members and Leave the net
 // The fingerprint is the radio's public key's, which another radio's Members list shows for it
-enum { NET_START, NET_JOIN, NET_MEMBERS, NET_ADD, NET_REKEY, NET_STATUS, NET_CHANGE_OVER, NET_LEAVE };
+enum { NET_START, NET_JOIN, NET_MEMBERS, NET_ADD, NET_REKEY, NET_RK_WHEN, NET_STATUS, NET_CHANGE_OVER, NET_LEAVE };
+static uint8_t net_rk_when = 1;	// Key change: index into nk_mins, 5 min each time Net opens
 static uint32_t net_typed;	// Add a member: the ID typed
 static uint8_t net_typed_n;	// its digits; 0 and not typing: no entry
 static bool net_typing;
@@ -9143,22 +9152,33 @@ static uint8_t net_row(uint16_t i)
 {
 	ui_net_view_t n;
 	net_view_now(&n);
-	return n.in_net ? (uint8_t)(NET_MEMBERS + i) : (uint8_t)(NET_START + i);
+	if (!n.in_net)
+		return (uint8_t)(NET_START + i);
+	if (n.rank == 0)
+		return i == 0 ? NET_MEMBERS : NET_LEAVE;
+	return (uint8_t)(NET_MEMBERS + i);
 }
 static uint16_t net_count(void)
 {
 	ui_net_view_t n;
 	net_view_now(&n);
-	return n.in_net ? 6 : 2;
+	return !n.in_net || n.rank == 0 ? 2 : 7;
 }
 
 static void net_item(uint16_t i, ui_item_t *it)
 {
 	static const tr_id_t names[] = { TRN(NET_START, "Start a net"), TRN(NET_JOIN, "Join a net"),
 					 TRN(NET_MEMBERS, "Members"), TRN(NET_ADD, "Add a member"),
-					 TRN(NET_REKEY, "Rekey now"), TRN(NET_STATUS, "Net status"),
-					 TRN(NET_CHANGE_OVER, "Change over the net"), TRN(NET_LEAVE, "Leave the net") };
-	str_copy(it->label, sizeof it->label, tr(names[net_row(i)]));
+					 TRN(NET_REKEY, "Rekey now"), TRN(NET_KEY_CHANGE, "Key change"),
+					 TRN(NET_STATUS, "Net status"), TRN(NET_CHANGE_OVER, "Change over the net"),
+					 TRN(NET_LEAVE, "Leave the net") };
+	uint8_t row = net_row(i);
+	str_copy(it->label, sizeof it->label, tr(names[row]));
+	if (row == NET_RK_WHEN) {
+		sbuf_t b;
+		sb_init(&b, it->value, sizeof it->value);
+		nk_when_text(&b, nk_mins[net_rk_when]);
+	}
 	item_num(it, (uint16_t)(i + 1u));
 }
 
@@ -9235,12 +9255,19 @@ static void net_select(uint16_t i, bool hold)
 		net_typed_n = 0;
 		break;
 	case NET_REKEY:
-		switch (ui_svc_net_rekey(v)) {
+		switch (ui_svc_net_rekey(v, nk_mins[net_rk_when])) {
 		case UI_NET_OK: ui_push(SCR_NET_STATUS, 0); break;
 		case UI_NET_NOT_NC: ui_toast(TR(NET_WHY_NC_ONLY, "Only a net control does that")); break;
 		case UI_NET_NOT_MANAGED: ui_toast(TR(NET_WHY_MANAGE, "Manage this channel's keys first (Net keys)")); break;
 		case UI_NET_NO_KID: ui_toast(TR(NET_WHY_NO_KID, "No free key ID")); break;
 		default: ui_toast(TR(NET_WHY_BUSY, "A rekey is running")); break;
+		}
+		break;
+	case NET_RK_WHEN:
+		net_rk_when = (uint8_t)((net_rk_when + 1u) % NK_WHENS);
+		if (nk_mins[net_rk_when] != 0 && !v->otar.clock_ok) {
+			net_rk_when = 0;
+			ui_toast(TR(NK_WHY_CLOCK, "No clock: set it, or wait for GPS"));
 		}
 		break;
 	case NET_STATUS: ui_push(SCR_NET_STATUS, 0); break;
@@ -9298,6 +9325,7 @@ static bool net_key(const input_event_t *ev)
 static void net_enter(void)
 {
 	net_typing = false;
+	net_rk_when = 1;	// 5 min
 }
 
 static const ui_scr_def_t net_screen = {

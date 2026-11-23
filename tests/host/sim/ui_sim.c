@@ -2812,9 +2812,10 @@ static struct {
 	uint8_t n;
 	uint32_t ids[8];
 	uint8_t state[8];
+	uint32_t changeover;
 } rk_sim;
 
-uint8_t ui_svc_net_rekey(const radio_view_t *v)
+uint8_t ui_svc_net_rekey(const radio_view_t *v, uint16_t mins)
 {
 	if (!net_sim.in || net_sim.rank == 0)
 		return UI_NET_NOT_NC;
@@ -2824,6 +2825,7 @@ uint8_t ui_svc_net_rekey(const radio_view_t *v)
 		return UI_NET_BUSY;
 	memset(&rk_sim, 0, sizeof rk_sim);
 	rk_sim.on = true;
+	rk_sim.changeover = mins != 0 && v->otar.clock_ok ? v->otar.now_min + mins : 0;
 	for (uint8_t i = 0; i < net_sim.n; i++)
 		if (net_sim.ids[i] != v->dmr.own_id)
 			rk_sim.ids[rk_sim.n++] = net_sim.ids[i];
@@ -2850,6 +2852,7 @@ void ui_svc_net_rekey_view(ui_rekey_view_t *r)
 	r->on = true;
 	r->kid = 2;
 	r->members = rk_sim.n;
+	r->changeover = rk_sim.changeover;
 	for (uint8_t i = 0; i < rk_sim.n; i++)
 		r->done = (uint8_t)(r->done + (rk_sim.state[i] == UI_RK_OK));
 }
