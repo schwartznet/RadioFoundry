@@ -9161,6 +9161,17 @@ void radio_sm_request(radio_sm_t *sm, const radio_req_t *req, uint32_t now_ms)
 #if CONFIG_ZEROIZE
 	case RREQ_ZEROIZE: zeroize_keys(sm); break;
 #endif
+#if CONFIG_OTAR
+	case RREQ_OTAR:
+		// Never in the middle of an over: the keys change between overs (otar.md 8). The clock may be set any time
+		if ((busy || sm->ptt) && req->arg != RADIO_OTAR_CLOCK)
+			break;
+		if (radio_aes_otar_request((uint8_t)req->arg, req->arg2, &sm->view.ch, now_ms) && sm->dmr_running)
+			dmr_configure(sm);
+		(void)radio_aes_otar_view(&sm->view.otar, now_ms);
+		changed(sm);
+		break;
+#endif
 	case RREQ_VOLUME:
 		sm->vol_step = (uint8_t)(req->arg < 0 ? 0 : req->arg > RADIO_VOLUME_MAX ? RADIO_VOLUME_MAX : req->arg);
 		break;
@@ -9664,8 +9675,14 @@ void radio_sm_poll(radio_sm_t *sm, uint32_t now_ms)
 	follow_volume(sm);
 	battery_poll(sm, now_ms);
 #if CONFIG_DMR_AES
-	if (!sm->ptt && sm->view.state != RS_TX && !dmr_tx_phase(dmr_call_view()->phase))
-		radio_aes_poll(&sm->view.ch, sm->own_id, now_ms);
+	if (!sm->ptt && sm->view.state != RS_TX && !dmr_tx_phase(dmr_call_view()->phase)) {
+		if (radio_aes_poll(&sm->view.ch, sm->own_id, now_ms) && sm->dmr_running)
+			dmr_configure(sm);	// an OTAR changeover, or its overlap over: the keys changed
+	}
+#if CONFIG_OTAR
+	if (radio_aes_otar_view(&sm->view.otar, now_ms))
+		changed(sm);
+#endif
 #endif
 #if CONFIG_BEEP
 	bool shared = voice_streaming();

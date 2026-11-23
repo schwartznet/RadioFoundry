@@ -126,6 +126,10 @@ void ui_svc_kf_end(void);
 // Every UI pass: runs the session (and the end of one left); true when what the screen shows may have changed
 bool ui_svc_kf_tick(const radio_view_t *v, uint32_t now);
 #endif
+#if CONFIG_OTAR
+// Whether AES system `system` holds an AES-256 traffic key under key ID kid (Net keys, docs/spec/otar.md 8)
+bool ui_svc_aes_key_there(uint8_t system, uint8_t kid);
+#endif
 #if CONFIG_GROUP_KEY_FILL
 // Group key fill (ui_svc_groupkey.c, docs/spec/group-key-fill.md): one session while the Group key screen is open.
 // What the screen shows

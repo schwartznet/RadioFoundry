@@ -222,6 +222,11 @@ endif
 ifeq ($(CONFIG_GROUP_KEY_FILL),y)
 APP_SRC += $(filter-out $(APP_SRC),core/keyfill/groupkey.c core/keyfill/groupkey_svc.c core/ui/ui_svc_groupkey.c)
 endif
+# OTAR keysets (core/otar) and the UTC clock they change over by
+ifeq ($(CONFIG_OTAR),y)
+CORE_DIRS += core/otar
+APP_SRC += $(filter-out $(APP_SRC),core/otar/otar_keys.c core/support/utc_clock.c)
+endif
 # The emergency wipe's code hash (core/support is globbed with SUPPORT_INFO): SHA-256 with its own switch, once
 ifeq ($(CONFIG_ZEROIZE),y)
 APP_SRC += $(filter-out $(APP_SRC),core/support/sha256.c)

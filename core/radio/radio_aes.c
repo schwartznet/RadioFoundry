@@ -10,6 +10,14 @@
 #include "radio/radio.h"
 #include "radio/radio_aes.h"
 #include "settings/settings.h"
+#if CONFIG_OTAR
+#include "otar/otar_keys.h"
+#include "storage/storage.h"
+#include "support/utc_clock.h"
+#if CONFIG_SATELLITE_TLE
+#include "position/position.h"
+#endif
+#endif
 
 static dmrAesState_t channel_keys;
 static uint16_t channel_key_ref;
@@ -17,9 +25,192 @@ static uint8_t channel_key_system;
 static bool channel_tx_allowed;
 static dmrAesSeq_t aes_seq;		// the radio's MI sequence, every key
 
+#if CONFIG_OTAR
+// OTAR keysets (docs/spec/otar.md 8): the radio task's copy of settings_t.otar, written back on every change
+static otar_keys_t otar;
+static bool prev_live;			// the previous keyset is in its overlap (RAM: a restart ends it)
+static uint32_t prev_end_ms;
+static uint32_t gps_ms;			// when the GPS time was last taken
+// The previous keyset's keys to erase, by the housekeeping task (a storage job)
+static struct {
+	volatile bool posted;
+	uint8_t system, n;
+	uint8_t kids[OTAR_CKRS];
+} erase;
+
+static void otar_save(uint32_t now_ms)
+{
+	settings_t *st = settings_begin();
+	st->otar = otar;
+	settings_end(now_ms);
+}
+
+static void erase_job(void *ctx)
+{
+	(void)ctx;
+	for (uint8_t j = 0; j < erase.n; j++)
+		(void)codeplug_traffic_key_remove(erase.system, DMR_AES_ALG_AES256, erase.kids[j]);
+	erase.n = 0;
+	erase.posted = false;
+}
+
+// The previous keyset ends: no longer heard, and its keys that no keyset still names erased from the codeplug
+static void drop_prev(uint32_t now_ms)
+{
+	prev_live = false;
+	if (erase.posted)
+		return;		// the last erase hasn't run: this one waits for the next poll
+	erase.system = otar_system(&otar);
+	erase.n = otar_drop_prev(&otar, erase.kids);
+	otar_save(now_ms);
+	if (erase.n != 0) {
+		erase.posted = true;
+		if (!storage_job_post(erase_job, NULL)) {
+			erase.posted = false;	// the keys stay; the record says nothing is previous now
+			erase.n = 0;
+		}
+	}
+}
+
+static void change_over(uint32_t now_ms)
+{
+	if (otar.flags & OTAR_F_PREV)
+		drop_prev(now_ms);	// an older previous keyset: its overlap is cut short
+	if (!otar_change_over(&otar))
+		return;
+	prev_live = true;
+	prev_end_ms = now_ms + OTAR_GRACE_MS;
+	otar_save(now_ms);
+}
+
+static bool clock_minutes(uint32_t now_ms, uint32_t *min)
+{
+	int64_t s;
+	if (!utc_clock_now(now_ms, &s, NULL))
+		return false;
+	*min = otar_minutes(s);
+	return *min != 0;
+}
+
+// Between overs: the GPS time taken once a minute, a due changeover made, the overlap ended. True: the keys changed
+static bool otar_poll(uint32_t now_ms)
+{
+#if CONFIG_SATELLITE_TLE
+	if (gps_ms == 0 || (uint32_t)(now_ms - gps_ms) >= 60000u) {
+		uint32_t d, t;
+		gps_ms = now_ms | 1u;
+		if (position_utc_fields(&d, &t, now_ms)) {
+			// ddmmyy and hhmmss, as the GPS sends them
+			uint32_t m = otar_from_civil((uint16_t)(2000u + d % 100u), (uint8_t)((d / 100u) % 100u),
+						     (uint8_t)(d / 10000u), (uint8_t)(t / 10000u), (uint8_t)((t / 100u) % 100u));
+			if (m != 0)
+				utc_clock_set(OTAR_EPOCH_UNIX + (int64_t)m * 60 + (int64_t)(t % 100u), now_ms, UTC_SRC_GPS);
+		}
+	}
+#else
+	(void)gps_ms;
+#endif
+	if (!otar_on(&otar))
+		return false;
+	uint32_t min = 0;
+	bool clock_ok = clock_minutes(now_ms, &min);
+	if (otar_due(&otar, clock_ok, min)) {
+		change_over(now_ms);
+		return true;
+	}
+	if (prev_live && (int32_t)(now_ms - prev_end_ms) >= 0) {
+		drop_prev(now_ms);
+		return true;
+	}
+	if (!prev_live && (otar.flags & OTAR_F_PREV) && !erase.posted) {
+		drop_prev(now_ms);	// held from before a restart, or an erase that couldn't be posted
+		return true;
+	}
+	return false;
+}
+
+bool radio_aes_otar_request(uint8_t op, uint32_t value, const channel_t *ch, uint32_t now_ms)
+{
+	uint32_t min = 0;
+	switch (op) {
+	case RADIO_OTAR_START:
+		if (ch->kind != CODEPLUG_KIND_DMR_AES)
+			return false;
+		prev_live = false;
+		otar_start(&otar, ch->system, (uint8_t)value);
+		break;
+	case RADIO_OTAR_STOP:
+		prev_live = false;
+		otar_stop(&otar);
+		break;
+	case RADIO_OTAR_NEXT: {
+		// value: the key ID in bits 0-7, the hours to the changeover in bits 8-15 (0: by hand)
+		uint32_t hours = (value >> 8) & 0xFFu;
+		if (hours != 0 && !clock_minutes(now_ms, &min))
+			return false;	// no clock to change over by
+		if (!otar_set_next(&otar, 1, (uint8_t)value, hours != 0 ? min + hours * 60u : 0, hours != 0))
+			return false;
+		break;
+	}
+	case RADIO_OTAR_CLEAR_NEXT:
+		otar_clear_next(&otar);
+		break;
+	case RADIO_OTAR_NOW:
+		if (!(otar.flags & OTAR_F_NEXT))
+			return false;
+		change_over(now_ms);
+		return true;	// saved by change_over
+	case RADIO_OTAR_CLOCK:
+		utc_clock_set((int64_t)value, now_ms, UTC_SRC_HAND);
+		return false;
+	default:
+		return false;
+	}
+	otar_save(now_ms);
+	return true;
+}
+
+bool radio_aes_otar_view(radio_otar_view_t *v, uint32_t now_ms)
+{
+	radio_otar_view_t n;
+	memset(&n, 0, sizeof n);
+	n.on = otar_on(&otar);
+	n.system = otar_system(&otar);
+	n.keyset = otar.ks_active;
+	n.next_keyset = otar.ks_next;
+	n.has_kid = otar_kid(&otar, OTAR_ACTIVE, 1, &n.kid);
+	n.has_next = otar_kid(&otar, OTAR_NEXT, 1, &n.next_kid);
+	n.has_prev = prev_live && otar_kid(&otar, OTAR_PREV, 1, &n.prev_kid);
+	n.changeover = otar.changeover;
+	n.by_clock = (otar.flags & OTAR_F_OWN_CLOCK) != 0;
+	int64_t s;
+	n.clock_ok = utc_clock_now(now_ms, &s, &n.clock_src);
+	n.now_min = n.clock_ok ? otar_minutes(s) : 0;
+	bool changed = memcmp(&n, v, sizeof n) != 0;
+	*v = n;
+	return changed;
+}
+
+// Load the key ID's key of system into slot: false when the codeplug doesn't hold it
+static bool load_slot(uint8_t slot, uint8_t system, uint8_t kid)
+{
+	uint8_t key[DMR_AES_KEY_BYTES];
+	bool ok = codeplug_traffic_key(system, DMR_AES_ALG_AES256, kid, key, sizeof key) == sizeof key &&
+		  dmrAesSetKey(&channel_keys, slot, DMR_AES_ALG_AES256, kid, key);
+	dmrAesWipe(key, sizeof key);
+	return ok;
+}
+#endif
+
 void radio_aes_start(uint32_t saved)
 {
 	dmrAesSeqStart(&aes_seq, saved);	// TX waits for the next reservation
+#if CONFIG_OTAR
+	settings_t *st = settings_begin();
+	otar = st->otar;
+	settings_end(0);
+	prev_live = false;	// a previous keyset kept over a restart is dropped at the first poll
+#endif
 }
 
 uint8_t radio_aes_tx_deny(const channel_t *ch)
@@ -48,10 +239,26 @@ bool radio_aes_configure(const channel_t *ch, dmr_call_config_t *cfg)
 	channel_tx_allowed = false;
 	channel_key_ref = 0;
 	channel_key_system = ch->system;
-	dmrAesSetKey(&channel_keys, 0, 0, 0, NULL);
-	if (ch->aes_ref && ch->aes_ref <= 256 && codeplug_system(ch->system, &sys, block, 0) >= 0 &&
-	    sys.type == CODEPLUG_SYSTYPE_DMR_AES &&
-	    codeplug_traffic_key(ch->system, DMR_AES_ALG_AES256, id, key, sizeof key) == sizeof key) {
+	dmrAesClearKeys(&channel_keys);
+	bool sys_ok = ch->aes_ref && ch->aes_ref <= 256 && codeplug_system(ch->system, &sys, block, 0) >= 0 &&
+		      sys.type == CODEPLUG_SYSTYPE_DMR_AES;
+#if CONFIG_OTAR
+	if (sys_ok && otar_on(&otar) && otar_system(&otar) == ch->system) {
+		// A managed system (otar.md 8): the channel's reference is a CKR; TX with the active keyset's key, RX with
+		// the active, the next and, through the overlap, the previous one, chosen by each call's key ID
+		uint8_t ckr = otar_ckr(ch->aes_ref), kid;
+		if (otar_kid(&otar, OTAR_ACTIVE, ckr, &kid) && load_slot(0, ch->system, kid)) {
+			dmrAesSetTx(&channel_keys, 0);
+			channel_key_ref = ch->aes_ref;
+			channel_tx_allowed = (sys.flags & CODEPLUG_SYS_TX) != 0;
+		}
+		if (otar_kid(&otar, OTAR_NEXT, ckr, &kid))
+			(void)load_slot(1, ch->system, kid);
+		if (prev_live && otar_kid(&otar, OTAR_PREV, ckr, &kid))
+			(void)load_slot(2, ch->system, kid);
+	} else
+#endif
+	if (sys_ok && codeplug_traffic_key(ch->system, DMR_AES_ALG_AES256, id, key, sizeof key) == sizeof key) {
 		dmrAesSetKey(&channel_keys, 0, DMR_AES_ALG_AES256, id, key);
 		dmrAesSetTx(&channel_keys, 0);
 		channel_key_ref = ch->aes_ref;
@@ -76,20 +283,25 @@ void radio_aes_data_privacy(dmrDataPrivacy_t *p)
 	// AES-256 OFB, a new MI from the radio's sequence for every packet. Without the key no data packet goes, and none
 	// is sent in the clear
 	memset(p, 0, sizeof *p);
-	if (!dmrAesHasKeys(&channel_keys)) {
+	uint8_t alg, kid;
+	if (!dmrAesTxKey(&channel_keys, &alg, &kid)) {
 		p->mode = DMR_DATA_PRIVACY_BLOCK;
 		return;
 	}
 	p->mode = DMR_DATA_PRIVACY_ENCRYPT;
 	p->alg = DMR_AES_DATA_ALG;
-	p->keyId = channel_keys.keys[0].key_id;
+	p->keyId = kid;
 	p->crypt = dmrAesDataCrypt;
 	p->newMi = dmrAesDataMi;
 	p->ctx = &channel_keys;
 }
 
-void radio_aes_poll(const channel_t *ch, uint32_t own_id, uint32_t now_ms)
+bool radio_aes_poll(const channel_t *ch, uint32_t own_id, uint32_t now_ms)
 {
+	bool keys = false;
+#if CONFIG_OTAR
+	keys = otar_poll(now_ms);
+#endif
 	dmrAesSeqSettle(&aes_seq);
 	uint32_t stored = SETTINGS_FIELD(aes_mi_res);
 
@@ -99,20 +311,20 @@ void radio_aes_poll(const channel_t *ch, uint32_t own_id, uint32_t now_ms)
 		} else if (settings_u32_is_saved(offsetof(settings_t, aes_mi_res), stored)) {
 			dmrAesSeqReserved(&aes_seq, stored);
 		}
-		return;
+		return keys;
 	}
 	// Repair a restored reservation even off AES channels, without rewinding or allocating positions.
 	if (aes_seq.end != 0 && stored != aes_seq.end) {
 		settings_t *st = settings_begin();
 		st->aes_mi_res = aes_seq.end;
 		settings_end(now_ms);
-		return;
+		return keys;
 	}
 	if (ch->kind != CODEPLUG_KIND_DMR_AES)
-		return;
+		return keys;
 	if (aes_seq.next == 0) {
 		if (channel_key_ref == 0)
-			return;
+			return keys;
 		hal_chip_t chip;
 		memset(&chip, 0, sizeof(chip));
 		if (board.system == NULL || board.system->chip == NULL || !board.system->chip(&chip))
@@ -125,5 +337,6 @@ void radio_aes_poll(const channel_t *ch, uint32_t own_id, uint32_t now_ms)
 		st->aes_mi_res = r;
 		settings_end(now_ms);
 	}
+	return keys;
 }
 #endif

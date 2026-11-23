@@ -70,6 +70,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "ui_sim.h"
+#include "support/utc_clock.h"
 #if CONFIG_SATELLITE_TLE
 #include "satellite/store.h"
 #endif
@@ -1613,6 +1614,76 @@ void radio_req_tx_low(bool on)
 	view.tx_low = on;
 	changed();
 }
+#if CONFIG_OTAR
+// Net keys (otar.md 8): the radio task's keysets, kept in the view as radio_aes.c would show them. The codeplug holds
+// AES keys with IDs 1, 7, 77 and 78; the token utc:YYMMDDhhmm sets the clock as GPS would
+bool ui_svc_aes_key_there(uint8_t system, uint8_t kid)
+{
+	(void)system;
+	return kid == 1 || kid == 7 || kid == 77 || kid == 78;
+}
+void radio_req_otar(uint8_t op, uint32_t value)
+{
+	radio_otar_view_t *o = &view.otar;
+	uint32_t hours = (value >> 8) & 0xFFu;
+	switch (op) {
+	case RADIO_OTAR_START:
+	case RADIO_OTAR_STOP: {
+		bool clock_ok = o->clock_ok;
+		uint8_t src = o->clock_src;
+		uint32_t now_min = o->now_min;
+		memset(o, 0, sizeof *o);
+		o->clock_ok = clock_ok;
+		o->clock_src = src;
+		o->now_min = now_min;
+		if (op == RADIO_OTAR_START) {
+			o->on = true;
+			o->system = view.ch.system;
+			o->keyset = 1;
+			o->has_kid = true;
+			o->kid = (uint8_t)value;
+		}
+		break;
+	}
+	case RADIO_OTAR_NEXT:
+		if (!o->on || (hours != 0 && !o->clock_ok))
+			return;
+		if (!o->has_next)
+			o->next_keyset = (uint16_t)(o->keyset + 1u);
+		o->has_next = true;
+		o->next_kid = (uint8_t)value;
+		o->changeover = hours != 0 ? o->now_min + hours * 60u : 0;
+		o->by_clock = hours != 0;
+		break;
+	case RADIO_OTAR_CLEAR_NEXT:
+		o->has_next = false;
+		o->next_keyset = 0;
+		o->changeover = 0;
+		o->by_clock = false;
+		break;
+	case RADIO_OTAR_NOW:
+		if (!o->has_next)
+			return;
+		o->has_prev = true;
+		o->prev_kid = o->kid;
+		o->kid = o->next_kid;
+		o->keyset = o->next_keyset;
+		o->has_next = false;
+		o->next_keyset = 0;
+		o->changeover = 0;
+		o->by_clock = false;
+		break;
+	case RADIO_OTAR_CLOCK:
+		o->clock_ok = true;
+		o->clock_src = UTC_SRC_HAND;
+		o->now_min = otar_minutes((int64_t)value);
+		break;
+	default:
+		return;
+	}
+	changed();
+}
+#endif
 void radio_req_squelch(int8_t dir)
 {
 	to_selected();
@@ -4147,6 +4218,18 @@ static bool run_token(char *t, char *err, size_t len)
 		sim_aes_keys = true;
 		return true;
 	}
+#if CONFIG_OTAR
+	if (strcmp(t, "utc") == 0 && arg != NULL && strlen(arg) == 10) {	// utc:YYMMDDhhmm: the clock, as from GPS
+#define U2(i) ((uint8_t)((arg[i] - '0') * 10 + (arg[(i) + 1] - '0')))
+		uint32_t m = otar_from_civil((uint16_t)(2000u + U2(0)), U2(2), U2(4), U2(6), U2(8));
+#undef U2
+		view.otar.clock_ok = m != 0;
+		view.otar.clock_src = UTC_SRC_GPS;
+		view.otar.now_min = m;
+		changed();
+		return m != 0;
+	}
+#endif
 #endif
 	if (strcmp(t, "foreign") == 0) {	// the codeplug is another firmware's: the first edit asks
 		sim_foreign = true;

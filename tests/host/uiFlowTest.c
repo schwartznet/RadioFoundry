@@ -1057,6 +1057,36 @@ static const flow_t flows[] = {
 	{ "G Back leaves a generated key unsaved", "gk:aes ok 6 up ok 4", "back", "screen=key-fill-menu gksaved=0", 1,
 	  false },
 	{ "G Back takes a typed digit back first", "gk:aes ok 6 up ok 4", "1 2 back ok", "gksaved=1", 4, false },
+#if CONFIG_OTAR
+	// Net keys (otar.md 8): Tools > Key fill > 5. The simulator's codeplug holds AES keys 1, 7, 77 and 78; aeschan is
+	// a channel with key 1 (aes_ref 2)
+#define NK_OPEN		"aeschan ok 6 up ok 5"
+#define NK_ON		NK_OPEN " ok"
+#define NK_NEXT77	NK_ON " 1 7 7 ok"
+	{ "O net keys is on the key fill menu", "", "ok 6 up ok", "screen=key-fill-menu shows=Net_keys", 4, false },
+	{ "O net keys off", "ok 6 up ok", "5", "screen=net-keys shows=Keys_not_managed shows=Manage_keys",
+	  1, false },
+	{ "O managing needs an AES channel", "ok 6 up ok 5", "ok", "toast=Manage_keys_on_an_AES_channel_with_its_key", 1,
+	  false },
+	{ "O managing an AES channel's keys", NK_OPEN, "ok",
+	  "toast=Managing_this_channel's_keys shows=Keyset_1:_key_1 shows=No_next_key shows=No_clock", 1, false },
+	{ "O the next key typed", NK_ON, "1 7 7 ok", "shows=Next:_key_77,_by_hand", 4, false },
+	{ "O a next key the codeplug doesn't hold", NK_ON " 1", "5 ok", "toast=No_key_with_that_ID", 2, false },
+	{ "O the key in use isn't the next one", NK_ON " 1", "1 ok", "toast=That_key_is_in_use_now", 2, false },
+	{ "O a typed digit taken back, then the entry left", NK_ON " 1 7", "back back",
+	  "screen=net-keys hides=Next_key_ID shows=No_next_key", 2, false },
+	{ "O change over needs a next key", NK_ON, "3", "toast=No_next_key", 1, false },
+	{ "O change over now", NK_NEXT77, "3",
+	  "toast=Changed_over shows=Keyset_2:_key_77 shows=Old_key_heard:_1 shows=No_next_key", 1, false },
+	{ "O drop the next key", NK_NEXT77, "4", "shows=No_next_key", 1, false },
+	{ "O by the clock needs a clock", NK_ON, "2", "toast=No_clock", 1, false },
+	{ "O the clock typed", NK_ON " 5", "2 6 1 1 2 3 1 4 0 5 ok", "toast=Clock_set shows=UTC_2026-11-23_14:05", 11,
+	  false },
+	{ "O a time that isn't one", NK_ON " 5", "2 6 1 3 0 1 0 0 0 0 ok", "toast=Not_a_time", 11, false },
+	{ "O change over in 1 h by the clock", "utc:2611231405 " NK_NEXT77, "2",
+	  "shows=Next:_key_77_at_15:05", 1, false },
+	{ "O stop managing", NK_ON, "6", "toast=Keys_not_managed_now shows=Keys_not_managed", 1, false },
+#endif
 	{ "G a copy that fails says so", "gk:aes ok 6 up ok 2 ok down ok", "gk:fail",
 	  "shows=Couldn't_send", 0, false },
 	// Other digits do what they did: channel entry, the VFO's frequency; # after them too, and the code isn't either

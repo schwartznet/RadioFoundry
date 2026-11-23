@@ -35,6 +35,10 @@ CONFIG_DMR_AES ?= $(CONFIG_DMR_PRIVACY)
 # receiver shows the sender and check value and saves it under a key ID of its user's choice (Tools > Key fill >
 # Receive group key, Send a key > Send to group; docs/spec/group-key-fill.md). Needs KEY_FILL and DMR_AES
 CONFIG_GROUP_KEY_FILL ?= $(if $(and $(filter y,$(CONFIG_KEY_FILL)),$(filter y,$(CONFIG_DMR_AES))),y,n)
+# OTAR keysets: a managed AES system's active, next and previous keys, the changeover by clock or by hand, the
+# previous key erased after the overlap (Tools > Key fill > Net keys; docs/spec/otar.md, phase 1). Needs DMR_AES and
+# KEY_CHECK (the key store)
+CONFIG_OTAR ?= $(if $(and $(filter y,$(CONFIG_DMR_AES)),$(filter y,$(CONFIG_KEY_CHECK))),y,n)
 # talker alias decode and TX of our radio name (needs DMR)
 CONFIG_DMR_TALKER_ALIAS ?= $(CONFIG_DMR)
 # ETSI GPS Info in the embedded LC (FLCO 8): the caller's position decoded and shown, ours sent from the position
@@ -368,7 +372,7 @@ CONFIG_GPS_SKY ?= $(CONFIG_GPS)
 CONFIG_SATELLITE_TLE ?= $(if $(filter y,$(CONFIG_DEBUGLINK)),y,n)
 
 
-FEATURES := USB_SERIAL_REQUEST FM SUBTONE DMR DMR_PRIVACY DMR_AES KEY_CHECK KEY_FILL GROUP_KEY_FILL ZEROIZE DMR_TALKER_ALIAS DMR_GPS DMR_SMS DMR_TMS DMR_ARS DMR_LRRP DMR_SIGNALING DMR_EMERGENCY DMR_ROAMING DMR_TRUNK DMR_TRUNK_TX DMR_TRUNK_SUPL DMR_TRUNK_GW VOICE_CAPTURE DMR_IP_GATEWAY ZONE_SHARE AUTO_DMR_ID DMR_UDP_COMPRESS NET_TCP NET_KISS NET_HTTP NET_HTTP_GZIP NET_WEBCTL NET_RADIO_UDP NET_RIGCTL NET_APRSIS NET_USRP MDNS TFTP TFTP_IDDB IDDB_COMPACT DMR_CONTROL_STATION SNMP SFR SFR_DUALPATH_RX SFR_CWID TASK_STACKS \
+FEATURES := USB_SERIAL_REQUEST FM SUBTONE DMR DMR_PRIVACY DMR_AES KEY_CHECK KEY_FILL GROUP_KEY_FILL OTAR ZEROIZE DMR_TALKER_ALIAS DMR_GPS DMR_SMS DMR_TMS DMR_ARS DMR_LRRP DMR_SIGNALING DMR_EMERGENCY DMR_ROAMING DMR_TRUNK DMR_TRUNK_TX DMR_TRUNK_SUPL DMR_TRUNK_GW VOICE_CAPTURE DMR_IP_GATEWAY ZONE_SHARE AUTO_DMR_ID DMR_UDP_COMPRESS NET_TCP NET_KISS NET_HTTP NET_HTTP_GZIP NET_WEBCTL NET_RADIO_UDP NET_RIGCTL NET_APRSIS NET_USRP MDNS TFTP TFTP_IDDB IDDB_COMPACT DMR_CONTROL_STATION SNMP SFR SFR_DUALPATH_RX SFR_CWID TASK_STACKS \
 	USB HOSTLINK USB_NETWORK NET_PPP HOTSPOT HOTSPOT_SPLIT DEBUGLINK CPS_OPENFW CPS_FAST VFO VFO_FM VFO_DMR DIAG BACKLIGHT_TEST FONT_XL FONT_AA FONT_BIG LANG_ES LANG_IT LANG_FR LANG_ZH CJK_GLYPHS LANG_DEFAULT_ES LANG_DEFAULT_IT LANG_DEFAULT_FR LANG_DEFAULT_ZH UI_COLOR UI_SETTINGS SCAN DUAL_WATCH BEEP SIG_TONES FM_TX_TONES DTMF \
 	RX_EXT RADIO_SILENCE VOX REF_TRIM BATTERY_SAVE VIBRATE GPS AUDIO_PROBE STUB_ENTRY NAND_STORAGE CRASH_LOG CRASH_SCREEN CRASH_REPORT WATCHDOG SUPPORT_INFO FAULT_TRACE AM_RX BCAST_FM APRS APRS_AFSK APRS_DMR APRS_RX APRS_IGATE GPS_SKY SATELLITE_TLE KEY_ASSIGN CHANNEL_LIST CHANNEL_EDIT ZONE_EDIT CONTACT_EDIT VOLUME_BAR P25 P25_TRUNK NXDN NXDN_SCRAMBLER AIR_RAW
 
@@ -439,6 +443,7 @@ $(if $(and $(call feature_on,AUTO_DMR_ID),$(if $(call feature_on,DMR),,x)),$(err
 $(if $(and $(call feature_on,NXDN_SCRAMBLER),$(if $(call feature_on,NXDN),,x)),$(error CONFIG_NXDN_SCRAMBLER=y needs CONFIG_NXDN=y))
 $(if $(and $(call feature_on,KEY_FILL),$(if $(call feature_on,KEY_CHECK),,x)),$(error CONFIG_KEY_FILL=y needs CONFIG_KEY_CHECK=y))
 $(if $(and $(call feature_on,GROUP_KEY_FILL),$(if $(and $(call feature_on,KEY_FILL),$(call feature_on,DMR_AES)),,x)),$(error CONFIG_GROUP_KEY_FILL=y needs CONFIG_KEY_FILL=y and CONFIG_DMR_AES=y))
+$(if $(and $(call feature_on,OTAR),$(if $(and $(call feature_on,DMR_AES),$(call feature_on,KEY_CHECK)),,x)),$(error CONFIG_OTAR=y needs CONFIG_DMR_AES=y and CONFIG_KEY_CHECK=y))
 $(if $(and $(call feature_on,AIR_RAW),$(if $(call feature_on,AIR),,x)),$(error CONFIG_AIR_RAW=y needs CONFIG_P25=y or CONFIG_NXDN=y (an air-framed mode)))
 $(if $(and $(call feature_on,P25_TRUNK),$(if $(call feature_on,P25),,x)),$(error CONFIG_P25_TRUNK=y needs CONFIG_P25=y))
 $(if $(and $(call feature_on,P25),$(if $(call feature_on,DMR),,x)),$(error CONFIG_P25=y needs CONFIG_DMR=y (its talk groups are the codeplug's contacts)))

@@ -17,11 +17,19 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "config.h"
 
 #define DMR_AES_ALG_AES256		0x25	// PI header algorithm ID
 #define DMR_AES_DATA_ALG		5	// its data privacy header algorithm (DMR_DATA_ALG_AES256, dmr-data.md 13.1)
 #define DMR_AES_KEY_BYTES		32
-#define DMR_AES_KEY_SLOTS		1	// a channel's key
+// A channel's key; with OTAR (docs/spec/otar.md 8) its active, next and previous keysets' keys, chosen by key ID
+#ifndef DMR_AES_KEY_SLOTS
+#if CONFIG_OTAR
+#define DMR_AES_KEY_SLOTS		3
+#else
+#define DMR_AES_KEY_SLOTS		1
+#endif
+#endif
 #define DMR_AES_SF_FRAMES		18	// vocoder frames in a superframe
 #define DMR_AES_FRAME_KS_BYTES		7	// keystream bytes a frame takes (49 bits used)
 #define DMR_AES_SF_SKIP_BYTES		16	// keystream bytes skipped at the start of each superframe

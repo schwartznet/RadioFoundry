@@ -934,8 +934,9 @@ static void test_settings_layout(void)
 		{ offsetof(settings_t, zz_reserved), 413 },
 		{ offsetof(settings_t, zz_salt), 416 },
 		{ offsetof(settings_t, zz_hash), 420 },
+		{ offsetof(settings_t, otar), 436 },	// OTAR keysets (otar.md 17), appended
 	};
-	CHECK(sizeof(settings_t) == 436);
+	CHECK(sizeof(settings_t) == 460);
 	for (unsigned i = 0; i < sizeof(offs) / sizeof(offs[0]); i++) {
 		if (offs[i].got != offs[i].want) {
 			printf("FAIL settings_t field %u at %zu, layout 1 has it at %zu\n", i, offs[i].got, offs[i].want);

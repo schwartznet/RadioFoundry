@@ -212,6 +212,7 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 | `KEY_CHECK` | ● | ● | ● | ● | ● | ● | ● | ● |
 | `KEY_FILL` | ● | ● | ● | ● | ● | ● | ● | ● |
 | `GROUP_KEY_FILL` | ● | ● | ● | ● | ● | ● | ● | ● |
+| `OTAR` | ● | ● | ● | ● | ● | ● | ● | ● |
 | `ZEROIZE` | ● | ● | ● | ● | ● | ● | ● | ○ |
 | `DMR_TALKER_ALIAS` | ● | ● | ● | ● | ● | ● | ● | ● |
 | `DMR_GPS` | ● | ● | ● | ● | ● | ● | ● | ○ |
@@ -348,6 +349,7 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 | Key check values: Settings > Privacy > Key check and Stored keys | `KEY_CHECK` | — | — | 1,676 B flash and no RAM on the DM-32UV default build (2026-11-20); the ARM figures are still to be measured. Untested on a radio |
 | Key fill between radios over DMR data: Tools > Key fill (Receive a key, Send a key) | `KEY_FILL` | — | — | 9,760 B flash and 160 B static RAM on the DM-32UV default build (2026-11-21, measured on and off), plus about 1.3 KB of RTOS heap while the key fill screen is open; the ARM figures are still to be measured. Needs `DMR` and `KEY_CHECK`; also builds the TX queue. Untested on a radio |
 | Group key fill: Tools > Key fill (Receive group key; Send a key > Send to group; Generate a key) | `GROUP_KEY_FILL` | — | — | 3,968 B flash and 112 B static RAM on the DM-32UV default build (2026-11-21, measured on and off), plus about 300 B of RTOS heap while its screen is open; Generate a key adds 756 B flash and no RAM (2026-11-23); the ARM figures are still to be measured. Needs `KEY_FILL` and `DMR_AES`. Untested on a radio |
+| OTAR keysets, phase 1: Tools > Key fill > Net keys (the active, next and previous key of a managed AES system; the changeover by the radio's clock or by hand) | `OTAR` | — | — | 4,652 B flash and 288 B static RAM on the DM-32UV default build (2026-11-23, measured on and off); the settings record grew by 24 B for it, which its copies in RAM hold with the switch off too (144 B). Needs `DMR_AES` and `KEY_CHECK`. Untested on a radio ([otar.md](spec/otar.md) 17) |
 | Emergency wipe: a wipe code and `#` erase the keys (and the codeplug) from the flash and RAM | `ZEROIZE` | — | — | 4,480 B flash and 120 B RAM on the DM-32UV default build (2026-11-21, measured on and off); the ARM figures are still to be measured. Needs `UI_SETTINGS`. Untested on a radio |
 | AES-256 DMR voice, PI header and late-entry signaling | `DMR_AES` | 3,948 | 4,312 | Requires `DMR_PRIVACY`. Image bytes against the build with `DMR_AES` off (earlier nightly matrix); DM-32UV 4,460. The later review measured 3,620 B flash and 504 B RAM with AES on against off on the DM-1701, before the reservation write-back change. TX to a receiver of another make needs the modem driver's burst F field (`set_burst_f`, [dmr-voice.md](spec/dmr-voice.md) 5.1): only the HR_C7000 driver has it (DM-32UV); on the HR_C6000 and other radios our AES overs reach radios running RadioFoundry only (#864). |
 | Talker alias receive and send | `DMR_TALKER_ALIAS` | 984 | 1,300 |  |

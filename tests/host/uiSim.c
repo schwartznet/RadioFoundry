@@ -187,6 +187,10 @@ static const struct { const char *name, *script; } gallery[] = {
 	{ "group_key_got", "gk:aes ok 6 up ok 3 gk:got" },
 	{ "group_key_sent", "gk:aes ok 6 up ok 2 ok down ok gk:copy gk:copy gk:copy gk:copy" },
 	{ "key_gen", "gk:aes ok 6 up ok 4" },	// Generate a key: the new key's check value (group-key-fill.md 8)
+#if CONFIG_OTAR
+	// Net keys (otar.md 8): keyset 1 with key 1, key 77 next at 15:05 by the clock
+	{ "net_keys", "utc:2611231405 aeschan ok 6 up ok 5 ok 1 7 7 ok 2" },
+#endif
 #endif
 	{ "settings_privacy_wipe", "wipecode:2468 ok 7 4 down down down down down down down" },	// the wipe rows (zeroize.md 3.1)
 	{ "wipe_code", "ok 7 4 down down down down ok 2 4" },		// the wipe code, two digits typed

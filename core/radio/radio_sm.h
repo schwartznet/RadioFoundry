@@ -201,6 +201,7 @@ typedef enum {
 	RREQ_NXDN_SET,		// radio_task.c: the pending NXDN settings were copied (radio_nxdn_set_settings); applied here
 	RREQ_TX_LOW,		// arg 1: every transmission at the board's lowest power level (key fill), 0: as set
 	RREQ_ZEROIZE,		// the emergency wipe (CONFIG_ZEROIZE): every key the radio core holds zeroed, privacy off
+	RREQ_OTAR,		// OTAR keysets (CONFIG_OTAR): arg the operation (RADIO_OTAR_*), arg2 its value
 	// New request types go above
 
 	RREQ_COUNT		// KEEP LAST: sizes req_flags[] (radio_sm.c)

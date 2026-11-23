@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "config.h"
+#include "otar/otar_keys.h"
 
 #define SETTINGS_LAYOUT		1	// bumped only when a field changes meaning or moves (old records then reset)
 #define SETTINGS_SAVE_DELAY_MS	2000
@@ -265,6 +266,9 @@ typedef struct {
 	uint8_t zz_reserved[3];		// 0
 	uint32_t zz_salt;
 	uint8_t zz_hash[16];
+	// OTAR keysets (docs/spec/otar.md 8), appended: an older record reads OTAR off. The radio's own progress through
+	// a net's keysets (which key IDs are active, next, previous), not the keys, which stay in the codeplug
+	otar_keys_t otar;
 } settings_t;
 
 // Pages: settings_t is stored as records of SETTINGS_PAGE_BYTES each (settings-store.md 2.1). Only the pages its size

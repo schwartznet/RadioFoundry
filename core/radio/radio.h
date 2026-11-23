@@ -432,6 +432,24 @@ typedef struct {
 #define RADIO_LED_GREEN		0x01u	// radio_view_t.leds
 #define RADIO_LED_RED		0x02u
 
+#if CONFIG_OTAR
+// OTAR keysets as the UI shows them (docs/spec/otar.md 8): CKR 1's key IDs, the changeover, the radio's UTC clock
+typedef struct {
+	bool on;		// a system is managed
+	uint8_t system;		// which (codeplug system number)
+	uint16_t keyset, next_keyset;
+	bool has_kid, has_next, has_prev;	// prev: in its overlap
+	uint8_t kid, next_kid, prev_kid;
+	uint32_t changeover;	// UTC minutes since 2026-01-01; 0 = by hand
+	bool by_clock;		// changes over by the radio's clock
+	bool clock_ok;
+	uint8_t clock_src;	// UTC_SRC_* (support/utc_clock.h)
+	uint32_t now_min;	// UTC minutes now (0: no clock)
+} radio_otar_view_t;
+// radio_req_otar's operations
+enum { RADIO_OTAR_START, RADIO_OTAR_STOP, RADIO_OTAR_NEXT, RADIO_OTAR_CLEAR_NEXT, RADIO_OTAR_NOW, RADIO_OTAR_CLOCK };
+#endif
+
 typedef struct {
 	radio_state_t state;
 	uint8_t tx_deny;	// tx_deny_t, while RS_TX_DENIED
@@ -532,6 +550,9 @@ typedef struct {
 	// Every transmission at level 0, the board's lowest, whatever power says (radio_req_tx_low: key fill). RAM only:
 	// never saved, so a restart is back at the user's level
 	bool tx_low;
+#if CONFIG_OTAR
+	radio_otar_view_t otar;	// OTAR keysets and the UTC clock (docs/spec/otar.md 8, 7.4)
+#endif
 } radio_view_t;
 
 // view.temp bits
@@ -620,6 +641,12 @@ void radio_req_monitor_held_up(void);
 void radio_req_power(int8_t dir);		// temporary change of power level, wraps
 // While on, every transmission goes at the board's lowest level (view.tx_low); off, at the user's again. Not saved
 void radio_req_tx_low(bool on);
+#if CONFIG_OTAR
+// OTAR keysets (docs/spec/otar.md 8), on the channel on view: START value = the key ID now in use (the channel's system
+// becomes managed), STOP, NEXT value = key ID | hours to the changeover << 8 (0: by hand), CLEAR_NEXT, NOW (change
+// over), CLOCK value = UTC seconds set by hand
+void radio_req_otar(uint8_t op, uint32_t value);
+#endif
 void radio_req_squelch(int8_t dir);
 void radio_req_clear_temporary(void);		// BACK on Home: revert temporary changes
 void radio_req_retune(void);			// tune again now, or after the transmission (the reference trim changed)

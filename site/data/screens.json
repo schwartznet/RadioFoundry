@@ -590,6 +590,12 @@
     "GROUP_KEY_FILL"
    ]
   },
+  "net_keys": {
+   "group": "tools",
+   "needs": [
+    "OTAR"
+   ]
+  },
   "zone_imported": {
    "group": "channels",
    "needs": [

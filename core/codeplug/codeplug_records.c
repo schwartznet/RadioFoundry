@@ -153,9 +153,24 @@ int codeplug_traffic_key(uint8_t system, uint8_t alg, uint16_t key_id, uint8_t *
 			int n = len - (int)CODEPLUG_TRAFFIC_HDR;
 			int fit = n < (int)(sizeof v - CODEPLUG_TRAFFIC_HDR) ? n : (int)(sizeof v - CODEPLUG_TRAFFIC_HDR);
 			memcpy(key, &v[CODEPLUG_TRAFFIC_HDR], (size_t)(fit < (int)cap ? fit : (int)cap));
+			memset(v, 0, sizeof v);
 			return n;
 		}
 	}
+	memset(v, 0, sizeof v);
 	return -1;
+}
+
+bool codeplug_traffic_key_remove(uint8_t system, uint8_t alg, uint16_t key_id)
+{
+	uint8_t v[CODEPLUG_TRAFFIC_HDR];	// the header is enough: longer values are cut, not read
+	codeplug_kv_cursor_t c;
+	uint16_t k, found = 0;
+	int len;
+	codeplug_kv_begin(&c, CODEPLUG_KEY_TRAFFIC, (uint16_t)(CODEPLUG_KEY_TRAFFIC + TRAFFIC_MAX - 1u));
+	while (found == 0 && (len = codeplug_kv_next(&c, &k, v, sizeof v)) >= 0)
+		if (len >= (int)CODEPLUG_TRAFFIC_HDR && v[0] == system && v[1] == alg && rec_rd16(&v[2]) == key_id)
+			found = k;
+	return found != 0 && codeplug_kv_remove(found);
 }
 #endif

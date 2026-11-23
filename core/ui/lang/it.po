@@ -4723,6 +4723,11 @@ msgid "Generate a key"
 msgstr "Genera una chiave"
 
 #: core/ui/ui_menus.c
+msgctxt "NK_ROW"
+msgid "Net keys"
+msgstr "Chiavi di rete"
+
+#: core/ui/ui_menus.c
 msgctxt "KF_WHY_DMR_ONLY"
 msgid "Key fill: DMR channels only"
 msgstr "Carica chiave: solo canali DMR"
@@ -4981,6 +4986,186 @@ msgstr "Carica di gruppo"
 msgctxt "GK_GEN_TITLE"
 msgid "Generate a key"
 msgstr "Genera una chiave"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_MANAGE"
+msgid "Manage keys"
+msgstr "Gestisci chiavi"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_NEXT"
+msgid "Next key: "
+msgstr "Prossima chiave: "
+
+#: core/ui/ui_menus.c
+msgctxt "NK_NONE"
+msgid "none"
+msgstr "nessuna"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_WHEN"
+msgid "Change over: "
+msgstr "Cambio: "
+
+#: core/ui/ui_menus.c
+msgctxt "NK_BY_HAND"
+msgid "by hand"
+msgstr "a mano"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_IN"
+msgid "in "
+msgstr "tra "
+
+#: core/ui/ui_menus.c
+msgctxt "NK_HOURS"
+msgid " h"
+msgstr " h"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_NOW"
+msgid "Change over now"
+msgstr "Cambia ora"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_DROP"
+msgid "Drop the next key"
+msgstr "Togli la prossima"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_CLOCK"
+msgid "Set the clock (UTC)"
+msgstr "Imposta l'ora (UTC)"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_STOP"
+msgid "Stop managing keys"
+msgstr "Smetti di gestire"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_TYPE_KEY"
+msgid "Next key ID: "
+msgstr "ID della prossima: "
+
+#: core/ui/ui_menus.c
+msgctxt "NK_TYPE_CLOCK"
+msgid "UTC as YYMMDDhhmm:"
+msgstr "UTC come AAMMGGhhmm:"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_OFF"
+msgid "Keys not managed"
+msgstr "Chiavi non gestite"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_KEYSET"
+msgid "Keyset "
+msgstr "Set "
+
+#: core/ui/ui_menus.c
+msgctxt "NK_KEY"
+msgid ": key "
+msgstr ": chiave "
+
+#: core/ui/ui_menus.c
+msgctxt "NK_NEXT_KEY"
+msgid "Next: key "
+msgstr "Prossima: chiave "
+
+#: core/ui/ui_menus.c
+msgctxt "NK_AT"
+msgid " at "
+msgstr " alle "
+
+#: core/ui/ui_menus.c
+msgctxt "NK_HAND"
+msgid ", by hand"
+msgstr ", a mano"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_NO_NEXT"
+msgid "No next key"
+msgstr "Nessuna prossima chiave"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_PREV"
+msgid "Old key heard: "
+msgstr "Chiave vecchia: "
+
+#: core/ui/ui_menus.c
+msgctxt "NK_UTC"
+msgid "UTC "
+msgstr "UTC "
+
+#: core/ui/ui_menus.c
+msgctxt "NK_NO_CLOCK"
+msgid "No clock"
+msgstr "Nessuna ora"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_HINT_ENTRY"
+msgid "0-9  OK set  Back"
+msgstr "0-9  OK imposta  Indietro"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_STARTED"
+msgid "Managing this channel's keys"
+msgstr "Chiavi del canale gestite"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_NEEDS_AES"
+msgid "Manage keys on an AES channel with its key"
+msgstr "Gestisci le chiavi su un canale AES con la sua chiave"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_WHY_CLOCK"
+msgid "No clock: set it, or wait for GPS"
+msgstr "Nessuna ora: impostala o attendi il GPS"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_WHY_NO_NEXT"
+msgid "No next key"
+msgstr "Nessuna prossima chiave"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_CHANGED"
+msgid "Changed over"
+msgstr "Cambiata"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_STOPPED"
+msgid "Keys not managed now"
+msgstr "Chiavi non più gestite"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_WHY_ID"
+msgid "Key IDs go up to 255"
+msgstr "Gli ID arrivano a 255"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_WHY_SAME"
+msgid "That key is in use now"
+msgstr "Quella chiave è già in uso"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_WHY_NO_KEY"
+msgid "No key with that ID: load or generate it first"
+msgstr "Nessuna chiave con quell'ID: caricala o generala prima"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_WHY_TIME"
+msgid "Not a time: YYMMDDhhmm, UTC"
+msgstr "Non è un'ora: AAMMGGhhmm, UTC"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_CLOCK_SET"
+msgid "Clock set"
+msgstr "Ora impostata"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_TITLE"
+msgid "Net keys"
+msgstr "Chiavi di rete"
 
 #: core/ui/ui_menus.c
 msgctxt "WIPE_ROW_CLEAR"

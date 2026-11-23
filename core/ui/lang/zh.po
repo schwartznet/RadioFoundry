@@ -4725,6 +4725,11 @@ msgid "Generate a key"
 msgstr "新建密钥"
 
 #: core/ui/ui_menus.c
+msgctxt "NK_ROW"
+msgid "Net keys"
+msgstr "网络密钥"
+
+#: core/ui/ui_menus.c
 msgctxt "KF_WHY_DMR_ONLY"
 msgid "Key fill: DMR channels only"
 msgstr "密钥注入：仅限 DMR 信道"
@@ -4983,6 +4988,186 @@ msgstr "群组密钥注入"
 msgctxt "GK_GEN_TITLE"
 msgid "Generate a key"
 msgstr "新建密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_MANAGE"
+msgid "Manage keys"
+msgstr "启用网络密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_NEXT"
+msgid "Next key: "
+msgstr "下一密钥: "
+
+#: core/ui/ui_menus.c
+msgctxt "NK_NONE"
+msgid "none"
+msgstr "无"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_WHEN"
+msgid "Change over: "
+msgstr "更换: "
+
+#: core/ui/ui_menus.c
+msgctxt "NK_BY_HAND"
+msgid "by hand"
+msgstr "人工"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_IN"
+msgid "in "
+msgstr "再过 "
+
+#: core/ui/ui_menus.c
+msgctxt "NK_HOURS"
+msgid " h"
+msgstr " 小时"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_NOW"
+msgid "Change over now"
+msgstr "现在更换"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_DROP"
+msgid "Drop the next key"
+msgstr "删除下一密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_CLOCK"
+msgid "Set the clock (UTC)"
+msgstr "设置时间 (UTC)"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_STOP"
+msgid "Stop managing keys"
+msgstr "停用网络密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_TYPE_KEY"
+msgid "Next key ID: "
+msgstr "下一密钥 ID: "
+
+#: core/ui/ui_menus.c
+msgctxt "NK_TYPE_CLOCK"
+msgid "UTC as YYMMDDhhmm:"
+msgstr "UTC YYMMDDhhmm:"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_OFF"
+msgid "Keys not managed"
+msgstr "未启用网络密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_KEYSET"
+msgid "Keyset "
+msgstr "密钥组 "
+
+#: core/ui/ui_menus.c
+msgctxt "NK_KEY"
+msgid ": key "
+msgstr ": 密钥 "
+
+#: core/ui/ui_menus.c
+msgctxt "NK_NEXT_KEY"
+msgid "Next: key "
+msgstr "下一: 密钥 "
+
+#: core/ui/ui_menus.c
+msgctxt "NK_AT"
+msgid " at "
+msgstr " "
+
+#: core/ui/ui_menus.c
+msgctxt "NK_HAND"
+msgid ", by hand"
+msgstr ", 人工"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_NO_NEXT"
+msgid "No next key"
+msgstr "无下一密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_PREV"
+msgid "Old key heard: "
+msgstr "旧密钥: "
+
+#: core/ui/ui_menus.c
+msgctxt "NK_UTC"
+msgid "UTC "
+msgstr "UTC "
+
+#: core/ui/ui_menus.c
+msgctxt "NK_NO_CLOCK"
+msgid "No clock"
+msgstr "无时间"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_HINT_ENTRY"
+msgid "0-9  OK set  Back"
+msgstr "0-9  OK 设置  返回"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_STARTED"
+msgid "Managing this channel's keys"
+msgstr "已启用网络密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_NEEDS_AES"
+msgid "Manage keys on an AES channel with its key"
+msgstr "请在有密钥的 AES 信道上启用"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_WHY_CLOCK"
+msgid "No clock: set it, or wait for GPS"
+msgstr "无时间: 请设置或等待 GPS"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_WHY_NO_NEXT"
+msgid "No next key"
+msgstr "无下一密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_CHANGED"
+msgid "Changed over"
+msgstr "已更换"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_STOPPED"
+msgid "Keys not managed now"
+msgstr "已停用网络密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_WHY_ID"
+msgid "Key IDs go up to 255"
+msgstr "密钥 ID 最大为 255"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_WHY_SAME"
+msgid "That key is in use now"
+msgstr "此密钥正在使用"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_WHY_NO_KEY"
+msgid "No key with that ID: load or generate it first"
+msgstr "无此 ID 的密钥: 请先载入或新建"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_WHY_TIME"
+msgid "Not a time: YYMMDDhhmm, UTC"
+msgstr "时间无效: YYMMDDhhmm, UTC"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_CLOCK_SET"
+msgid "Clock set"
+msgstr "时间已设置"
+
+#: core/ui/ui_menus.c
+msgctxt "NK_TITLE"
+msgid "Net keys"
+msgstr "网络密钥"
 
 #: core/ui/ui_menus.c
 msgctxt "WIPE_ROW_CLEAR"

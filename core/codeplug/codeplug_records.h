@@ -99,6 +99,9 @@ int codeplug_target_list(codeplug_ref_t ref, uint8_t kind, codeplug_rec_head_t *
 // The traffic key of system with this algorithm and key id: its octets into key (at most cap); their length, -1 when
 // there is none
 int codeplug_traffic_key(uint8_t system, uint8_t alg, uint16_t key_id, uint8_t *key, uint16_t cap);
+// Remove that traffic key's record (an OTAR keyset's key after its overlap, otar.md 8). Writes flash: the housekeeping
+// task's. True when it was there and is gone
+bool codeplug_traffic_key_remove(uint8_t system, uint8_t alg, uint16_t key_id);
 // A reference from the 4 octets a record stores
 codeplug_ref_t codeplug_ref_at(const uint8_t *p);
 #endif

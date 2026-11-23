@@ -8472,16 +8472,18 @@ static const ui_scr_def_t key_send_screen = {
 // Key fill is an operation, not a preference, so it lives under Tools (information-architecture.md P1); the key's
 // setup (Key type, Key, Key check, Stored keys) stays in Settings > Privacy. 1 waits for a key, 2 lists the stored
 // keys, where OK on one sends it (to a radio, or with group key fill to the channel's talkgroup); 3 waits for a group
-// key (group-key-fill.md 7); 4 makes a new key from the randomness pool (group-key-fill.md 8)
-enum { KFM_RECEIVE, KFM_SEND, KFM_GROUP, KFM_GENERATE, KFM_COUNT };
+// key (group-key-fill.md 7); 4 makes a new key from the randomness pool (group-key-fill.md 8); 5 the net's keysets
+// (otar.md 8)
+enum { KFM_RECEIVE, KFM_SEND, KFM_GROUP, KFM_GENERATE, KFM_NET_KEYS, KFM_COUNT };
 
-static uint16_t kfm_count(void) { return CONFIG_GROUP_KEY_FILL ? KFM_COUNT : KFM_GROUP; }
+static uint16_t kfm_count(void) { return CONFIG_GROUP_KEY_FILL ? (CONFIG_OTAR ? KFM_COUNT : KFM_NET_KEYS) : KFM_GROUP; }
 
 static void kfm_item(uint16_t i, ui_item_t *it)
 {
 	static const tr_id_t names[KFM_COUNT] = { TRN(KF_ROW_RECEIVE, "Receive a key"), TRN(KF_ROW_SEND, "Send a key"),
 						  TRN(GK_ROW_RECEIVE, "Receive group key"),
-						  TRN(GK_ROW_GENERATE, "Generate a key") };
+						  TRN(GK_ROW_GENERATE, "Generate a key"),
+						  TRN(NK_ROW, "Net keys") };
 	if (i >= KFM_COUNT)
 		return;
 	str_copy(it->label, sizeof it->label, tr(names[i]));
@@ -8501,6 +8503,9 @@ static void kfm_select(uint16_t i, bool hold)
 #if CONFIG_GROUP_KEY_FILL
 	case KFM_GROUP: ui_gk_open(-1); break;
 	case KFM_GENERATE: ui_gk_open(UI_GK_GENERATE); break;
+#endif
+#if CONFIG_OTAR
+	case KFM_NET_KEYS: ui_push(SCR_NET_KEYS, 0); break;
 #endif
 	default: break;
 	}
@@ -8863,6 +8868,265 @@ static const ui_scr_def_t key_gen_screen = {
 };
 #endif
 
+#if CONFIG_OTAR
+// ======================= Tools > Key fill > Net keys (docs/spec/otar.md 8, phase 1) =======================
+// The managed system's keysets: the key in use, the next one and when it takes over (at a UTC time by the radio's
+// clock, or by hand), the radio's clock. Off: one row, which manages the channel on view's system with its key. On:
+// the rows below. Digits are typed on this screen for a key ID or the clock (nk_entry)
+enum { NK_MANAGE, NK_NEXT, NK_WHEN, NK_NOW, NK_DROP, NK_CLOCK, NK_STOP };
+static const uint8_t nk_hours[4] = { 0, 1, 6, 24 };	// the changeover: by hand, in 1, 6, 24 hours
+static uint8_t nk_when;		// index into nk_hours
+static uint8_t nk_entry;	// 0: none; NK_NEXT: a key ID; NK_CLOCK: the time, YYMMDDhhmm
+static char nk_digits[11];
+static uint8_t nk_n;
+
+static const radio_otar_view_t *nk_view(void) { return &ui_view()->otar; }
+static uint16_t nk_count(void) { return nk_view()->on ? 6 : 1; }
+static uint8_t nk_row(uint16_t i) { return nk_view()->on ? (uint8_t)(i + 1u) : NK_MANAGE; }
+
+static void nk_time(sbuf_t *b, uint32_t min, bool date)
+{
+	uint16_t y;
+	uint8_t mo, d, h, mi;
+	otar_civil(min, &y, &mo, &d, &h, &mi);
+	if (date) {
+		sb_u32(b, y, 4);
+		sb_chr(b, '-');
+		sb_u32(b, mo, 2);
+		sb_chr(b, '-');
+		sb_u32(b, d, 2);
+		sb_chr(b, ' ');
+	}
+	sb_u32(b, h, 2);
+	sb_chr(b, ':');
+	sb_u32(b, mi, 2);
+}
+
+static void nk_item(uint16_t i, ui_item_t *it)
+{
+	const radio_otar_view_t *o = nk_view();
+	sbuf_t b;
+	sb_init(&b, it->label, sizeof it->label);
+	switch (nk_row(i)) {
+	case NK_MANAGE: sb_str(&b, TR(NK_MANAGE, "Manage keys")); break;
+	case NK_NEXT:
+		sb_str(&b, TR(NK_NEXT, "Next key: "));
+		if (o->has_next)
+			sb_u32(&b, o->next_kid, 1);
+		else
+			sb_str(&b, TR(NK_NONE, "none"));
+		break;
+	case NK_WHEN:
+		sb_str(&b, TR(NK_WHEN, "Change over: "));
+		if (nk_hours[nk_when] == 0) {
+			sb_str(&b, TR(NK_BY_HAND, "by hand"));
+		} else {
+			sb_str(&b, TR(NK_IN, "in "));
+			sb_u32(&b, nk_hours[nk_when], 1);
+			sb_str(&b, TR(NK_HOURS, " h"));
+		}
+		break;
+	case NK_NOW: sb_str(&b, TR(NK_NOW, "Change over now")); break;
+	case NK_DROP: sb_str(&b, TR(NK_DROP, "Drop the next key")); break;
+	case NK_CLOCK: sb_str(&b, TR(NK_CLOCK, "Set the clock (UTC)")); break;
+	default: sb_str(&b, TR(NK_STOP, "Stop managing keys")); break;
+	}
+	item_num(it, (uint16_t)(i + 1u));
+}
+
+static const char *nk_body(void)
+{
+	const radio_otar_view_t *o = nk_view();
+	sbuf_t b;
+	sb_init(&b, id_body, sizeof id_body);
+	if (nk_entry == NK_NEXT) {
+		sb_str(&b, TR(NK_TYPE_KEY, "Next key ID: "));
+		sb_str(&b, nk_digits);
+		sb_chr(&b, '_');
+		return id_body;
+	}
+	if (nk_entry == NK_CLOCK) {
+		sb_str(&b, TR(NK_TYPE_CLOCK, "UTC as YYMMDDhhmm:"));
+		sb_chr(&b, '\n');
+		sb_str(&b, nk_digits);
+		sb_chr(&b, '_');
+		return id_body;
+	}
+	if (!o->on) {
+		sb_str(&b, TR(NK_OFF, "Keys not managed"));
+		return id_body;
+	}
+	sb_str(&b, TR(NK_KEYSET, "Keyset "));
+	sb_u32(&b, o->keyset, 1);
+	sb_str(&b, TR(NK_KEY, ": key "));
+	sb_u32(&b, o->kid, 1);
+	sb_chr(&b, '\n');
+	if (o->has_next) {
+		sb_str(&b, TR(NK_NEXT_KEY, "Next: key "));
+		sb_u32(&b, o->next_kid, 1);
+		if (o->changeover != 0) {
+			sb_str(&b, TR(NK_AT, " at "));
+			nk_time(&b, o->changeover, false);
+		} else {
+			sb_str(&b, TR(NK_HAND, ", by hand"));
+		}
+	} else {
+		sb_str(&b, TR(NK_NO_NEXT, "No next key"));
+	}
+	if (o->has_prev) {
+		sb_chr(&b, '\n');
+		sb_str(&b, TR(NK_PREV, "Old key heard: "));
+		sb_u32(&b, o->prev_kid, 1);
+	}
+	sb_chr(&b, '\n');
+	if (o->clock_ok) {
+		sb_str(&b, TR(NK_UTC, "UTC "));
+		nk_time(&b, o->now_min, true);
+	} else {
+		sb_str(&b, TR(NK_NO_CLOCK, "No clock"));
+	}
+	return id_body;
+}
+
+static const char *nk_hint(void)
+{
+	return nk_entry ? TR(NK_HINT_ENTRY, "0-9  OK set  Back") : TR(HINT_OK_PICK_BACK, "OK pick  Back");
+}
+
+// The changeover asked: hours from now, or 0 by hand (also when there is no clock to count them by)
+static uint32_t nk_next_value(uint8_t kid)
+{
+	uint32_t h = nk_hours[nk_when];
+	return kid | (h << 8);
+}
+
+static void nk_select(uint16_t i, bool hold)
+{
+	(void)hold;
+	const radio_otar_view_t *o = nk_view();
+	const radio_view_t *v = ui_view();
+	switch (nk_row(i)) {
+	case NK_MANAGE:
+		if (v->ch.mode == RADIO_MODE_DMR && v->ch.kind == CODEPLUG_KIND_DMR_AES && v->ch.aes_ref != 0 &&
+		    ui_svc_aes_key_there(v->ch.system, (uint8_t)(v->ch.aes_ref - 1u))) {
+			radio_req_otar(RADIO_OTAR_START, (uint8_t)(v->ch.aes_ref - 1u));
+			ui_toast(TR(NK_STARTED, "Managing this channel's keys"));
+		} else {
+			ui_toast(TR(NK_NEEDS_AES, "Manage keys on an AES channel with its key"));
+		}
+		break;
+	case NK_NEXT:
+	case NK_CLOCK:
+		nk_entry = nk_row(i);
+		nk_n = 0;
+		nk_digits[0] = '\0';
+		break;
+	case NK_WHEN:
+		nk_when = (uint8_t)((nk_when + 1u) % 4u);
+		if (nk_hours[nk_when] != 0 && !o->clock_ok) {
+			nk_when = 0;
+			ui_toast(TR(NK_WHY_CLOCK, "No clock: set it, or wait for GPS"));
+		} else if (o->has_next) {
+			radio_req_otar(RADIO_OTAR_NEXT, nk_next_value(o->next_kid));
+		}
+		break;
+	case NK_NOW:
+		if (!o->has_next) {
+			ui_toast(TR(NK_WHY_NO_NEXT, "No next key"));
+		} else {
+			radio_req_otar(RADIO_OTAR_NOW, 0);
+			ui_toast(TR(NK_CHANGED, "Changed over"));
+		}
+		break;
+	case NK_DROP:
+		radio_req_otar(RADIO_OTAR_CLEAR_NEXT, 0);
+		break;
+	default:
+		radio_req_otar(RADIO_OTAR_STOP, 0);
+		ui_toast(TR(NK_STOPPED, "Keys not managed now"));
+		break;
+	}
+	ui_dirty();
+}
+
+static void nk_enter_typed(void)
+{
+	const radio_otar_view_t *o = nk_view();
+	uint32_t n = 0;
+	for (uint8_t i = 0; i < nk_n; i++)
+		n = n * 10u + (uint32_t)(nk_digits[i] - '0');
+	if (nk_entry == NK_NEXT) {
+		if (nk_n == 0 || n > 255u) {
+			ui_toast(TR(NK_WHY_ID, "Key IDs go up to 255"));
+			return;
+		}
+		if (o->has_kid && n == o->kid) {
+			ui_toast(TR(NK_WHY_SAME, "That key is in use now"));
+			return;
+		}
+		if (!ui_svc_aes_key_there(o->system, (uint8_t)n)) {
+			ui_toast(TR(NK_WHY_NO_KEY, "No key with that ID: load or generate it first"));
+			return;
+		}
+		if (nk_hours[nk_when] != 0 && !o->clock_ok)
+			nk_when = 0;
+		radio_req_otar(RADIO_OTAR_NEXT, nk_next_value((uint8_t)n));
+	} else {
+		// YYMMDDhhmm
+		uint32_t m = 0;
+		if (nk_n == 10) {
+			const char *d = nk_digits;
+#define NK2(i) ((uint8_t)((d[i] - '0') * 10 + (d[(i) + 1] - '0')))
+			m = otar_from_civil((uint16_t)(2000u + NK2(0)), NK2(2), NK2(4), NK2(6), NK2(8));
+#undef NK2
+		}
+		if (m == 0) {
+			ui_toast(TR(NK_WHY_TIME, "Not a time: YYMMDDhhmm, UTC"));
+			return;
+		}
+		radio_req_otar(RADIO_OTAR_CLOCK, (uint32_t)(OTAR_EPOCH_UNIX + (int64_t)m * 60));
+		ui_toast(TR(NK_CLOCK_SET, "Clock set"));
+	}
+	nk_entry = 0;
+}
+
+static bool nk_key(const input_event_t *ev)
+{
+	if (nk_entry == 0)
+		return false;
+	if (ev->gesture != GESTURE_PRESS)
+		return true;
+	uint8_t max = nk_entry == NK_NEXT ? 3u : 10u;
+	if (ev->action >= ACT_DIGIT_0 && ev->action <= ACT_DIGIT_9) {
+		if (nk_n < max) {
+			nk_digits[nk_n++] = (char)('0' + (ev->action - ACT_DIGIT_0));
+			nk_digits[nk_n] = '\0';
+		}
+	} else if (ev->action == ACT_BACK) {
+		if (nk_n > 0)
+			nk_digits[--nk_n] = '\0';
+		else
+			nk_entry = 0;
+	} else if (ev->action == ACT_SELECT) {
+		nk_enter_typed();
+	}
+	ui_dirty();
+	return true;
+}
+
+static void nk_enter(void)
+{
+	nk_entry = 0;
+	nk_when = 0;
+}
+
+static const ui_scr_def_t net_keys_screen = {
+	.name = "net-keys", .flags = SF_LIST | SF_NUMBERED | SF_HINT_FN, .prefix = TRN(NK_TITLE, "Net keys"),
+	.hint_fn = nk_hint,
+	.count = nk_count, .item = nk_item, .select = nk_select, .body = nk_body, .key = nk_key, .enter = nk_enter,
+};
+#endif
+
 #if CONFIG_ZEROIZE
 // ======================= Settings > Privacy > Wipe code (docs/spec/zeroize.md 2) =======================
 // Four digits, typed twice; the radio keeps a salted hash (ui_svc_wipe_code_set). The digits typed are shown as stars
@@ -9195,6 +9459,9 @@ const ui_scr_def_t *const ui_scr[SCR_COUNT] = {
 #endif
 #if CONFIG_GROUP_KEY_FILL
 	[SCR_GROUP_KEY] = &group_key_screen, [SCR_KEY_GEN] = &key_gen_screen,
+#endif
+#if CONFIG_OTAR
+	[SCR_NET_KEYS] = &net_keys_screen,
 #endif
 #if CONFIG_ZEROIZE
 	[SCR_WIPE_CODE] = &wipe_code_screen, [SCR_WIPE] = &wipe_screen,

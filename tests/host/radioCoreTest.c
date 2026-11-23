@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "board.h"
+#include "support/utc_clock.h"
 #include "radio/radio_sm.h"
 #include "codeplug/codeplug_modes.h"
 #if CONFIG_APRS
@@ -671,7 +672,19 @@ static bool kv_set(uint16_t key, const uint8_t *v, uint16_t len)
 uint8_t codeplug_kv_serial(void) { return kv_serial; }
 // The tag layer's writes (codeplug_tag.c): none in these tests
 bool codeplug_kv_set(uint16_t key, const void *value, uint16_t len) { (void)key; (void)value; (void)len; return false; }
-bool codeplug_kv_remove(uint16_t key) { (void)key; return false; }
+// Removes one of the Tier III / traffic key entries (OTAR's erase of a previous keyset's key)
+bool codeplug_kv_remove(uint16_t key)
+{
+	for (uint8_t i = 0; i < kv_t3_n; i++) {
+		if (kv_t3[i].key == key) {
+			memmove(&kv_t3[i], &kv_t3[i + 1], (kv_t3_n - i - 1u) * sizeof(kv_t3[0]));
+			kv_t3_n--;
+			kv_serial++;
+			return true;
+		}
+	}
+	return false;
+}
 // The walk: c->at the next single key to try, up to CODEPLUG_KEY_TX_DENY_TONE, then the Tier III keys in order
 void codeplug_kv_begin(codeplug_kv_cursor_t *c, uint16_t lo, uint16_t hi)
 {
@@ -3675,6 +3688,100 @@ static void test_dmr_voice_features(void)
 			mi4 = ((uint32_t)sim.air[i].payload[3] << 24) | ((uint32_t)sim.air[i].payload[4] << 16) |
 			      ((uint32_t)sim.air[i].payload[5] << 8) | sim.air[i].payload[6];
 	CHECK(mi4 == res1 && mi4 != mi3);
+#if CONFIG_OTAR
+	{
+		// OTAR keysets (otar.md 8): the system managed with key 0 in use, key 5 next. Before the changeover our overs
+		// carry key 0; after it key 5, and key 0 is still heard through the overlap; after the overlap key 0 is erased
+		uint8_t traffic5[sizeof traffic];
+		memcpy(traffic5, traffic, sizeof traffic);
+		traffic5[2] = 5;
+		traffic5[CODEPLUG_TRAFFIC_HDR] ^= 0x5A;
+		kv_t3_set(CODEPLUG_KEY_TRAFFIC + 1, traffic5, sizeof traffic5);
+		radio_req_t o = { RREQ_OTAR, RADIO_OTAR_START, 0 };
+		radio_sm_request(&sm, &o, now);
+		run(50);
+		CHECK(sm.view.otar.on && sm.view.otar.has_kid && sm.view.otar.kid == 0 && sm.view.otar.keyset == 1);
+		uint8_t kid = 0xFF;
+		first = sim.air_count;
+		tx_once();
+		for (unsigned i = first; i < sim.air_count; i++)
+			if (sim.air[i].kind == DMR_BURST_PI_HEADER)
+				kid = sim.air[i].payload[2];
+		CHECK(kid == 0);
+		// Next: key 5 by hand. A key ID the system doesn't hold is the UI's to refuse; the radio holds what it's told
+		o.arg = RADIO_OTAR_NEXT;
+		o.arg2 = 5;
+		radio_sm_request(&sm, &o, now);
+		run(50);
+		CHECK(sm.view.otar.has_next && sm.view.otar.next_kid == 5 && sm.view.otar.changeover == 0);
+		kid = 0xFF;
+		first = sim.air_count;
+		tx_once();
+		for (unsigned i = first; i < sim.air_count; i++)
+			if (sim.air[i].kind == DMR_BURST_PI_HEADER)
+				kid = sim.air[i].payload[2];
+		CHECK(kid == 0);	// the next key isn't used to send before the changeover
+		// The changeover by hand, refused while transmitting
+		req(RREQ_PTT, 1);
+		run(200);
+		o.arg = RADIO_OTAR_NOW;
+		o.arg2 = 0;
+		radio_sm_request(&sm, &o, now);
+		CHECK(sm.view.otar.has_next && sm.view.otar.kid == 0);
+		req(RREQ_PTT, 0);
+		run(1000);
+		radio_sm_request(&sm, &o, now);
+		run(50);
+		CHECK(!sm.view.otar.has_next && sm.view.otar.kid == 5 && sm.view.otar.keyset == 2);
+		CHECK(sm.view.otar.has_prev && sm.view.otar.prev_kid == 0);
+		kid = 0xFF;
+		first = sim.air_count;
+		tx_once();
+		for (unsigned i = first; i < sim.air_count; i++)
+			if (sim.air[i].kind == DMR_BURST_PI_HEADER)
+				kid = sim.air[i].payload[2];
+		CHECK(kid == 5);
+		// Saved in the settings record: a restart keeps keyset 2 with key 5
+		settings_read(&sv);
+		CHECK(sv.otar.system == 3 && sv.otar.ks_active == 2 && sv.otar.kid_active[0] == 5 &&
+		      (sv.otar.flags & OTAR_F_PREV));
+		// The overlap ends: key 0 dropped and erased from the codeplug (a storage job), key 5 kept
+		poll_for(OTAR_GRACE_MS + 1000u);
+		CHECK(!sm.view.otar.has_prev);
+		storage_job_poll();
+		bool k0 = false, k5 = false;
+		for (uint8_t i = 0; i < kv_t3_n; i++) {
+			k0 = k0 || (kv_t3[i].key >= CODEPLUG_KEY_TRAFFIC && kv_t3[i].v[2] == 0 && kv_t3[i].key < 0x1D00u);
+			k5 = k5 || (kv_t3[i].key >= CODEPLUG_KEY_TRAFFIC && kv_t3[i].v[2] == 5 && kv_t3[i].key < 0x1D00u);
+		}
+		CHECK(!k0 && k5);
+		settings_read(&sv);
+		CHECK(!(sv.otar.flags & OTAR_F_PREV));
+		// By the clock: key 0 again next, due a minute from a hand-set time; not before, then at it
+		kv_t3_set(CODEPLUG_KEY_TRAFFIC, traffic, sizeof traffic);
+		o.arg = RADIO_OTAR_CLOCK;
+		o.arg2 = 1795442700u;	// 2026-11-23 14:05 UTC
+		radio_sm_request(&sm, &o, now);
+		o.arg = RADIO_OTAR_NEXT;
+		o.arg2 = 0u | (1u << 8);	// key 0, in 1 hour
+		radio_sm_request(&sm, &o, now);
+		run(50);
+		CHECK(sm.view.otar.has_next && sm.view.otar.by_clock &&
+		      sm.view.otar.changeover == otar_minutes(1795442700LL) + 60u);
+		poll_for(59u * 60u * 1000u);
+		CHECK(sm.view.otar.kid == 5 && sm.view.otar.has_next);
+		poll_for(2u * 60u * 1000u);
+		CHECK(sm.view.otar.kid == 0 && !sm.view.otar.has_next && sm.view.otar.keyset == 3);
+		// Stop: the channel's own key reference again (key ID 0 here)
+		o.arg = RADIO_OTAR_STOP;
+		o.arg2 = 0;
+		radio_sm_request(&sm, &o, now);
+		run(50);
+		CHECK(!sm.view.otar.on);
+		kv_t3_set(CODEPLUG_KEY_TRAFFIC + 1, traffic5, 0 + CODEPLUG_TRAFFIC_HDR);	// a short record: gone for the rest
+		utc_clock_clear();
+	}
+#endif
 	kv_t3_set(CODEPLUG_KEY_TRAFFIC, traffic, sizeof traffic - 1);
 	run(50);
 	first = sim.air_count;
@@ -6547,7 +6654,7 @@ static void test_factory_reset(void)
 	CHECK(settings_flush());
 	n_ev = 0;
 	CHECK(ui_svc_factory_reset());
-	sim_flash_cut_after(476);	// the settings records (page 1: 216 + 4 bytes, page 0: 252 + 4, rounded up as the sizes are) go in, the native erase fails
+	sim_flash_cut_after(500);	// the settings records (page 1: 240 + 4 bytes, page 0: 252 + 4, rounded up as the sizes are) go in, the native erase fails
 	storage_job_poll();
 	sim_flash_power_on();
 	CHECK(n_ev == 1 && strstr(tr_en(last_ev.why), "native") != NULL);
