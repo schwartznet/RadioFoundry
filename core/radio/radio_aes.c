@@ -331,11 +331,34 @@ void radio_aes_data_privacy(dmrDataPrivacy_t *p)
 	p->ctx = &channel_keys;
 }
 
+#if CONFIG_OTAR
+// Requests held over an over (radio_aes_otar_defer). A net control asks to change over right as its last CHANGEOVER
+// copy goes out, and a member to make a stored key next while traffic may be on: neither may be lost
+#define OTAR_DEFER	4u
+static struct {
+	uint8_t op;
+	uint32_t value;
+} deferred[OTAR_DEFER];
+static uint8_t deferred_n;
+
+void radio_aes_otar_defer(uint8_t op, uint32_t value)
+{
+	if (deferred_n < OTAR_DEFER) {
+		deferred[deferred_n].op = op;
+		deferred[deferred_n].value = value;
+		deferred_n++;
+	}
+}
+#endif
+
 bool radio_aes_poll(const channel_t *ch, uint32_t own_id, uint32_t now_ms)
 {
 	bool keys = false;
 #if CONFIG_OTAR
-	keys = otar_poll(now_ms);
+	for (uint8_t i = 0; i < deferred_n; i++)
+		keys = radio_aes_otar_request(deferred[i].op, deferred[i].value, ch, now_ms) || keys;
+	deferred_n = 0;
+	keys = otar_poll(now_ms) || keys;
 #endif
 	dmrAesSeqSettle(&aes_seq);
 	uint32_t stored = SETTINGS_FIELD(aes_mi_res);

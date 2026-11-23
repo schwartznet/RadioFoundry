@@ -3724,17 +3724,17 @@ static void test_dmr_voice_features(void)
 			if (sim.air[i].kind == DMR_BURST_PI_HEADER)
 				kid = sim.air[i].payload[2];
 		CHECK(kid == 0);	// the next key isn't used to send before the changeover
-		// The changeover by hand, refused while transmitting
+		// The changeover by hand while transmitting: held until the over ends, then made (a net control's last
+		// CHANGEOVER copy is still going out when it asks)
 		req(RREQ_PTT, 1);
 		run(200);
 		o.arg = RADIO_OTAR_NOW;
 		o.arg2 = 0;
 		radio_sm_request(&sm, &o, now);
+		run(50);
 		CHECK(sm.view.otar.has_next && sm.view.otar.kid == 0);
 		req(RREQ_PTT, 0);
 		run(1000);
-		radio_sm_request(&sm, &o, now);
-		run(50);
 		CHECK(!sm.view.otar.has_next && sm.view.otar.kid == 5 && sm.view.otar.keyset == 2);
 		CHECK(sm.view.otar.has_prev && sm.view.otar.prev_kid == 0);
 		kid = 0xFF;

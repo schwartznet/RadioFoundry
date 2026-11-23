@@ -9169,9 +9169,12 @@ void radio_sm_request(radio_sm_t *sm, const radio_req_t *req, uint32_t now_ms)
 #endif
 #if CONFIG_OTAR
 	case RREQ_OTAR:
-		// Never in the middle of an over: the keys change between overs (otar.md 8). The clock may be set any time
-		if ((busy || sm->ptt) && req->arg != RADIO_OTAR_CLOCK)
+		// Never in the middle of an over: the keys change between overs (otar.md 8), so a request then is held and made
+		// once the over has ended (radio_aes_poll). The clock may be set any time
+		if ((busy || sm->ptt) && req->arg != RADIO_OTAR_CLOCK) {
+			radio_aes_otar_defer((uint8_t)req->arg, req->arg2);
 			break;
+		}
 		if (radio_aes_otar_request((uint8_t)req->arg, req->arg2, &sm->view.ch, now_ms) && sm->dmr_running)
 			dmr_configure(sm);
 		(void)radio_aes_otar_view(&sm->view.otar, now_ms);

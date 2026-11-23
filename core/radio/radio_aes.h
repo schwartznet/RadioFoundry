@@ -21,6 +21,8 @@ bool radio_aes_poll(const channel_t *ch, uint32_t own_id, uint32_t now_ms);
 #include "radio/radio.h"
 // RREQ_OTAR (radio_req_otar): op RADIO_OTAR_*, value as radio.h says, on the channel ch. True: the keysets changed
 bool radio_aes_otar_request(uint8_t op, uint32_t value, const channel_t *ch, uint32_t now_ms);
+// A request that came during an over: held (a few, in order) and made by radio_aes_poll once the over has ended
+void radio_aes_otar_defer(uint8_t op, uint32_t value);
 // The keysets and the clock as the UI shows them into *v; true when that differs from what *v held
 bool radio_aes_otar_view(radio_otar_view_t *v, uint32_t now_ms);
 #endif

@@ -610,7 +610,7 @@ __attribute__((noinline)) static bool rk_step(const radio_view_t *v, const otar_
 			return true;
 		}
 		radio_req_otar(RADIO_OTAR_NEXT_AT, rk->kid | (rk->changeover << 8));
-		rk->armed_by = now + 5000u;
+		rk->armed_by = now + 30000u;	// the radio makes it between overs (radio_aes_otar_defer)
 		return true;
 	}
 	// The radio task takes the request on its next turn: the run starts once the view shows the key as next, and
