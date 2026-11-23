@@ -126,7 +126,7 @@ image; a build with AES may replace it in a version 2.
 
 | Offset | Size | Field |
 |---|---|---|
-| 0 | 1 | Class: 1 a privacy key slot, 2 a traffic key ([key-check.md](key-check.md) 2) |
+| 0 | 1 | Class: 1 a privacy key slot, 2 a traffic key ([key-check.md](key-check.md) 2), 3 joining an OTAR net ([otar.md](otar.md) 18) |
 
 Class 1, 7 octets:
 

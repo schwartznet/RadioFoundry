@@ -4728,9 +4728,19 @@ msgid "Net keys"
 msgstr "Chiavi di rete"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_ROW"
+msgid "Net"
+msgstr "Rete"
+
+#: core/ui/ui_menus.c
 msgctxt "KF_WHY_DMR_ONLY"
 msgid "Key fill: DMR channels only"
 msgstr "Carica chiave: solo canali DMR"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_WHY_NOT_NC"
+msgid "Only a net control adds members"
+msgstr "Solo un controllo di rete aggiunge membri"
 
 #: core/ui/ui_menus.c
 msgctxt "KF_WHY_NO_DMR_ID"
@@ -5166,6 +5176,91 @@ msgstr "Non è un'ora: AAMMGGhhmm, UTC"
 msgctxt "NK_CLOCK_SET"
 msgid "Clock set"
 msgstr "Ora impostata"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_START"
+msgid "Start a net"
+msgstr "Crea una rete"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_JOIN"
+msgid "Join a net"
+msgstr "Unisciti a una rete"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_MEMBERS"
+msgid "Members"
+msgstr "Membri"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ADD"
+msgid "Add a member"
+msgstr "Aggiungi un membro"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_LEAVE"
+msgid "Leave the net"
+msgstr "Lascia la rete"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_TYPE_ID"
+msgid "Member's DMR ID: "
+msgstr "ID DMR del membro: "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_NET"
+msgid "Net "
+msgstr "Rete "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_AS_NC"
+msgid ": net control "
+msgstr ": controllo di rete "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_AS_MEMBER"
+msgid ": member"
+msgstr ": membro"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_NOT_IN"
+msgid "Not in a net"
+msgstr "Fuori rete"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_THIS_RADIO"
+msgid "This radio: "
+msgstr "Questa radio: "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_NO_KEY"
+msgid "No key pair yet"
+msgstr "Ancora nessuna coppia di chiavi"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_LEFT"
+msgid "Left the net"
+msgstr "Rete lasciata"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_TITLE"
+msgid "Net"
+msgstr "Rete"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_NC_SHORT"
+msgid " NC"
+msgstr " CR"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_MEMBERS_TITLE"
+msgid "Members"
+msgstr "Membri"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_NO_MEMBERS"
+msgid "No members"
+msgstr "Nessun membro"
 
 #: core/ui/ui_menus.c
 msgctxt "NK_TITLE"

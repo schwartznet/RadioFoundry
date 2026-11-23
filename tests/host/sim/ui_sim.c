@@ -2735,20 +2735,115 @@ static struct {
 	bool on, low;
 	ui_kf_view_t v;
 	int seen;		// presses counted so far
+	int32_t key;		// UI_KF_JOIN, UI_KF_ADD: a net session
+	uint32_t dst;
 } kf_sim;
+#if CONFIG_OTAR
+// ---------------- the net (ui_svc_otar.c's Net screen): a believable roster ----------------
+// Start a net takes the pool's presses as key fill does (or net:full); a join that ends Stored makes this radio a
+// member of net 1A2B with KF_SIM_PEER as net control 1; an add that ends Stored puts the member in the roster
+static struct {
+	bool in, starting, has_key;
+	uint16_t id;
+	uint8_t rank;
+	int seen;
+	uint8_t left;		// random presses still wanted
+	uint8_t n;
+	uint32_t ids[8];
+	uint8_t ranks[8];
+} net_sim;
+
+static void net_sim_add(uint32_t id, uint8_t rank)
+{
+	for (uint8_t i = 0; i < net_sim.n; i++)
+		if (net_sim.ids[i] == id)
+			return;
+	if (net_sim.n < 8) {
+		net_sim.ids[net_sim.n] = id;
+		net_sim.ranks[net_sim.n++] = rank;
+	}
+}
+
+void ui_svc_net_view(ui_net_view_t *v)
+{
+	static const uint8_t fp[3] = { 0xAB, 0x12, 0xCD };
+	memset(v, 0, sizeof *v);
+	v->in_net = net_sim.in;
+	v->net_id = net_sim.id;
+	v->rank = net_sim.rank;
+	v->has_key = net_sim.has_key;
+	if (v->has_key)
+		memcpy(v->fp, fp, 3);
+	v->starting = net_sim.starting;
+	v->presses = net_sim.starting ? net_sim.left : 0;
+}
+void ui_svc_net_start(uint32_t own)
+{
+	net_sim.starting = true;
+	net_sim.seen = presses;
+	net_sim.left = KF_SIM_PRESSES;	// the press that chose Start a net counts too, at the next tick, as on the radio
+	net_sim.n = 0;
+	net_sim_add(own, 1);
+}
+void ui_svc_net_cancel_start(void) { net_sim.starting = false; }
+void ui_svc_net_leave(void)
+{
+	net_sim.in = false;
+	net_sim.rank = 0;
+	net_sim.id = 0;
+	net_sim.n = 0;
+}
+uint16_t ui_svc_net_members(void) { return net_sim.n; }
+bool ui_svc_net_member(uint16_t i, uint32_t *id, uint8_t *rank, uint8_t fp[3])
+{
+	if (i >= net_sim.n)
+		return false;
+	*id = net_sim.ids[i];
+	*rank = net_sim.ranks[i];
+	fp[0] = (uint8_t)(0x10 + i);
+	fp[1] = 0x2F;
+	fp[2] = 0x3E;
+	return true;
+}
+bool ui_svc_net_tick(uint32_t now)
+{
+	(void)now;
+	if (!net_sim.starting)
+		return false;
+	int n = presses >= net_sim.seen ? presses - net_sim.seen : presses;	// the flow's count may start over
+	net_sim.seen = presses;
+	if (net_sim.left > 0)
+		net_sim.left = (uint8_t)(n >= net_sim.left ? 1 : net_sim.left - n);	// the last one: net:full
+	if (net_sim.left == 0) {
+		net_sim.starting = false;
+		net_sim.in = true;
+		net_sim.has_key = true;
+		net_sim.id = 0x1A2B;
+		net_sim.rank = 1;
+	}
+	return true;
+}
+#endif
 
 uint8_t ui_svc_kf_start(int32_t key, uint32_t own, uint32_t dst, bool low)
 {
 	if (own == 0)
 		return UI_KF_NO_ID;
-	if (key >= 0 && (dst == 0 || dst > CODEPLUG_DMR_ID_MAX || dst == own))
+	bool rx = key == -1 || key == UI_KF_JOIN;
+	if (!rx && (dst == 0 || dst > CODEPLUG_DMR_ID_MAX || dst == own))
 		return UI_KF_BAD_PEER;
+#if CONFIG_OTAR
+	if (key == UI_KF_ADD && (!net_sim.in || net_sim.rank == 0))
+		return UI_KF_NOT_NC;
+#endif
 	memset(&kf_sim, 0, sizeof kf_sim);
 	kf_sim.on = true;
 	kf_sim.low = low;
-	kf_sim.v.role = key < 0;
+	kf_sim.key = key;
+	kf_sim.dst = dst;
+	kf_sim.v.role = rx;
 	kf_sim.v.own_id = own;
-	kf_sim.v.peer_id = key < 0 ? 0 : dst;
+	kf_sim.v.peer_id = rx ? 0 : dst;
 	kf_sim.v.presses = KF_SIM_PRESSES;
 	kf_sim.seen = presses;
 	if (low)
@@ -2850,6 +2945,19 @@ static bool kf_sim_token(const char *arg)
 			k->result = KF_STORED;
 			k->kcv_ok = true;
 			memcpy(k->kcv, kcv, sizeof k->kcv);
+#if CONFIG_OTAR
+			if (kf_sim.key == UI_KF_JOIN) {
+				net_sim.in = true;
+				net_sim.has_key = true;
+				net_sim.id = 0x1A2B;
+				net_sim.rank = 0;
+				net_sim.n = 0;
+				net_sim_add(KF_SIM_PEER, 1);
+				net_sim_add(k->own_id, 0);
+			} else if (kf_sim.key == UI_KF_ADD) {
+				net_sim_add(kf_sim.dst, 0);
+			}
+#endif
 			kf_sim_over();
 			break;
 		default:
@@ -3262,6 +3370,10 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 	memset(&zs_sim, 0, sizeof zs_sim);
 #if CONFIG_KEY_FILL
 	memset(&kf_sim, 0, sizeof kf_sim);
+#endif
+#if CONFIG_OTAR
+	memset(&net_sim, 0, sizeof net_sim);
+	memset(&view.otar, 0, sizeof view.otar);
 #endif
 	ptt_blocked = false;
 	ui_app_init();
@@ -4089,6 +4201,18 @@ static bool run_token(char *t, char *err, size_t len)
 			snprintf(err, len, "kf:%s: not now", arg);
 			return false;
 		}
+		advance(200);
+		return true;
+	}
+#endif
+#if CONFIG_OTAR
+	if (strcmp(t, "net") == 0 && arg != NULL && strcmp(arg, "full") == 0) {	// net:full: Start a net's pool full
+		if (!net_sim.starting) {
+			snprintf(err, len, "net:%s: not now", arg);
+			return false;
+		}
+		net_sim.left = 0;
+		net_sim.seen = presses;
 		advance(200);
 		return true;
 	}

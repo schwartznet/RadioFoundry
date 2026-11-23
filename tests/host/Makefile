@@ -897,12 +897,22 @@ TESTS   += keyFillTest
 KEYFILL := $(CORE)/keyfill/keyfill.c $(CORE)/support/entropy.c $(KEYCRYPTO) $(CORE)/ui/ui_svc_keyfill.c $(KCV_AES)
 keyFillTest: keyFillTest.c $(KEYFILL) $(wildcard $(CORE)/keyfill/*.h $(CORE)/support/*.h stubs/keyfill_rtos/*.h) \
              $(CORE)/ui/ui_svc.h $(CORE)/zeroize/zeroize.h fuzz.h
-	$(CC) $(CFLAGS) -Istubs/keyfill_rtos -I$(ROOT)/hal -Wshadow -DCONFIG_KEY_FILL=1 -DCONFIG_GROUP_KEY_FILL=0 -DCONFIG_ZEROIZE=1 -o $@ \
+	$(CC) $(CFLAGS) -Istubs/keyfill_rtos -I$(ROOT)/hal -Wshadow -DCONFIG_KEY_FILL=1 -DCONFIG_GROUP_KEY_FILL=0 -DCONFIG_OTAR=0 -DCONFIG_ZEROIZE=1 -o $@ \
 		keyFillTest.c $(KEYFILL)
 run: run-key-fill
 run-key-fill: keyFillTest
 	./keyFillTest
 .PHONY: run-key-fill
+# OTAR's cryptography (core/otar/otar_crypto.c, otar.md 5, 7): AES-256 decryption, key wrap and CMAC against the
+# published vectors, the pair keys
+TESTS   += otarCryptoTest
+OTARCRYPTO := $(CORE)/otar/otar_crypto.c $(CORE)/support/x25519.c $(CORE)/support/hkdf.c $(CORE)/support/sha256.c $(KCV_AES)
+otarCryptoTest: otarCryptoTest.c $(OTARCRYPTO) $(CORE)/otar/otar_crypto.h
+	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -o $@ otarCryptoTest.c $(OTARCRYPTO)
+run: run-otar-crypto
+run-otar-crypto: otarCryptoTest
+	./otarCryptoTest
+.PHONY: run-otar-crypto
 # OTAR keysets (core/otar/otar_keys.c, otar.md 8): start, next, changeover by clock and by hand, the previous keyset
 # and its erase list, the UTC minutes and calendar
 TESTS   += otarKeysTest
@@ -917,7 +927,7 @@ run-otar-keys: otarKeysTest
 TESTS   += keyGenTest
 KEYGEN := $(CORE)/ui/ui_svc_groupkey.c $(CORE)/keyfill/groupkey.c $(CORE)/support/entropy.c $(KEYCRYPTO) $(KCV_AES)
 keyGenTest: keyGenTest.c $(KEYGEN) $(wildcard $(CORE)/keyfill/*.h $(CORE)/support/*.h stubs/keyfill_rtos/*.h)             $(CORE)/ui/ui_svc.h
-	$(CC) $(CFLAGS) -Istubs/keyfill_rtos -I$(ROOT)/hal -Wshadow -DCONFIG_KEY_FILL=1 -DCONFIG_GROUP_KEY_FILL=1 		-DCONFIG_DMR_AES=1 -o $@ keyGenTest.c $(KEYGEN)
+	$(CC) $(CFLAGS) -Istubs/keyfill_rtos -I$(ROOT)/hal -Wshadow -DCONFIG_KEY_FILL=1 -DCONFIG_GROUP_KEY_FILL=1 -DCONFIG_OTAR=0 -DCONFIG_DMR_AES=1 -o $@ keyGenTest.c $(KEYGEN)
 run: run-key-gen
 run-key-gen: keyGenTest
 	./keyGenTest
@@ -928,9 +938,9 @@ TESTS   += keyStoreTest
 KEYSTORE := $(CORE)/codeplug/key_store.c $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c \
             $(CORE)/codeplug/codeplug_tag.c $(CORE)/codeplug/codeplug_records.c $(CORE)/storage/storage.c sim/sim_flash.c \
             $(CORE)/dmr/dmrPrivacy.c $(CORE)/dmr/ambe/ambeFec.c $(CORE)/support/sha256.c $(CORE)/support/hkdf.c \
-            $(CORE)/support/kcv.c $(CORE)/dmr/dmrAes.c
+            $(CORE)/support/kcv.c $(CORE)/dmr/dmrAes.c $(CORE)/otar/otar_net.c
 keyStoreTest: keyStoreTest.c $(KEYSTORE) $(wildcard $(CORE)/codeplug/*.h $(CORE)/support/*.h $(CORE)/storage/*.h sim/sim_flash.h)
-	$(CC) $(CFLAGS) -I$(ROOT)/hal -I. -Wshadow -DCONFIG_KEY_CHECK=1 -DCONFIG_DMR_PRIVACY=1 -DCODEPLUG_MODE_RECORDS=1 \
+	$(CC) $(CFLAGS) -I$(ROOT)/hal -I. -Wshadow -DCONFIG_KEY_CHECK=1 -DCONFIG_DMR_PRIVACY=1 -DCODEPLUG_MODE_RECORDS=1 -DCONFIG_OTAR=1 \
 		-o $@ keyStoreTest.c $(KEYSTORE)
 run: run-key-store
 run-key-store: keyStoreTest

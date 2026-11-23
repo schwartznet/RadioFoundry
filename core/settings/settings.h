@@ -269,6 +269,9 @@ typedef struct {
 	// OTAR keysets (docs/spec/otar.md 8), appended: an older record reads OTAR off. The radio's own progress through
 	// a net's keysets (which key IDs are active, next, previous), not the keys, which stay in the codeplug
 	otar_keys_t otar;
+	uint8_t reserved12[12];		// 0: otar_net starts page 2
+	// OTAR net membership (otar.md 5, 6), appended: an older record reads no key pair and no net
+	otar_net_t otar_net;
 } settings_t;
 
 // Pages: settings_t is stored as records of SETTINGS_PAGE_BYTES each (settings-store.md 2.1). Only the pages its size

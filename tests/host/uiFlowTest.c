@@ -1090,6 +1090,31 @@ static const flow_t flows[] = {
 	{ "O the choices wrap back to by hand", "utc:2611231405 " NK_NEXT77, "2 2 2 2 2",
 	  "shows=Next:_key_77,_by_hand", 5, false },
 	{ "O stop managing", NK_ON, "6", "toast=Keys_not_managed_now shows=Keys_not_managed", 1, false },
+	// Net (otar.md 6): Tools > Key fill > 6. The simulator's Start a net counts random presses down and ends with the
+	// net:full token; its key's fingerprint
+	// is AB12CD; a join that ends Stored makes this radio (9996543) a member of net 1A2B under net control 9991234
+#define NET_OPEN	"ok 6 up ok 6"
+#define NET_STARTED	NET_OPEN " 1 net:full"
+#define NET_JOINED	NET_OPEN " 2 kf:full kf:peer ok kf:peer back"
+	{ "O net: not in one", "", NET_OPEN,
+	  "screen=net shows=Not_in_a_net shows=No_key_pair_yet shows=Start_a_net shows=Join_a_net", 5, false },
+	{ "O start a net asks for random presses", NET_OPEN, "1", "screen=net shows=Press_keys_at_random:_12", 1, false },
+	{ "O start a net: random presses count down", NET_OPEN " 1", "1 2 3 4 5",
+	  "screen=net shows=Press_keys_at_random", 5, false },
+	{ "O start a net", NET_OPEN " 1 1 2 3", "net:full",
+	  "shows=Net_1A2B:_net_control_1 shows=This_radio:_AB12CD shows=Members shows=Add_a_member", 0, false },
+	{ "O the net control is its roster's first", NET_STARTED, "1", "screen=net-members shows=9996543_NC1", 1, false },
+	{ "O join a net is key fill's receiver", NET_OPEN, "2", "screen=key-fill shows=Press_keys_at_random", 1, false },
+	{ "O joined: a member, the net control in the roster", NET_JOINED, "1",
+	  "screen=net-members shows=9991234_NC1 shows=9996543", 1, false },
+	{ "O a member doesn't add members", NET_JOINED, "2 4 6 7 5 8 1 0 ok",
+	  "toast=Only_a_net_control_adds_members", 9, false },
+	{ "O add a member", NET_STARTED, "2 4 6 7 5 8 1 0 ok", "screen=key-fill shows=Press_keys", 9, false },
+	{ "O the added member in the roster", NET_STARTED " 2 4 6 7 5 8 1 0 ok kf:full kf:peer ok kf:peer back", "1",
+	  "screen=net-members shows=4675810", 1, false },
+	{ "O add a member: Back takes a digit, then leaves the entry", NET_STARTED " 2 4 6", "back back back",
+	  "screen=net hides=Member's_DMR_ID", 3, false },
+	{ "O leave the net", NET_STARTED, "3", "toast=Left_the_net shows=Not_in_a_net", 1, false },
 #endif
 	{ "G a copy that fails says so", "gk:aes ok 6 up ok 2 ok down ok", "gk:fail",
 	  "shows=Couldn't_send", 0, false },

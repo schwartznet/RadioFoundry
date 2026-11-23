@@ -35,6 +35,16 @@ typedef struct {
 	uint8_t kid_prev[OTAR_CKRS];
 } otar_keys_t;
 
+// This radio's place in a net (otar.md 5, 6; phase 2): the net, its rank (0 member, 1-4 net control) and its X25519
+// private key. In the settings record, never the codeplug (which is shared) or a file; the emergency wipe clears it
+#define OTAR_NET_IN		0x01u	// flags: in a net
+typedef struct {
+	uint16_t net_id;
+	uint8_t rank;
+	uint8_t flags;
+	uint8_t priv[32];		// all zeros: no key pair yet
+} otar_net_t;
+
 static inline bool otar_on(const otar_keys_t *k) { return k->system != 0; }
 static inline uint8_t otar_system(const otar_keys_t *k) { return (uint8_t)(k->system - 1u); }
 

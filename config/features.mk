@@ -36,9 +36,9 @@ CONFIG_DMR_AES ?= $(CONFIG_DMR_PRIVACY)
 # Receive group key, Send a key > Send to group; docs/spec/group-key-fill.md). Needs KEY_FILL and DMR_AES
 CONFIG_GROUP_KEY_FILL ?= $(if $(and $(filter y,$(CONFIG_KEY_FILL)),$(filter y,$(CONFIG_DMR_AES))),y,n)
 # OTAR keysets: a managed AES system's active, next and previous keys, the changeover by clock or by hand, the
-# previous key erased after the overlap (Tools > Key fill > Net keys; docs/spec/otar.md, phase 1). Needs DMR_AES and
-# KEY_CHECK (the key store)
-CONFIG_OTAR ?= $(if $(and $(filter y,$(CONFIG_DMR_AES)),$(filter y,$(CONFIG_KEY_CHECK))),y,n)
+# previous key erased after the overlap; phase 2: the radio's X25519 key pair, a net's roster, joining in person by
+# key fill (Tools > Key fill > Net keys, Net; docs/spec/otar.md). Needs DMR_AES and KEY_FILL
+CONFIG_OTAR ?= $(if $(and $(filter y,$(CONFIG_DMR_AES)),$(filter y,$(CONFIG_KEY_FILL))),y,n)
 # talker alias decode and TX of our radio name (needs DMR)
 CONFIG_DMR_TALKER_ALIAS ?= $(CONFIG_DMR)
 # ETSI GPS Info in the embedded LC (FLCO 8): the caller's position decoded and shown, ours sent from the position
@@ -443,7 +443,7 @@ $(if $(and $(call feature_on,AUTO_DMR_ID),$(if $(call feature_on,DMR),,x)),$(err
 $(if $(and $(call feature_on,NXDN_SCRAMBLER),$(if $(call feature_on,NXDN),,x)),$(error CONFIG_NXDN_SCRAMBLER=y needs CONFIG_NXDN=y))
 $(if $(and $(call feature_on,KEY_FILL),$(if $(call feature_on,KEY_CHECK),,x)),$(error CONFIG_KEY_FILL=y needs CONFIG_KEY_CHECK=y))
 $(if $(and $(call feature_on,GROUP_KEY_FILL),$(if $(and $(call feature_on,KEY_FILL),$(call feature_on,DMR_AES)),,x)),$(error CONFIG_GROUP_KEY_FILL=y needs CONFIG_KEY_FILL=y and CONFIG_DMR_AES=y))
-$(if $(and $(call feature_on,OTAR),$(if $(and $(call feature_on,DMR_AES),$(call feature_on,KEY_CHECK)),,x)),$(error CONFIG_OTAR=y needs CONFIG_DMR_AES=y and CONFIG_KEY_CHECK=y))
+$(if $(and $(call feature_on,OTAR),$(if $(and $(call feature_on,DMR_AES),$(call feature_on,KEY_FILL)),,x)),$(error CONFIG_OTAR=y needs CONFIG_DMR_AES=y and CONFIG_KEY_FILL=y))
 $(if $(and $(call feature_on,AIR_RAW),$(if $(call feature_on,AIR),,x)),$(error CONFIG_AIR_RAW=y needs CONFIG_P25=y or CONFIG_NXDN=y (an air-framed mode)))
 $(if $(and $(call feature_on,P25_TRUNK),$(if $(call feature_on,P25),,x)),$(error CONFIG_P25_TRUNK=y needs CONFIG_P25=y))
 $(if $(and $(call feature_on,P25),$(if $(call feature_on,DMR),,x)),$(error CONFIG_P25=y needs CONFIG_DMR=y (its talk groups are the codeplug's contacts)))

@@ -3,9 +3,9 @@
 
 # Over-the-air rekeying (OTAR)
 
-Status: **phase 1 built** (keysets and the changeover, 14; section 17 says what it does), host-tested
-(`otarKeysTest`, `radioCoreTest`, `uiFlowTest` flows `O ...`), untested on a radio. Phases 2-4 are a design, not
-built.
+Status: **phases 1 and 2 built** (keysets and the changeover; key pairs, the roster, joining: 14), host-tested
+(`otarKeysTest`, `otarCryptoTest`, `keyStoreTest`, `radioCoreTest`, `settingsTest`, `uiFlowTest` flows `O ...`). Phase 1
+checked on air on three radios (17); phase 2 not yet. Phases 3-4 are a design, not built.
 
 A net of handhelds changes its AES-256 traffic keys over the air on a schedule, the way professional systems do, but
 with no server: the key management facility is a handheld. One radio is **net control (NC)**. It makes new traffic
@@ -301,3 +301,19 @@ the user's OK. UI flows for each screen.
 
 Not in phase 1: the UI manages CKR 1 only; no over-the-air rekeying (phases 2-4); the RTC; a changeover time typed
 as a time of day.
+
+## 18. Phase 2 as built
+
+| Part | What it does |
+|---|---|
+| Key pair | `settings_t.otar_net` (page 2 of the settings record, [settings-store.md](settings-store.md)): the net ID, this radio's rank, flags and its X25519 private key. Made from the randomness pool the first time the radio joins, adds a member or starts a net. The public key is worked out from it when needed. The emergency wipe of the keys clears it with them |
+| Roster | Codeplug records 0x1E00-0x1E3F ([channel-modes.md](channel-modes.md) 3), 37 octets each: DMR ID (3), rank (1), flags (1), public key (32). Public: it may be shared with the codeplug |
+| Joining | A key fill session ([key-fill.md](key-fill.md)) where both radios use their key pair instead of a fresh one: the six-digit code the users compare authenticates the two public keys themselves. The net control sends payload class 3 (5 octets: 3, net ID, its rank, 0). The new member stores the net control in its roster and the net in its settings, and answers DONE with its own public key's fingerprint; the net control stores the member in its roster only when that fingerprint is the key the session used. A radio receiving a key (not joining) refuses class 3, and a joining radio refuses classes 1 and 2 |
+| UKEK | `otar_pair_keys` (`core/otar/otar_crypto.c`): X25519 of the two key pairs, HKDF-SHA-256 with salt "RFOTAR1", the net ID and both DMR IDs (lower first), expanded to the UKEK and the MAC key (5). Both sides get the same. Used by phase 3's REKEY |
+| Crypto | AES-256 decryption (FIPS-197), AES key wrap and unwrap (RFC 3394), AES-256-CMAC (NIST SP 800-38B), checked against those documents' vectors (`otarCryptoTest`) |
+| UI | Tools > Key fill > 6 Net. Not in a net: Start a net (this radio net control 1; random key presses first), Join a net (key fill's receiver). In a net: Members (each DMR ID, "NC" and its rank, and the fingerprint), Add a member (net control: the member's DMR ID, then key fill's sender), Leave the net (the roster cleared, the key pair kept). The info line: the net ID and this radio's role, and its fingerprint |
+| Settings record | Now 3 pages (508 octets); the tests' page arithmetic follows `SETTINGS_PAGES` |
+| Size | Phases 1 and 2 together: see [feature-matrix.md](../feature-matrix.md) |
+
+Not in phase 2: the roster isn't sent to other members (each member knows only its net control); rekeying over the
+air (phase 3); revoking, succession and remote zeroize (phase 4).

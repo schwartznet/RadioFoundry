@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "codeplug/key_store.h"
+#include "otar/otar_net.h"
 #include "codeplug/codeplug.h"
 #include "codeplug/codeplug_kv.h"
 #include "codeplug/codeplug_records.h"
@@ -365,6 +366,67 @@ static void test_full(void)
 	CHECK(memcmp(kcv, zero, KCV_LEN) == 0);
 }
 
+// An OTAR net's roster (otar_net.c, otar.md 5): records in, found by DMR ID, replaced in place, a page of them, the
+// roster full, cleared; the join payload built and parsed, strict
+static void test_roster(void)
+{
+	fresh();
+	otar_member_t m, got, page[4];
+	uint16_t total;
+	memset(&m, 0, sizeof m);
+	CHECK(otar_roster_window(0, page, 4, &total) == 0 && total == 0 && !otar_roster_find(4678512, &got));
+	for (uint32_t i = 0; i < 5; i++) {
+		m.id = 4678512u + i;
+		m.rank = i == 0 ? 1 : 0;
+		memset(m.pub, (int)(0x30 + i), sizeof m.pub);
+		CHECK(otar_roster_put(&m));
+	}
+	CHECK(otar_roster_window(0, page, 4, &total) == 4 && total == 5 && page[0].id == 4678512u && page[0].rank == 1);
+	CHECK(otar_roster_window(3, page, 4, &total) == 2 && page[1].id == 4678516u && page[1].pub[0] == 0x34);
+	CHECK(otar_roster_find(4678514, &got) && got.rank == 0 && got.pub[31] == 0x32);
+	// The same DMR ID again: replaced, not added
+	m.id = 4678514u;
+	m.rank = 2;
+	memset(m.pub, 0x77, sizeof m.pub);
+	CHECK(otar_roster_put(&m));
+	CHECK(otar_roster_window(0, NULL, 0, &total) == 0 && total == 5);
+	CHECK(otar_roster_find(4678514, &got) && got.rank == 2 && got.pub[0] == 0x77);
+	// A record that doesn't unpack is skipped: a bad rank, a short one
+	uint8_t bad[OTAR_REC_LEN];
+	otar_member_pack(&m, bad);
+	bad[3] = 9;
+	CHECK(codeplug_kv_set(CODEPLUG_KEY_OTAR_ROSTER + 60u, bad, sizeof bad));
+	CHECK(codeplug_kv_set(CODEPLUG_KEY_OTAR_ROSTER + 61u, bad, 5));
+	CHECK(otar_roster_window(0, NULL, 0, &total) == 0 && total == 5);
+	// Full at 64 records (the two bad ones hold their slots until cleared)
+	for (uint32_t i = 5; i < 70; i++) {
+		m.id = 4679000u + i;
+		bool ok = otar_roster_put(&m);
+		CHECK(ok == (i < 5u + 57u));
+	}
+	CHECK(otar_roster_clear());
+	CHECK(otar_roster_window(0, NULL, 0, &total) == 0 && total == 0);
+	uint16_t k;
+	codeplug_kv_cursor_t c;
+	codeplug_kv_begin(&c, CODEPLUG_KEY_OTAR_ROSTER, CODEPLUG_KEY_OTAR_ROSTER + 63u);
+	CHECK(codeplug_kv_next(&c, &k, NULL, 0) < 0);
+
+	// The join payload
+	uint8_t p[8];
+	uint16_t net;
+	uint8_t rank;
+	CHECK(otar_join_build(0x1A2B, 1, p, sizeof p) == (int)OTAR_JOIN_LEN);
+	CHECK(otar_join_parse(p, OTAR_JOIN_LEN, &net, &rank) && net == 0x1A2B && rank == 1);
+	CHECK(!otar_join_parse(p, OTAR_JOIN_LEN - 1, &net, &rank) && !otar_join_parse(NULL, 5, &net, &rank));
+	p[4] = 1;
+	CHECK(!otar_join_parse(p, OTAR_JOIN_LEN, &net, &rank));
+	p[4] = 0;
+	p[0] = 2;
+	CHECK(!otar_join_parse(p, OTAR_JOIN_LEN, &net, &rank));
+	CHECK(otar_join_build(0, 1, p, sizeof p) == 0 && otar_join_build(1, 0, p, sizeof p) == 0 &&
+	      otar_join_build(1, 5, p, sizeof p) == 0 && otar_join_build(1, 1, p, 4) == 0);
+}
+
 int main(void)
 {
 	test_privacy();
@@ -372,6 +434,7 @@ int main(void)
 	test_traffic();
 	test_unsupported();
 	test_full();
+	test_roster();
 	if (failures != 0) {
 		printf("keyStoreTest: %d failure(s)\n", failures);
 		return 1;

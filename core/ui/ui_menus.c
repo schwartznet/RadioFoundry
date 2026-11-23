@@ -8473,8 +8473,8 @@ static const ui_scr_def_t key_send_screen = {
 // setup (Key type, Key, Key check, Stored keys) stays in Settings > Privacy. 1 waits for a key, 2 lists the stored
 // keys, where OK on one sends it (to a radio, or with group key fill to the channel's talkgroup); 3 waits for a group
 // key (group-key-fill.md 7); 4 makes a new key from the randomness pool (group-key-fill.md 8); 5 the net's keysets
-// (otar.md 8)
-enum { KFM_RECEIVE, KFM_SEND, KFM_GROUP, KFM_GENERATE, KFM_NET_KEYS, KFM_COUNT };
+// (otar.md 8); 6 the net: joining it, its members (otar.md 6)
+enum { KFM_RECEIVE, KFM_SEND, KFM_GROUP, KFM_GENERATE, KFM_NET_KEYS, KFM_NET, KFM_COUNT };
 
 static uint16_t kfm_count(void) { return CONFIG_GROUP_KEY_FILL ? (CONFIG_OTAR ? KFM_COUNT : KFM_NET_KEYS) : KFM_GROUP; }
 
@@ -8483,7 +8483,7 @@ static void kfm_item(uint16_t i, ui_item_t *it)
 	static const tr_id_t names[KFM_COUNT] = { TRN(KF_ROW_RECEIVE, "Receive a key"), TRN(KF_ROW_SEND, "Send a key"),
 						  TRN(GK_ROW_RECEIVE, "Receive group key"),
 						  TRN(GK_ROW_GENERATE, "Generate a key"),
-						  TRN(NK_ROW, "Net keys") };
+						  TRN(NK_ROW, "Net keys"), TRN(NET_ROW, "Net") };
 	if (i >= KFM_COUNT)
 		return;
 	str_copy(it->label, sizeof it->label, tr(names[i]));
@@ -8506,6 +8506,7 @@ static void kfm_select(uint16_t i, bool hold)
 #endif
 #if CONFIG_OTAR
 	case KFM_NET_KEYS: ui_push(SCR_NET_KEYS, 0); break;
+	case KFM_NET: ui_push(SCR_NET, 0); break;
 #endif
 	default: break;
 	}
@@ -8537,7 +8538,10 @@ void ui_kf_open(int32_t key, uint32_t dst)
 	case UI_KF_OK:
 		if (ui_frame()->scr == SCR_KEY_SEND)
 			ui_pop();	// the session in its place: Back goes to Stored keys
-		ui_push(SCR_KEY_FILL, key >= 0);
+		ui_push(SCR_KEY_FILL, !(key == -1 || key == UI_KF_JOIN));	// arg 1: the sender
+		break;
+	case UI_KF_NOT_NC:
+		ui_toast(TR(NET_WHY_NOT_NC, "Only a net control adds members"));
 		break;
 	case UI_KF_NO_ID:
 		ui_toast(TR(KF_WHY_NO_DMR_ID, "Set this radio's DMR ID first"));
@@ -9125,6 +9129,189 @@ static void nk_enter(void)
 	nk_when = 0;
 }
 
+// ======================= Tools > Key fill > Net (docs/spec/otar.md 5, 6, phase 2) =======================
+// This radio's net and key pair. Not in a net: 1 Start a net (this radio net control 1), 2 Join a net (key fill with
+// the net control's radio). In a net: 1 Members, 2 Add a member (net control: its DMR ID typed, then key fill), 3 Leave.
+// The fingerprint is the radio's public key's, which another radio's Members list shows for it
+enum { NET_START, NET_JOIN, NET_MEMBERS, NET_ADD, NET_LEAVE };
+static uint32_t net_typed;	// Add a member: the ID typed
+static uint8_t net_typed_n;	// its digits; 0 and not typing: no entry
+static bool net_typing;
+
+static void net_view_now(ui_net_view_t *n) { ui_svc_net_view(n); }
+static uint8_t net_row(uint16_t i)
+{
+	ui_net_view_t n;
+	net_view_now(&n);
+	return n.in_net ? (uint8_t)(NET_MEMBERS + i) : (uint8_t)(NET_START + i);
+}
+static uint16_t net_count(void)
+{
+	ui_net_view_t n;
+	net_view_now(&n);
+	return n.in_net ? 3 : 2;
+}
+
+static void net_item(uint16_t i, ui_item_t *it)
+{
+	static const tr_id_t names[] = { TRN(NET_START, "Start a net"), TRN(NET_JOIN, "Join a net"),
+					 TRN(NET_MEMBERS, "Members"), TRN(NET_ADD, "Add a member"),
+					 TRN(NET_LEAVE, "Leave the net") };
+	str_copy(it->label, sizeof it->label, tr(names[net_row(i)]));
+	item_num(it, (uint16_t)(i + 1u));
+}
+
+static void net_fp(sbuf_t *b, const uint8_t fp[3])
+{
+	char t[KCV_TEXT];
+	kcv_text(fp, t);
+	sb_str(b, t);
+}
+
+static const char *net_body(void)
+{
+	ui_net_view_t n;
+	net_view_now(&n);
+	sbuf_t b;
+	sb_init(&b, id_body, sizeof id_body);
+	if (n.starting) {
+		sb_str(&b, TR(KF_BODY_PRESS_KEYS, "Press keys at random: "));
+		sb_u32(&b, n.presses, 1);
+		return id_body;
+	}
+	if (net_typing) {
+		sb_str(&b, TR(NET_TYPE_ID, "Member's DMR ID: "));
+		if (net_typed_n > 0)
+			sb_u32(&b, net_typed, 1);
+		sb_chr(&b, '_');
+		return id_body;
+	}
+	if (n.in_net) {
+		sb_str(&b, TR(NET_NET, "Net "));
+		sb_hex(&b, n.net_id, 4);
+		if (n.rank != 0) {
+			sb_str(&b, TR(NET_AS_NC, ": net control "));
+			sb_u32(&b, n.rank, 1);
+		} else {
+			sb_str(&b, TR(NET_AS_MEMBER, ": member"));
+		}
+	} else {
+		sb_str(&b, TR(NET_NOT_IN, "Not in a net"));
+	}
+	sb_chr(&b, '\n');
+	if (n.has_key) {
+		sb_str(&b, TR(NET_THIS_RADIO, "This radio: "));
+		net_fp(&b, n.fp);
+	} else {
+		sb_str(&b, TR(NET_NO_KEY, "No key pair yet"));
+	}
+	return id_body;
+}
+
+static const char *net_hint(void)
+{
+	return net_typing ? TR(NK_HINT_ENTRY, "0-9  OK set  Back") : TR(HINT_OK_PICK_BACK, "OK pick  Back");
+}
+
+static void net_select(uint16_t i, bool hold)
+{
+	(void)hold;
+	const radio_view_t *v = ui_view();
+	uint32_t own = v->dmr.own_id != 0 ? v->dmr.own_id : (uint32_t)ui_svc_setting_get(UI_SET_DMR_ID);
+	switch (net_row(i)) {
+	case NET_START:
+		if (own == 0) {
+			ui_toast(TR(KF_WHY_NO_DMR_ID, "Set this radio's DMR ID first"));
+			break;
+		}
+		ui_svc_net_start(own);
+		break;
+	case NET_JOIN: ui_kf_open(UI_KF_JOIN, 0); break;
+	case NET_MEMBERS: ui_push(SCR_NET_MEMBERS, 0); break;
+	case NET_ADD:
+		net_typing = true;
+		net_typed = 0;
+		net_typed_n = 0;
+		break;
+	default:
+		ui_svc_net_leave();
+		ui_toast(TR(NET_LEFT, "Left the net"));
+		break;
+	}
+	ui_dirty();
+}
+
+static bool net_key(const input_event_t *ev)
+{
+	ui_net_view_t n;
+	net_view_now(&n);
+	if (n.starting) {
+		if (ev->gesture == GESTURE_PRESS && ev->action == ACT_BACK) {
+			ui_svc_net_cancel_start();
+			ui_dirty();
+		}
+		return true;	// every other key is a random key press for the pool (ui.c)
+	}
+	if (!net_typing)
+		return false;
+	if (ev->gesture != GESTURE_PRESS)
+		return true;
+	if (ev->action >= ACT_DIGIT_0 && ev->action <= ACT_DIGIT_9) {
+		if (net_typed_n < 8u) {
+			net_typed = net_typed * 10u + (uint32_t)(ev->action - ACT_DIGIT_0);
+			net_typed_n++;
+		}
+	} else if (ev->action == ACT_BACK) {
+		if (net_typed_n > 0) {
+			net_typed /= 10u;
+			net_typed_n--;
+		} else {
+			net_typing = false;
+		}
+	} else if (ev->action == ACT_SELECT) {
+		net_typing = false;
+		ui_kf_open(UI_KF_ADD, net_typed);
+	}
+	ui_dirty();
+	return true;
+}
+
+static void net_enter(void)
+{
+	net_typing = false;
+}
+
+static const ui_scr_def_t net_screen = {
+	.name = "net", .flags = SF_LIST | SF_NUMBERED | SF_HINT_FN, .prefix = TRN(NET_TITLE, "Net"),
+	.hint_fn = net_hint,
+	.count = net_count, .item = net_item, .select = net_select, .body = net_body, .key = net_key, .enter = net_enter,
+};
+
+// The roster: each member's DMR ID, net control rank, and fingerprint
+static uint16_t members_count(void) { return ui_svc_net_members(); }
+
+static void members_item(uint16_t i, ui_item_t *it)
+{
+	uint32_t id;
+	uint8_t rank, fp[3];
+	if (!ui_svc_net_member(i, &id, &rank, fp))
+		return;
+	sbuf_t b;
+	sb_init(&b, it->label, sizeof it->label);
+	sb_u32(&b, id, 1);
+	if (rank != 0) {
+		sb_str(&b, TR(NET_NC_SHORT, " NC"));
+		sb_u32(&b, rank, 1);
+	}
+	kcv_text(fp, it->value);
+}
+
+static const ui_scr_def_t net_members_screen = {
+	.name = "net-members", .flags = SF_LIST, .prefix = TRN(NET_MEMBERS_TITLE, "Members"),
+	.hint = TRN(HINT_BACK, "Back"), .empty = TRN(NET_NO_MEMBERS, "No members"),
+	.count = members_count, .item = members_item,
+};
+
 static const ui_scr_def_t net_keys_screen = {
 	.name = "net-keys", .flags = SF_LIST | SF_NUMBERED | SF_HINT_FN, .prefix = TRN(NK_TITLE, "Net keys"),
 	.hint_fn = nk_hint,
@@ -9466,7 +9653,7 @@ const ui_scr_def_t *const ui_scr[SCR_COUNT] = {
 	[SCR_GROUP_KEY] = &group_key_screen, [SCR_KEY_GEN] = &key_gen_screen,
 #endif
 #if CONFIG_OTAR
-	[SCR_NET_KEYS] = &net_keys_screen,
+	[SCR_NET_KEYS] = &net_keys_screen, [SCR_NET] = &net_screen, [SCR_NET_MEMBERS] = &net_members_screen,
 #endif
 #if CONFIG_ZEROIZE
 	[SCR_WIPE_CODE] = &wipe_code_screen, [SCR_WIPE] = &wipe_screen,

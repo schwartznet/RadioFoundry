@@ -52,6 +52,7 @@ typedef enum {
 	SCR_GROUP_KEY,			// group key fill (CONFIG_GROUP_KEY_FILL): arg 0 receive, 1 + a stored key's index send
 	SCR_KEY_GEN,			// Generate a key (CONFIG_GROUP_KEY_FILL): the group key session's steps, its own title
 	SCR_NET_KEYS,			// Net keys (CONFIG_OTAR): the managed system's keysets and changeover
+	SCR_NET, SCR_NET_MEMBERS,	// Net (CONFIG_OTAR): this radio's net, joining, adding; the roster
 	SCR_WIPE_CODE, SCR_WIPE,	// the emergency wipe (CONFIG_ZEROIZE): its code; the confirmation and the wipe
 	SCR_KEY_FILL_MENU,		// Tools > Key fill: receive, send (CONFIG_KEY_FILL)
 #if CONFIG_BACKLIGHT_TEST

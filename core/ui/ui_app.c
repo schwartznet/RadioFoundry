@@ -2550,6 +2550,10 @@ bool ui_app_tick(const radio_view_t *v, uint32_t now_ms)
 	// The group key session runs here; its screen keeps the backlight on (group-key-fill.md 7)
 	if (ui_svc_gk_tick(v, now_ms))
 		dirty = true;
+#if CONFIG_OTAR
+	if (ui_svc_net_tick(now_ms))	// Start a net's steps and the roster's writes (otar.md 6)
+		dirty = true;
+#endif
 	if (stack[sp].scr == SCR_GROUP_KEY || stack[sp].scr == SCR_KEY_GEN)
 		wake_req = true;
 #endif

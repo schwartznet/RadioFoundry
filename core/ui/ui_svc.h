@@ -114,7 +114,10 @@ typedef struct {
 	uint32_t own_id, peer_id;
 	uint32_t code;		// the six-digit code, from Compare on
 } ui_kf_view_t;
-enum { UI_KF_OK, UI_KF_NO_ID, UI_KF_BAD_PEER, UI_KF_BUSY };
+enum { UI_KF_OK, UI_KF_NO_ID, UI_KF_BAD_PEER, UI_KF_BUSY, UI_KF_NOT_NC };
+// ui_svc_kf_start's key for joining a net (receiver) and adding a member to it (sender; dst its ID), otar.md 6
+#define UI_KF_JOIN	(-2)
+#define UI_KF_ADD	(-3)
 // Start a session: receive (key < 0), or send stored key `key` (ui_svc_key's index) to dst. own: this radio's DMR ID
 // on the air; low: every transmission at the lowest power until the session ends (a direct mode channel, key-fill.md
 // 2.1). UI_KF_*
@@ -129,6 +132,29 @@ bool ui_svc_kf_tick(const radio_view_t *v, uint32_t now);
 #if CONFIG_OTAR
 // Whether AES system `system` holds an AES-256 traffic key under key ID kid (Net keys, docs/spec/otar.md 8)
 bool ui_svc_aes_key_there(uint8_t system, uint8_t kid);
+// The Net screen (otar.md 5, 6): this radio's net, rank and key pair's fingerprint
+typedef struct {
+	bool in_net;
+	uint16_t net_id;
+	uint8_t rank;		// 0 member, 1-4 net control
+	bool has_key;		// the radio has its key pair
+	uint8_t fp[3];		// its fingerprint
+	uint8_t presses;	// Start a net: random key presses the pool still wants (0: not starting, or done)
+	bool starting;
+} ui_net_view_t;
+void ui_svc_net_view(ui_net_view_t *v);
+// Start a net with this radio as net control 1: the pool fills first (ui_svc_net_tick makes the key pair, the net ID
+// and the roster's first record). own: this radio's DMR ID
+void ui_svc_net_start(uint32_t own);
+void ui_svc_net_cancel_start(void);
+// Leave the net: no net, the roster cleared; the key pair stays
+void ui_svc_net_leave(void);
+// The roster as the Members screen shows it: its count, member i (a page read at a time)
+uint16_t ui_svc_net_members(void);
+struct otar_member_s;
+bool ui_svc_net_member(uint16_t i, uint32_t *id, uint8_t *rank, uint8_t fp[3]);
+// The UI task's tick: the start's steps and the roster's writes. True: the view changed
+bool ui_svc_net_tick(uint32_t now);
 #endif
 #if CONFIG_GROUP_KEY_FILL
 // Group key fill (ui_svc_groupkey.c, docs/spec/group-key-fill.md): one session while the Group key screen is open.

@@ -29,6 +29,10 @@
 #include "task.h"
 #include "zeroize/zeroize.h"
 #endif
+#if CONFIG_OTAR
+#include "otar/otar_crypto.h"
+#include "otar/otar_net.h"
+#endif
 
 enum { JOB_NONE, JOB_RUNNING, JOB_DONE };
 
@@ -38,7 +42,7 @@ typedef struct {
 	uint8_t in[KF_MSG_MAX];		// the one received, while the engine reads it
 	uint8_t out_len;
 	uint32_t out_dst;
-	int32_t key;			// sender: the stored key's index; receiver: -1
+	int32_t key;			// sender: the stored key's index; receiver: -1; OTAR: UI_KF_JOIN, UI_KF_ADD
 	// The sender's key as picked: its class, slot or record, and check value. KEY sends the entry that still matches
 	// all of them, wherever the list has moved it since; none: the session fails rather than send another key
 	uint8_t pick_cls, pick_slot;
@@ -54,6 +58,14 @@ typedef struct {
 	uint8_t job_result;
 	uint8_t job_kcv[KCV_LEN];
 	key_put_t put;			// the job's key: points into s.payload until kf_stored
+#if CONFIG_OTAR
+	// Joining a net (otar.md 6): the receiver's net and its net control, or the sender's new member, for the job
+	uint16_t net_id;
+	uint8_t rank;
+	bool net_job;			// the job is the roster's, not the key store's
+	bool added;			// sender: the new member went to the roster
+	otar_member_t member;
+#endif
 #if KEY_STORE
 	// The sender's key while KEY is built, here and not on the UI task's stack: the store's read is the deepest
 	// path of that task (docs/dev/stack-check.md)
@@ -63,6 +75,16 @@ typedef struct {
 } kf_ctx_t;
 
 static kf_ctx_t *kf;		// the UI task's; set only once the block is cleared, cleared before it is freed
+
+#ifndef UI_KF_JOIN
+#define UI_KF_JOIN	(-2)
+#define UI_KF_ADD	(-3)
+#endif
+// The receiver: Receive a key, or Join a net; the sender: Send a key, or Add a member
+static bool receiving(int32_t key) { return key == -1 || key == UI_KF_JOIN; }
+#if CONFIG_OTAR
+static bool net_session(int32_t key) { return key == UI_KF_JOIN || key == UI_KF_ADD; }
+#endif
 #if CONFIG_ZEROIZE
 static volatile bool wiped;	// an emergency wipe ran: a store job still to run stores nothing (zeroize_ram_hook)
 #endif
@@ -106,6 +128,10 @@ static void finish(void)
 static int send_payload(uint8_t *out, int cap, void *ctx)
 {
 	kf_ctx_t *c = ctx;
+#if CONFIG_OTAR
+	if (c->key == UI_KF_ADD)
+		return otar_join_build(c->net_id, c->rank, out, cap);	// the net, and our rank in it
+#endif
 	const key_entry_t *e = &c->e;
 	kf_item_t it;
 	int n = 0;
@@ -153,6 +179,13 @@ static void store_job(void *ctx)
 		return;
 	}
 #endif
+#if CONFIG_OTAR
+	if (c->net_job) {
+		c->job_result = otar_roster_put(&c->member) ? KF_STORED : KF_RES_WRITE_FAILED;
+		c->job = JOB_DONE;
+		return;
+	}
+#endif
 	c->job_result = key_store_put(&c->put, c->job_kcv);
 	c->job = JOB_DONE;
 }
@@ -162,8 +195,20 @@ uint8_t ui_svc_kf_start(int32_t key, uint32_t own, uint32_t dst, bool low)
 {
 	if (own == 0 || own > 0xFFFFFFu)
 		return UI_KF_NO_ID;
-	if (key >= 0 && (!KEY_STORE || dst == 0 || dst > CODEPLUG_DMR_ID_MAX || dst == own))
+	if (!receiving(key) && (!KEY_STORE || dst == 0 || dst > CODEPLUG_DMR_ID_MAX || dst == own))
 		return UI_KF_BAD_PEER;
+#if CONFIG_OTAR
+	settings_t *st = settings_begin();
+	otar_net_t net = st->otar_net;
+	settings_end(0);
+	if (key == UI_KF_ADD && (!(net.flags & OTAR_NET_IN) || net.rank == 0)) {
+		crypto_wipe(&net, sizeof net);
+		return UI_KF_NOT_NC;	// only a net control adds members
+	}
+#else
+	if (key < -1)
+		return UI_KF_BAD_PEER;
+#endif
 	if (kf != NULL) {
 		if (kf->job == JOB_RUNNING)
 			return UI_KF_BUSY;	// a key being stored: the session goes once it is
@@ -195,6 +240,11 @@ uint8_t ui_svc_kf_start(int32_t key, uint32_t own, uint32_t dst, bool low)
 	kf->own = own;
 	kf->dst = dst;
 	kf->seen_state = 0xFF;
+#if CONFIG_OTAR
+	kf->net_id = net.net_id;
+	kf->rank = net.rank;
+	crypto_wipe(&net, sizeof net);
+#endif
 	key_fill_open(true);
 	tx_low(low);	// held until the session ends, on every way out (finish)
 	return UI_KF_OK;
@@ -207,7 +257,7 @@ bool ui_svc_kf_view(ui_kf_view_t *out)
 		return false;
 	const kf_session_t *s = &kf->s;
 	out->state = s->state;
-	out->role = kf->key < 0;
+	out->role = receiving(kf->key);
 	out->why = s->why;
 	out->result = s->result;
 	out->by_peer = s->by_peer;
@@ -215,7 +265,7 @@ bool ui_svc_kf_view(ui_kf_view_t *out)
 	memcpy(out->kcv, s->kcv, sizeof out->kcv);
 	out->presses = kf->started ? 0 : presses_left();
 	out->own_id = kf->own;
-	out->peer_id = kf->key < 0 ? s->peer_id : kf->dst;
+	out->peer_id = receiving(kf->key) ? s->peer_id : kf->dst;
 	out->code = s->code;
 	return true;
 }
@@ -263,6 +313,15 @@ static void storing(uint32_t now)
 	static const uint8_t none[KCV_LEN];
 	if (kf->job == JOB_DONE) {
 		kf->job = JOB_NONE;
+#if CONFIG_OTAR
+		if (kf->net_job && kf->job_result == KF_STORED) {
+			settings_t *st = settings_begin();
+			st->otar_net.net_id = kf->net_id;
+			st->otar_net.rank = 0;
+			st->otar_net.flags = OTAR_NET_IN;
+			settings_end(now);
+		}
+#endif
 		kf_stored(&kf->s, kf->job_result, kf->job_result == KF_STORED ? kf->job_kcv : none, now);
 		return;
 	}
@@ -270,6 +329,30 @@ static void storing(uint32_t now)
 		return;
 	int len;
 	const uint8_t *p = kf_payload(&kf->s, &len);
+#if CONFIG_OTAR
+	// Joining (otar.md 6): only a join payload, and only while joining; Receive a key takes no join payload
+	uint16_t net_id;
+	uint8_t rank;
+	bool join = otar_join_parse(p, len, &net_id, &rank);
+	if (join != (kf->key == UI_KF_JOIN)) {
+		kf_stored(&kf->s, KF_RES_UNSUPPORTED, none, now);
+		return;
+	}
+	if (join) {
+		// The net control into the roster (a storage job); the net into the settings once it is stored
+		kf->member.id = kf->s.peer_id;
+		kf->member.rank = rank;
+		kf->member.flags = 0;
+		memcpy(kf->member.pub, kf->s.peer_pub, X25519_LEN);
+		kf->net_id = net_id;
+		kf->net_job = true;
+		otar_fingerprint(kf->s.own_pub, kf->job_kcv);	// DONE carries our key's fingerprint
+		kf->job = JOB_RUNNING;
+		if (!storage_job_post(store_job, kf))
+			kf->job = JOB_NONE;
+		return;
+	}
+#endif
 	kf_item_t it;
 	if (p == NULL || !kf_item_parse(p, len, &it)) {
 		kf_stored(&kf->s, KF_RES_BAD_PAYLOAD, none, now);
@@ -296,6 +379,37 @@ static void storing(uint32_t now)
 	crypto_wipe(&it, sizeof it);
 }
 
+#if CONFIG_OTAR
+// Add a member, done: the member's key into the roster when the fingerprint DONE carried is its key's
+static void added(uint32_t now)
+{
+	(void)now;
+	if (kf->key != UI_KF_ADD || kf->added || kf->s.state != KF_ST_DONE || kf->s.result != KF_STORED)
+		return;
+	if (kf->job == JOB_DONE) {
+		kf->job = JOB_NONE;
+		kf->added = true;
+		return;
+	}
+	if (kf->job != JOB_NONE)
+		return;
+	uint8_t fp[3];
+	otar_fingerprint(kf->s.peer_pub, fp);
+	if (!kf->s.kcv_ok || !crypto_equal(fp, kf->s.kcv, 3)) {
+		kf->added = true;	// not the key the session used: not added
+		return;
+	}
+	kf->member.id = kf->dst;
+	kf->member.rank = 0;
+	kf->member.flags = 0;
+	memcpy(kf->member.pub, kf->s.peer_pub, X25519_LEN);
+	kf->net_job = true;
+	kf->job = JOB_RUNNING;
+	if (!storage_job_post(store_job, kf))
+		kf->job = JOB_NONE;
+}
+#endif
+
 // The randomness pool full: the session's private key (and, for a sender, its ID) from it
 static void begin(uint32_t now)
 {
@@ -310,8 +424,20 @@ static void begin(uint32_t now)
 	entropy_stir(&id, sizeof id, 0);
 	uint8_t rnd[KF_RANDOM_LEN];
 	entropy_take(rnd, sizeof rnd);
+#if CONFIG_OTAR
+	if (net_session(kf->key)) {
+		// Both radios use their own X25519 key pair (otar.md 6): the code the users compare authenticates them. A
+		// radio without one makes it now, from the pool
+		settings_t *st = settings_begin();
+		static const uint8_t zero[X25519_LEN];
+		if (crypto_equal(st->otar_net.priv, zero, X25519_LEN))
+			memcpy(st->otar_net.priv, rnd, X25519_LEN);
+		memcpy(rnd, st->otar_net.priv, X25519_LEN);
+		settings_end(now);
+	}
+#endif
 	kf->started = true;
-	if (kf->key < 0) {
+	if (receiving(kf->key)) {
 		kf_listen(&kf->s, kf->own, rnd, now);
 	} else {
 #if KEY_STORE
@@ -352,6 +478,9 @@ bool ui_svc_kf_tick(const radio_view_t *v, uint32_t now)
 		kf_tick(&kf->s, now);
 		if (kf->s.state == KF_ST_STORING)
 			storing(now);
+#if CONFIG_OTAR
+		added(now);
+#endif
 	}
 	transport();
 	// Done or failed, and the last message gone: the user's power level is back (2.1)
