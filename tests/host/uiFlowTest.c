@@ -1619,7 +1619,7 @@ static const flow_t flows_k[] = {
 	  "set47=17 shows=VFO/Channel", 1, false },
 	{ "K top key hold: call back last", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=12 shows=Call_back",
 	  1, false },
-	{ "K top key hold wraps to default", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=0", 1,
+	{ "K top key hold wraps to default", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=0", 1,
 	  false },
 	{ "K top key hold: TG name / number after call back", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok",
 	  "set47=19 shows=TG_name", 1, false },
