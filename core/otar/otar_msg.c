@@ -97,6 +97,13 @@ int otar_changeover_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_ma
 	return seal(out, (int)(OTAR_CHANGEOVER_LEN - OTAR_MAC), a, k_mac);
 }
 
+int otar_roster_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m)
+{
+	header(out, OTAR_ROSTER, m);
+	memcpy(&out[OTAR_HDR], m->rec, OTAR_ROSTER_REC);
+	return seal(out, (int)(OTAR_ROSTER_LEN - OTAR_MAC), a, k_mac);
+}
+
 static int len_of(uint8_t type)
 {
 	switch (type) {
@@ -104,6 +111,7 @@ static int len_of(uint8_t type)
 	case OTAR_ACK: return (int)OTAR_ACK_LEN;
 	case OTAR_HELLO: return (int)OTAR_HELLO_LEN;
 	case OTAR_CHANGEOVER: return (int)OTAR_CHANGEOVER_LEN;
+	case OTAR_ROSTER: return (int)OTAR_ROSTER_LEN;
 	default: return -1;
 	}
 }
@@ -158,6 +166,9 @@ bool otar_open(const uint8_t *msg, int len, const otar_addr_t *a, const uint8_t 
 	case OTAR_CHANGEOVER:
 		m->keyset = get32(p);
 		m->kid = p[4];
+		return true;
+	case OTAR_ROSTER:
+		memcpy(m->rec, p, OTAR_ROSTER_REC);
 		return true;
 	default:
 		return false;

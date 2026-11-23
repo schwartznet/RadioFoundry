@@ -5235,6 +5235,11 @@ msgid "Change over the net"
 msgstr "全网更换密钥"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_ROSTER"
+msgid "Send the roster"
+msgstr "发送名单"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_LEAVE"
 msgid "Leave the net"
 msgstr "退出网络"
@@ -5275,6 +5280,26 @@ msgid "No key pair yet"
 msgstr "尚无密钥对"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_ROSTER_ON"
+msgid "Roster: sending, "
+msgstr "名单: 发送中, "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ROSTER_DONE"
+msgid "Roster: "
+msgstr "名单: "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ROSTER_SENT"
+msgid " sent"
+msgstr " 已发送"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ROSTER_FAILED"
+msgid ", no answer "
+msgstr ", 无回应 "
+
+#: core/ui/ui_menus.c
 msgctxt "NET_WHY_NC_ONLY"
 msgid "Only a net control does that"
 msgstr "仅限主台"
@@ -5293,6 +5318,11 @@ msgstr "无空闲密钥 ID"
 msgctxt "NET_WHY_BUSY"
 msgid "A rekey is running"
 msgstr "正在更换密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ROSTER_SENDING"
+msgid "Sending the roster"
+msgstr "正在发送名单"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_CHANGING"

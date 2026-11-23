@@ -1115,7 +1115,12 @@ static const flow_t flows[] = {
 	  "screen=net-members shows=4675810", 1, false },
 	{ "O add a member: Back takes a digit, then leaves the entry", NET_STARTED " 2 4 6", "back back back",
 	  "screen=net hides=Member's_DMR_ID", 3, false },
-	{ "O leave the net", NET_STARTED, "7", "toast=Left_the_net shows=Not_in_a_net", 1, false },
+	{ "O leave the net", NET_STARTED, "8", "toast=Left_the_net shows=Not_in_a_net", 1, false },
+	{ "O send the roster", NET_STARTED, "7", "toast=Sending_the_roster shows=Roster:_sending,_0_sent", 1, false },
+	{ "O a member's net keys: change over now, the clock, stop", "aeschan " NET_JOINED " back 5", "ok down down",
+	  "screen=net-keys hides=Drop_the_next_key hides=Next_key:", 3, false },
+	{ "O a member's net keys: three rows, Change over now first", "aeschan " NET_JOINED " back 5 ok", "3",
+	  "toast=Keys_not_managed_now", 1, false },
 	// Rekeying (otar.md 9): the net control's rows. NET_ADDED: this radio manages the AES channel's keys (key 1), runs
 	// net 1A2B and added 4675810; the simulator's rekey sends key 2, rk:ack is the next member's ACK
 #define NET_ADDED	"aeschan ok 6 up ok 5 ok back 6 1 net:full 2 4 6 7 5 8 1 0 ok kf:full kf:peer ok kf:peer back"

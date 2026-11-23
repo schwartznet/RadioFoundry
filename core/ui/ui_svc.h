@@ -172,6 +172,14 @@ typedef struct {
 enum { UI_RK_WAIT, UI_RK_SENT, UI_RK_OK, UI_RK_FAIL };
 void ui_svc_net_rekey_view(ui_rekey_view_t *r);
 bool ui_svc_net_rekey_member(uint16_t i, uint32_t *id, uint8_t *state, uint8_t *tries);
+// Net control: send the roster (otar.md 7.5): only == 0 every entry to every member; else that member's entry to every
+// member and every entry to it (after Add a member). UI_NET_OK, UI_NET_NOT_NC, UI_NET_BUSY (a rekey runs)
+uint8_t ui_svc_net_roster_send(uint32_t only);
+typedef struct {
+	bool on, done;		// running; finished (until the next run)
+	uint16_t sent, failed;	// entries a member took; entries that got no answer after the tries
+} ui_roster_view_t;
+void ui_svc_net_roster_view(ui_roster_view_t *r);
 #endif
 #if CONFIG_GROUP_KEY_FILL
 // Group key fill (ui_svc_groupkey.c, docs/spec/group-key-fill.md): one session while the Group key screen is open.

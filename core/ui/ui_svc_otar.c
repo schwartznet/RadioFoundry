@@ -44,6 +44,7 @@ static struct {
 	bool want_clear, want_put;
 	uint8_t job;
 	volatile bool job_running;
+	volatile bool put_done, put_ok;	// the last put: done, and stored
 	otar_member_t member;
 	// A page of the roster for the Members screen, kept until the codeplug changes or a second passes
 	bool page_ok;
@@ -129,9 +130,10 @@ void ui_svc_net_leave(void)
 static void net_job(void *ctx)
 {
 	(void)ctx;
-	if (net.job == 1)
-		(void)otar_roster_put(&net.member);
-	else if (net.job == 2)
+	if (net.job == 1) {
+		net.put_ok = otar_roster_put(&net.member);
+		net.put_done = true;
+	} else if (net.job == 2)
 		(void)otar_roster_clear();
 	net.job = 0;
 	net.job_running = false;
@@ -294,7 +296,40 @@ static struct {
 	uint32_t co_tg;
 	bool co_then_local;
 	rekey_t *rk;		// the net control's run, on the heap
+	// A member: a ROSTER entry being stored (net.member), then its ACK
+	bool ros_due;
+	// The net control's roster run: each wanted (member, entry) pair in roster order, one at a time, ACKed
+	struct {
+		bool on, done, waiting;
+		uint32_t only;		// 0: every entry to every member; else this member's entry to all, and all to it
+		uint16_t dst_i, ent_i;	// the roster positions of the member sent to, and of the entry sent
+		uint32_t dst;		// the member whose ACK is awaited
+		uint8_t tries;
+		uint32_t ack_by;
+		uint16_t sent, failed;
+	} ros;
+	// Scratch off the UI task's stack: the roster run's member and entry, and its message
+	otar_member_t ros_d, ros_e;
+	otar_msg_t ros_m;
 } eng;
+
+#define ROS_TRIES	3u	// a roster entry no ACK came for is sent this many times, then counted as failed
+#define ROS_SCAN	4u	// roster pairs looked at per tick
+
+// A net control's message number: true when above the last taken from that rank's net control (then kept), so a
+// replay or an old message is refused. Rank 1 in otar_seen, ranks 2-4 in otar_seen_nc (otar.md 7)
+static bool take_msgnum(uint8_t rank, uint32_t msgnum, uint32_t now)
+{
+	if (rank < 1u || rank > OTAR_RANK_MAX)
+		return false;
+	settings_t *st = settings_begin();
+	uint32_t *seen = rank == 1u ? &st->otar_seen : &st->otar_seen_nc[rank - 2u];
+	bool fresh = msgnum > *seen;
+	if (fresh)
+		*seen = msgnum;
+	settings_end(now);
+	return fresh;
+}
 
 static uint32_t next_msgnum(uint32_t now)
 {
@@ -353,7 +388,8 @@ static void tek_job(void *ctx)
 __attribute__((noinline)) static void on_rekey(const radio_view_t *v, const uint8_t *msg, int len, uint32_t src, const otar_net_t *n, uint32_t now)
 {
 	otar_member_t nc;
-	if (!otar_roster_find(src, &nc) || nc.rank == 0 || eng.tek_due || eng.tek_job || eng.out_len != 0)
+	if (!otar_roster_find(src, &nc) || nc.rank == 0 || (nc.flags & OTAR_M_REVOKED) || eng.tek_due || eng.tek_job ||
+	    eng.ros_due || eng.out_len != 0)
 		return;
 	if (!eng.pair_ok || eng.pair_id != src) {
 		eng.pair_ok = pair_keys(v->dmr.own_id, src, n->net_id, eng.ukek, eng.kmac);
@@ -367,11 +403,7 @@ __attribute__((noinline)) static void on_rekey(const radio_view_t *v, const uint
 		crypto_wipe(&m, sizeof m);
 		return;
 	}
-	settings_t *st = settings_begin();
-	bool fresh = m.msgnum > st->otar_seen;
-	if (fresh)
-		st->otar_seen = m.msgnum;
-	settings_end(now);
+	bool fresh = take_msgnum(nc.rank, m.msgnum, now);
 	memset(&eng.ack, 0, sizeof eng.ack);
 	eng.ack.net_id = n->net_id;
 	eng.ack.keyset = m.keyset;
@@ -398,6 +430,69 @@ __attribute__((noinline)) static void on_rekey(const radio_view_t *v, const uint
 	eng.ack.msgnum = next_msgnum(now);
 	otar_addr_t back = { v->dmr.own_id, src };
 	out_set(src, false, otar_ack_build(eng.out, &back, eng.kmac, &eng.ack));
+}
+
+// A ROSTER (7.5) from a net control: one roster entry, stored (net.member, the housekeeping task), then ACKed. Refused:
+// an entry that would change a net control of higher rank than the sender's, or would revoke this radio (both wait for
+// phase 4's confirmation on the radio, otar.md 10). An entry for this radio sets its rank
+static __attribute__((noinline)) void on_roster(const radio_view_t *v, const uint8_t *msg, int len, uint32_t src,
+						const otar_net_t *n, uint32_t now)
+{
+	otar_member_t nc;
+	if (!otar_roster_find(src, &nc) || nc.rank == 0 || (nc.flags & OTAR_M_REVOKED) || eng.tek_due || eng.tek_job ||
+	    eng.ros_due || eng.out_len != 0 || net.want_put || net.job_running)
+		return;
+	if (!eng.pair_ok || eng.pair_id != src) {
+		eng.pair_ok = pair_keys(v->dmr.own_id, src, n->net_id, eng.ukek, eng.kmac);
+		eng.pair_id = src;
+		if (!eng.pair_ok)
+			return;
+	}
+	otar_addr_t a = { src, v->dmr.own_id };
+	otar_msg_t *m = &eng.ros_m;
+	if (!otar_open(msg, len, &a, NULL, eng.kmac, m) || m->net_id != n->net_id || !take_msgnum(nc.rank, m->msgnum, now))
+		return;
+	memset(&eng.ack, 0, sizeof eng.ack);
+	eng.ack.net_id = n->net_id;
+	eng.ack.rank = n->rank;
+	eng.ack_to = src;
+	otar_member_t *e = &eng.ros_e, *old = &eng.ros_d;
+	bool ok = otar_member_unpack(m->rec, OTAR_ROSTER_REC, e) && e->id != 0;
+	if (ok)
+		otar_fingerprint(e->pub, eng.ack.kcv);
+	bool found = ok && otar_roster_find(e->id, old);
+	bool same = found && old->rank == e->rank && old->flags == e->flags && memcmp(old->pub, e->pub, X25519_LEN) == 0;
+	if (!ok || (found && !same && old->rank != 0 && old->rank < nc.rank) ||
+	    (e->id == v->dmr.own_id && (e->flags & OTAR_M_REVOKED))) {
+		eng.ack.result = OTAR_ACK_REFUSED;
+	} else if (same) {
+		eng.ack.result = OTAR_ACK_HELD;
+	} else {
+		net.member = *e;	// stored by the housekeeping task, then ACKed (engine_tick)
+		net.put_done = false;
+		net.want_put = true;
+		eng.ros_due = true;
+		return;
+	}
+	eng.ack.msgnum = next_msgnum(now);
+	otar_addr_t back = { v->dmr.own_id, src };
+	out_set(src, false, otar_ack_build(eng.out, &back, eng.kmac, &eng.ack));
+}
+
+// A member: the ROSTER entry stored (or not): this radio's own rank when it was the entry, then the ACK
+static __attribute__((noinline)) void ros_stored(const radio_view_t *v, uint32_t now)
+{
+	eng.ros_due = false;
+	eng.ack.result = net.put_ok ? OTAR_ACK_STORED : OTAR_ACK_STORE_FAILED;
+	if (net.put_ok && net.member.id == v->dmr.own_id && net.member.rank <= OTAR_RANK_MAX) {
+		settings_t *st = settings_begin();
+		st->otar_net.rank = net.member.rank;
+		settings_end(now);
+	}
+	net.page_ok = false;
+	eng.ack.msgnum = next_msgnum(now);
+	otar_addr_t a = { v->dmr.own_id, eng.ack_to };
+	out_set(eng.ack_to, false, otar_ack_build(eng.out, &a, eng.kmac, &eng.ack));
 }
 
 // A member: CHANGEOVER from its net control, under the key from the next TEK (7.3)
@@ -434,7 +529,21 @@ __attribute__((noinline)) static void on_member(const radio_view_t *v, const uin
 	bool ok = otar_open(msg, len, &a, NULL, kmac, &m) && m.net_id == n->net_id;
 	crypto_wipe(ukek, sizeof ukek);
 	crypto_wipe(kmac, sizeof kmac);
-	if (!ok || rk == NULL)
+	if (!ok)
+		return;
+	if (m.type == OTAR_ACK && m.ckr == 0) {		// a roster entry's
+		if (eng.ros.on && eng.ros.waiting && src == eng.ros.dst) {
+			eng.ros.waiting = false;
+			if (m.result == OTAR_ACK_STORED || m.result == OTAR_ACK_HELD)
+				eng.ros.sent++;
+			else
+				eng.ros.failed++;
+			eng.ros.ent_i++;
+			eng.ros.tries = 0;
+		}
+		return;
+	}
+	if (rk == NULL)
 		return;
 	for (uint8_t i = 0; i < rk->n; i++) {
 		rk_member_t *mm = &rk->m[i];
@@ -567,6 +676,76 @@ __attribute__((noinline)) static bool rk_step(const radio_view_t *v, const otar_
 	return false;
 }
 
+// The net control's roster run: is entry e wanted at member d?
+static bool ros_wanted(const otar_member_t *d, const otar_member_t *e, uint32_t own)
+{
+	if (d->id == own || (d->flags & OTAR_M_REVOKED) || e->id == d->id)
+		return false;
+	if (eng.ros.only == 0)
+		return true;
+	return e->id != own && ((d->id == eng.ros.only) != (e->id == eng.ros.only));
+}
+
+// The net control's roster run: the next wanted pair, its ROSTER out, then its ACK (on_member) or a try again
+static __attribute__((noinline)) bool ros_step(const radio_view_t *v, const otar_net_t *n, uint32_t now)
+{
+	if (!eng.ros.on || eng.rk != NULL)
+		return false;
+	if (eng.ros.waiting) {
+		if ((int32_t)(now - eng.ros.ack_by) < 0)
+			return false;
+		eng.ros.waiting = false;
+		if (++eng.ros.tries >= ROS_TRIES) {
+			eng.ros.failed++;
+			eng.ros.ent_i++;
+			eng.ros.tries = 0;
+		}
+		return true;
+	}
+	if (eng.out_len != 0 || eng.sending)
+		return false;
+	otar_member_t *d = &eng.ros_d, *e = &eng.ros_e;
+	for (unsigned k = 0; k < ROS_SCAN; k++) {
+		uint16_t total = 0;
+		if (otar_roster_window(eng.ros.dst_i, d, 1, &total) != 1) {
+			eng.ros.on = false;	// every member done
+			eng.ros.done = true;
+			return true;
+		}
+		if (eng.ros.ent_i >= total) {
+			eng.ros.dst_i++;
+			eng.ros.ent_i = 0;
+			continue;
+		}
+		if (otar_roster_window(eng.ros.ent_i, e, 1, &total) != 1 || !ros_wanted(d, e, v->dmr.own_id)) {
+			eng.ros.ent_i++;
+			continue;
+		}
+		if (!eng.pair_ok || eng.pair_id != d->id) {
+			eng.pair_ok = pair_keys(v->dmr.own_id, d->id, n->net_id, eng.ukek, eng.kmac);
+			eng.pair_id = d->id;
+		}
+		if (!eng.pair_ok) {
+			eng.ros.failed++;
+			eng.ros.ent_i++;
+			return true;
+		}
+		otar_msg_t *m = &eng.ros_m;
+		memset(m, 0, sizeof *m);
+		m->net_id = n->net_id;
+		m->rank = n->rank;
+		m->msgnum = next_msgnum(now);
+		otar_member_pack(e, m->rec);
+		otar_addr_t a = { v->dmr.own_id, d->id };
+		out_set(d->id, false, otar_roster_build(eng.out, &a, eng.kmac, m));
+		eng.ros.dst = d->id;
+		eng.ros.waiting = true;
+		eng.ros.ack_by = now + ACK_WAIT_MS;
+		return true;
+	}
+	return false;
+}
+
 // A member: its TEK stored (or not), the next keyset, then the ACK
 static __attribute__((noinline)) void tek_stored(const radio_view_t *v, uint32_t now)
 {
@@ -620,6 +799,8 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 		eng.started_ms = now;
 		eng.hello_sent = false;
 		eng.pair_ok = false;
+		memset(&eng.ros, 0, sizeof eng.ros);
+		eng.ros_due = false;
 		if (!in)
 			rk_free();
 	}
@@ -638,6 +819,9 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 				eng.rk->cur = 0xFF;
 				changed = true;
 			}
+			if (st == OTAR_SEND_FAILED && eng.ros.waiting)
+				eng.ros.ack_by = now;	// not delivered: a try gone
+
 		}
 	}
 	if (eng.out_len != 0 && !eng.sending) {
@@ -657,6 +841,11 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 			changed = true;
 		}
 	}
+	// A member's stored ROSTER entry: the ACK
+	if (eng.ros_due && !net.want_put && !net.job_running && net.put_done) {
+		ros_stored(v, now);
+		changed = true;
+	}
 	// Messages in
 	uint8_t *msg = eng.in;
 	uint32_t src, dst;
@@ -669,6 +858,8 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 				on_rekey(v, msg, len, src, &n, now);
 			else if (h.type == OTAR_CHANGEOVER && group && n.rank == 0)
 				on_changeover(v, msg, len, src, dst, &n, now);
+			else if (h.type == OTAR_ROSTER && !group)
+				on_roster(v, msg, len, src, &n, now);
 			else if ((h.type == OTAR_ACK || h.type == OTAR_HELLO) && !group && n.rank != 0)
 				on_member(v, msg, len, src, &n, now);
 			changed = true;
@@ -690,8 +881,10 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 		}
 		changed = true;
 	}
-	if (n.rank != 0)
+	if (n.rank != 0) {
 		changed = rk_step(v, &n, now) || changed;
+		changed = ros_step(v, &n, now) || changed;
+	}
 	crypto_wipe(&n, sizeof n);
 	return changed;
 }
@@ -706,7 +899,7 @@ uint8_t ui_svc_net_rekey(const radio_view_t *v, uint16_t mins)
 		return UI_NET_NOT_NC;
 	if (!v->otar.on)
 		return UI_NET_NOT_MANAGED;
-	if (eng.rk != NULL || eng.tek_due || eng.tek_job)
+	if (eng.rk != NULL || eng.tek_due || eng.tek_job || eng.ros.on)
 		return UI_NET_BUSY;
 	// The key ID: the first free one after the key in use
 	uint8_t kid = v->otar.kid;
@@ -804,4 +997,30 @@ bool ui_svc_net_rekey_member(uint16_t i, uint32_t *id, uint8_t *state, uint8_t *
 	*tries = rk->m[i].tries;
 	return true;
 }
+uint8_t ui_svc_net_roster_send(uint32_t only)
+{
+	otar_net_t n;
+	net_read(&n);
+	bool nc = (n.flags & OTAR_NET_IN) && n.rank != 0;
+	crypto_wipe(&n, sizeof n);
+	if (!nc)
+		return UI_NET_NOT_NC;
+	if (eng.rk != NULL)
+		return UI_NET_BUSY;
+	uint32_t keep = eng.ros.on && eng.ros.only != only ? 0 : only;	// two runs at once: the whole roster
+	memset(&eng.ros, 0, sizeof eng.ros);
+	eng.ros.on = true;
+	eng.ros.only = keep;
+	return UI_NET_OK;
+}
+
+void ui_svc_net_roster_view(ui_roster_view_t *r)
+{
+	memset(r, 0, sizeof *r);
+	r->on = eng.ros.on;
+	r->done = eng.ros.done;
+	r->sent = eng.ros.sent;
+	r->failed = eng.ros.failed;
+}
+
 #endif

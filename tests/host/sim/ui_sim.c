@@ -2865,6 +2865,21 @@ bool ui_svc_net_rekey_member(uint16_t i, uint32_t *id, uint8_t *state, uint8_t *
 	*tries = 1;
 	return true;
 }
+// Send the roster: on at once, nothing sent (the simulator has no air)
+static ui_roster_view_t ros_sim;
+uint8_t ui_svc_net_roster_send(uint32_t only)
+{
+	(void)only;
+	if (!net_sim.in || net_sim.rank == 0)
+		return UI_NET_NOT_NC;
+	if (rk_sim.on)
+		return UI_NET_BUSY;
+	memset(&ros_sim, 0, sizeof ros_sim);
+	ros_sim.on = true;
+	return UI_NET_OK;
+}
+void ui_svc_net_roster_view(ui_roster_view_t *r) { *r = ros_sim; }
+
 static bool rk_sim_token(const char *arg)
 {
 	if (!rk_sim.on)
@@ -3449,6 +3464,7 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 #if CONFIG_OTAR
 	memset(&net_sim, 0, sizeof net_sim);
 	memset(&rk_sim, 0, sizeof rk_sim);
+	memset(&ros_sim, 0, sizeof ros_sim);
 	memset(&view.otar, 0, sizeof view.otar);
 #endif
 	ptt_blocked = false;

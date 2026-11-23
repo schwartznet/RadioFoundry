@@ -211,6 +211,20 @@ static void test_msgs(void)
 	CHECK(n == (int)OTAR_HELLO_LEN && otar_open(buf, n, &swapped, NULL, kmac, &got));
 	CHECK(got.type == OTAR_HELLO && got.active_kid == 32 && got.next_kid == 34 && got.flags == 1);
 
+	// ROSTER: one entry, from a net control to a member
+	memset(&m, 0, sizeof m);
+	m.net_id = 0xE721;
+	m.msgnum = 7;
+	m.rank = 1;
+	for (unsigned i = 0; i < OTAR_ROSTER_REC; i++)
+		m.rec[i] = (uint8_t)(0xA0 + i);
+	n = otar_roster_build(buf, &a, kmac, &m);
+	CHECK(n == (int)OTAR_ROSTER_LEN && n <= (int)OTAR_MSG_MAX && otar_open(buf, n, &a, NULL, kmac, &got));
+	CHECK(got.type == OTAR_ROSTER && got.rank == 1 && got.msgnum == 7 && memcmp(got.rec, m.rec, OTAR_ROSTER_REC) == 0);
+	CHECK(!otar_open(buf, n, &swapped, NULL, kmac, &got));
+	buf[20] ^= 1;
+	CHECK(!otar_open(buf, n, &a, NULL, kmac, &got));
+
 	// CHANGEOVER: to the talkgroup, under the key from the TEK it makes active
 	uint8_t gk[32], gk2[32];
 	otar_group_mac_key(tek, gk);

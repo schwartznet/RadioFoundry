@@ -5233,6 +5233,11 @@ msgid "Change over the net"
 msgstr "Cambiar la red de clave"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_ROSTER"
+msgid "Send the roster"
+msgstr "Enviar la lista"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_LEAVE"
 msgid "Leave the net"
 msgstr "Salir de la red"
@@ -5273,6 +5278,26 @@ msgid "No key pair yet"
 msgstr "Aún sin par de claves"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_ROSTER_ON"
+msgid "Roster: sending, "
+msgstr "Lista: enviando, "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ROSTER_DONE"
+msgid "Roster: "
+msgstr "Lista: "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ROSTER_SENT"
+msgid " sent"
+msgstr " enviadas"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ROSTER_FAILED"
+msgid ", no answer "
+msgstr ", sin respuesta "
+
+#: core/ui/ui_menus.c
 msgctxt "NET_WHY_NC_ONLY"
 msgid "Only a net control does that"
 msgstr "Solo lo hace un control de red"
@@ -5291,6 +5316,11 @@ msgstr "No hay ID de clave libre"
 msgctxt "NET_WHY_BUSY"
 msgid "A rekey is running"
 msgstr "Ya hay un cambio de clave en curso"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ROSTER_SENDING"
+msgid "Sending the roster"
+msgstr "Enviando la lista"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_CHANGING"

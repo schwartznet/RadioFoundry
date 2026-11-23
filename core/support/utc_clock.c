@@ -2,6 +2,20 @@
 // Copyright (c) 2026 The RadioFoundry Authors
 // The radio's UTC clock: see utc_clock.h
 #include "support/utc_clock.h"
+#include "hal_rtc.h"
+
+// A board without a backed real-time clock (board.toml clock rtc) holds nothing: its own hal_rtc_* replace these
+__attribute__((weak)) bool hal_rtc_get(int64_t *unix_s)
+{
+	(void)unix_s;
+	return false;
+}
+
+__attribute__((weak)) bool hal_rtc_set(int64_t unix_s)
+{
+	(void)unix_s;
+	return false;
+}
 
 // Written by one task. A reader may see a half-written pair across a set; the set moves the time by little (a GPS
 // fix every minute), and the sequence count makes a reader that raced it try once more

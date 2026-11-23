@@ -14,6 +14,7 @@
 #include "otar/otar_keys.h"
 #include "storage/storage.h"
 #include "support/utc_clock.h"
+#include "hal_rtc.h"
 #if CONFIG_SATELLITE_TLE
 #include "position/position.h"
 #endif
@@ -31,6 +32,22 @@ static otar_keys_t otar;
 static bool prev_live;			// the previous keyset is in its overlap (RAM: a restart ends it)
 static uint32_t prev_end_ms;
 static uint32_t gps_ms;			// when the GPS time was last taken
+static bool rtc_read;			// the board's clock read once since the start
+static uint32_t rtc_set_ms;		// when this radio last set it from GPS (0: not since the start)
+
+#define RTC_KEEP_MS	(6u * 3600u * 1000u)	// GPS sets the board's clock again after this
+
+// The board's real-time clock (hal_rtc.h): set from a GPS or hand-set time, and marked as holding UTC
+static void rtc_keep(int64_t unix_s, uint32_t now_ms)
+{
+	if (!hal_rtc_set(unix_s))
+		return;
+	rtc_set_ms = now_ms | 1u;
+	settings_t *st = settings_begin();
+	bool mark = st->otar_rtc != 1u;
+	st->otar_rtc = 1;
+	settings_end(mark ? now_ms : 0);
+}
 // The previous keyset's keys to erase, by the housekeeping task (a storage job)
 static struct {
 	volatile bool posted;
@@ -95,6 +112,13 @@ static bool clock_minutes(uint32_t now_ms, uint32_t *min)
 // Between overs: the GPS time taken once a minute, a due changeover made, the overlap ended. True: the keys changed
 static bool otar_poll(uint32_t now_ms)
 {
+	// After a restart: the board's clock, when this firmware set it (a time from no source is kept by no one)
+	if (!rtc_read) {
+		rtc_read = true;
+		int64_t s;
+		if (SETTINGS_FIELD(otar_rtc) == 1u && hal_rtc_get(&s))
+			utc_clock_set(s, now_ms, UTC_SRC_RTC);
+	}
 #if CONFIG_SATELLITE_TLE
 	if (gps_ms == 0 || (uint32_t)(now_ms - gps_ms) >= 60000u) {
 		uint32_t d, t;
@@ -103,8 +127,12 @@ static bool otar_poll(uint32_t now_ms)
 			// ddmmyy and hhmmss, as the GPS sends them
 			uint32_t m = otar_from_civil((uint16_t)(2000u + d % 100u), (uint8_t)((d / 100u) % 100u),
 						     (uint8_t)(d / 10000u), (uint8_t)(t / 10000u), (uint8_t)((t / 100u) % 100u));
-			if (m != 0)
-				utc_clock_set(OTAR_EPOCH_UNIX + (int64_t)m * 60 + (int64_t)(t % 100u), now_ms, UTC_SRC_GPS);
+			if (m != 0) {
+				int64_t s = OTAR_EPOCH_UNIX + (int64_t)m * 60 + (int64_t)(t % 100u);
+				utc_clock_set(s, now_ms, UTC_SRC_GPS);
+				if (rtc_set_ms == 0 || (uint32_t)(now_ms - rtc_set_ms) >= RTC_KEEP_MS)
+					rtc_keep(s, now_ms);
+			}
 		}
 	}
 #else
@@ -168,6 +196,7 @@ bool radio_aes_otar_request(uint8_t op, uint32_t value, const channel_t *ch, uin
 		return true;	// saved by change_over
 	case RADIO_OTAR_CLOCK:
 		utc_clock_set((int64_t)value, now_ms, UTC_SRC_HAND);
+		rtc_keep((int64_t)value, now_ms);
 		return false;
 	default:
 		return false;

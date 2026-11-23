@@ -8904,8 +8904,22 @@ static char nk_digits[11];
 static uint8_t nk_n;
 
 static const radio_otar_view_t *nk_view(void) { return &ui_view()->otar; }
-static uint16_t nk_count(void) { return nk_view()->on ? 6 : 1; }
-static uint8_t nk_row(uint16_t i) { return nk_view()->on ? (uint8_t)(i + 1u) : NK_MANAGE; }
+// A net's member takes its next key and changeover from the net control (otar.md 9): its rows are Change over now (a
+// CHANGEOVER missed while off), the clock and Stop
+static bool nk_member(void)
+{
+	ui_net_view_t n;
+	ui_svc_net_view(&n);
+	return n.in_net && n.rank == 0;
+}
+static uint16_t nk_count(void) { return !nk_view()->on ? 1 : nk_member() ? 3 : 6; }
+static uint8_t nk_row(uint16_t i)
+{
+	static const uint8_t member_rows[3] = { NK_NOW, NK_CLOCK, NK_STOP };
+	if (!nk_view()->on)
+		return NK_MANAGE;
+	return nk_member() ? member_rows[i < 3u ? i : 2u] : (uint8_t)(i + 1u);
+}
 
 static void nk_time(sbuf_t *b, uint32_t min, bool date)
 {
@@ -9142,7 +9156,8 @@ static void nk_enter(void)
 // The net control's rows add Rekey now, Key change (when the rekey's changeover falls: Net keys' choices, 5 min first),
 // Net status and Change over the net; a member's are Members and Leave the net
 // The fingerprint is the radio's public key's, which another radio's Members list shows for it
-enum { NET_START, NET_JOIN, NET_MEMBERS, NET_ADD, NET_REKEY, NET_RK_WHEN, NET_STATUS, NET_CHANGE_OVER, NET_LEAVE };
+enum { NET_START, NET_JOIN, NET_MEMBERS, NET_ADD, NET_REKEY, NET_RK_WHEN, NET_STATUS, NET_CHANGE_OVER, NET_ROSTER,
+       NET_LEAVE };
 static uint8_t net_rk_when = 1;	// Key change: index into nk_mins, 5 min each time Net opens
 static uint32_t net_typed;	// Add a member: the ID typed
 static uint8_t net_typed_n;	// its digits; 0 and not typing: no entry
@@ -9163,7 +9178,7 @@ static uint16_t net_count(void)
 {
 	ui_net_view_t n;
 	net_view_now(&n);
-	return !n.in_net || n.rank == 0 ? 2 : 7;
+	return !n.in_net || n.rank == 0 ? 2 : 8;
 }
 
 static void net_item(uint16_t i, ui_item_t *it)
@@ -9172,7 +9187,7 @@ static void net_item(uint16_t i, ui_item_t *it)
 					 TRN(NET_MEMBERS, "Members"), TRN(NET_ADD, "Add a member"),
 					 TRN(NET_REKEY, "Rekey now"), TRN(NET_KEY_CHANGE, "Key change"),
 					 TRN(NET_STATUS, "Net status"), TRN(NET_CHANGE_OVER, "Change over the net"),
-					 TRN(NET_LEAVE, "Leave the net") };
+					 TRN(NET_ROSTER, "Send the roster"), TRN(NET_LEAVE, "Leave the net") };
 	uint8_t row = net_row(i);
 	str_copy(it->label, sizeof it->label, tr(names[row]));
 	if (row == NET_RK_WHEN) {
@@ -9227,6 +9242,18 @@ static const char *net_body(void)
 	} else {
 		sb_str(&b, TR(NET_NO_KEY, "No key pair yet"));
 	}
+	ui_roster_view_t r;
+	ui_svc_net_roster_view(&r);
+	if (n.in_net && n.rank != 0 && (r.on || r.done)) {
+		sb_chr(&b, '\n');
+		sb_str(&b, r.on ? TR(NET_ROSTER_ON, "Roster: sending, ") : TR(NET_ROSTER_DONE, "Roster: "));
+		sb_u32(&b, r.sent, 1);
+		sb_str(&b, TR(NET_ROSTER_SENT, " sent"));
+		if (r.failed != 0) {
+			sb_str(&b, TR(NET_ROSTER_FAILED, ", no answer "));
+			sb_u32(&b, r.failed, 1);
+		}
+	}
 	return id_body;
 }
 
@@ -9272,6 +9299,12 @@ static void net_select(uint16_t i, bool hold)
 		}
 		break;
 	case NET_STATUS: ui_push(SCR_NET_STATUS, 0); break;
+	case NET_ROSTER:
+		if (ui_svc_net_roster_send(0) == UI_NET_OK)
+			ui_toast(TR(NET_ROSTER_SENDING, "Sending the roster"));
+		else
+			ui_toast(TR(NET_WHY_BUSY, "A rekey is running"));
+		break;
 	case NET_CHANGE_OVER:
 		switch (ui_svc_net_change_over(v)) {
 		case UI_NET_OK: ui_toast(TR(NET_CHANGING, "Changing the net over")); break;
