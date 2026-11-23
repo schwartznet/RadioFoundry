@@ -5240,14 +5240,59 @@ msgid "Send the roster"
 msgstr "发送名单"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_TAKE_OVER"
+msgid "Take over"
+msgstr "接任主台"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_REMOTE_WIPE"
+msgid "Remote wipe"
+msgstr "由主台擦除"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ACCEPT"
+msgid "Accept the take over"
+msgstr "接受接任"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_REFUSE"
+msgid "Refuse the take over"
+msgstr "拒绝接任"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_LEAVE"
 msgid "Leave the net"
 msgstr "退出网络"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_ON"
+msgid "On"
+msgstr "开"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_OFF"
+msgid "Off"
+msgstr "关"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_TYPE_ID"
 msgid "Member's DMR ID: "
 msgstr "电台 DMR ID: "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_PEND_NC"
+msgid "NC "
+msgstr "主台 "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_PEND_SAYS"
+msgid " says NC "
+msgstr " 说主台 "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_PEND_LOST"
+msgid " is lost"
+msgstr " 失联"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_NET"
@@ -5300,6 +5345,11 @@ msgid ", no answer "
 msgstr ", 无回应 "
 
 #: core/ui/ui_menus.c
+msgctxt "NET_ROSTER_ASKED"
+msgid ", asked "
+msgstr ", 已询问 "
+
+#: core/ui/ui_menus.c
 msgctxt "NET_WHY_NC_ONLY"
 msgid "Only a net control does that"
 msgstr "仅限主台"
@@ -5318,6 +5368,26 @@ msgstr "无空闲密钥 ID"
 msgctxt "NET_WHY_BUSY"
 msgid "A rekey is running"
 msgstr "正在更换密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_TOOK_OVER"
+msgid "Take over sent: rekey next"
+msgstr "接任已发送: 请更换密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_WHY_NO_LOST"
+msgid "No higher net control to take over from"
+msgstr "无更高的主台"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ACCEPTED"
+msgid "Take over accepted"
+msgstr "已接受接任"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_REFUSED"
+msgid "Take over refused"
+msgstr "已拒绝接任"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_ROSTER_SENDING"
@@ -5353,6 +5423,81 @@ msgstr "网络"
 msgctxt "NET_NC_SHORT"
 msgid " NC"
 msgstr " 主台"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_M_REVOKED"
+msgid " revoked"
+msgstr " 已撤销"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_RANK"
+msgid "Rank"
+msgstr "级别"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_REVOKE"
+msgid "Revoke"
+msgstr "撤销"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WIPE"
+msgid "Wipe its keys"
+msgstr "擦除其密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_MEMBER"
+msgid "member"
+msgstr "普通台"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_NC"
+msgid "NC "
+msgstr "主台 "
+
+#: core/ui/ui_menus.c
+msgctxt "NM_REVOKED"
+msgid "revoked"
+msgstr "已撤销"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_RANK_SENT"
+msgid "Rank sent to the net"
+msgstr "级别已发送"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WHY_FIRST"
+msgid "Only net control 1 sets ranks"
+msgstr "只有主台 1 能设级别"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WHY_MEMBER"
+msgid "Not for this radio"
+msgstr "本机不可用"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_REVOKED_T"
+msgid "Revoked: rekey now to lock it out"
+msgstr "已撤销: 请更换密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WHY_HIGHER"
+msgid "A higher net control: use Take over"
+msgstr "更高的主台: 请用接任主台"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WIPE_SENT"
+msgid "Wipe sent: done if its Remote wipe is on"
+msgstr "擦除已发送"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_MEMBER_TITLE"
+msgid "Member"
+msgstr "台站"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_MEMBER_NONE"
+msgid "Nothing to do for this radio"
+msgstr "本机无可用操作"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_ST_WAIT"

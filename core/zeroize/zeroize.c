@@ -183,6 +183,7 @@ uint8_t zeroize_run(bool keys_only)
 		st->privacy_active = 0;
 #if CONFIG_OTAR
 		memset(&st->otar_net, 0, sizeof(st->otar_net));	// the radio's X25519 key pair and its net (otar.md 5)
+		memset(&st->otar, 0, sizeof(st->otar));	// its keysets: the keys they name are gone (otar.md 21)
 #endif
 	} else {
 		settings_defaults(st);		// as a factory reset: the wipe code goes too

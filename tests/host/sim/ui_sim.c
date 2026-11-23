@@ -2751,6 +2751,8 @@ static struct {
 	uint8_t n;
 	uint32_t ids[8];
 	uint8_t ranks[8];
+	uint8_t flags[8];
+	bool wipe;
 } net_sim;
 
 static void net_sim_add(uint32_t id, uint8_t rank)
@@ -2776,6 +2778,7 @@ void ui_svc_net_view(ui_net_view_t *v)
 		memcpy(v->fp, fp, 3);
 	v->starting = net_sim.starting;
 	v->presses = net_sim.starting ? net_sim.left : 0;
+	v->remote_wipe = net_sim.wipe;
 }
 void ui_svc_net_start(uint32_t own)
 {
@@ -2805,6 +2808,53 @@ bool ui_svc_net_member(uint16_t i, uint32_t *id, uint8_t *rank, uint8_t fp[3])
 	fp[2] = 0x3E;
 	return true;
 }
+// Phase 4: ranks and revoking change the roster at once; a take over finds no higher net control (this radio is NC 1)
+uint8_t ui_svc_net_member_flags(uint16_t i) { return i < net_sim.n ? net_sim.flags[i] : 0; }
+static int sim_member(uint32_t id)
+{
+	for (uint8_t i = 0; i < net_sim.n; i++)
+		if (net_sim.ids[i] == id)
+			return i;
+	return -1;
+}
+uint8_t ui_svc_net_set_rank(const radio_view_t *v, uint32_t id, uint8_t rank)
+{
+	int i = sim_member(id);
+	if (!net_sim.in || net_sim.rank == 0)
+		return UI_NET_NOT_NC;
+	if (net_sim.rank != 1)
+		return UI_NET_NOT_FIRST;
+	if (i < 0 || id == v->dmr.own_id || rank == 1 || rank > 4 || net_sim.flags[i])
+		return UI_NET_NO_MEMBER;
+	net_sim.ranks[i] = rank;
+	return UI_NET_OK;
+}
+uint8_t ui_svc_net_revoke(const radio_view_t *v, uint32_t id)
+{
+	int i = sim_member(id);
+	if (!net_sim.in || net_sim.rank == 0)
+		return UI_NET_NOT_NC;
+	if (i < 0 || id == v->dmr.own_id || net_sim.flags[i])
+		return UI_NET_NO_MEMBER;
+	if (net_sim.ranks[i] != 0 && net_sim.ranks[i] <= net_sim.rank)
+		return UI_NET_HIGHER;
+	net_sim.flags[i] = UI_NET_M_REVOKED;
+	return UI_NET_OK;
+}
+uint8_t ui_svc_net_take_over(const radio_view_t *v, uint8_t *lost)
+{
+	(void)v;
+	*lost = 0;
+	return net_sim.rank < 2 ? UI_NET_NOT_NC : UI_NET_NO_LOST;
+}
+uint8_t ui_svc_net_wipe(const radio_view_t *v, uint32_t id)
+{
+	int i = sim_member(id);
+	return (i < 0 || id == v->dmr.own_id) ? UI_NET_NO_MEMBER : UI_NET_OK;
+}
+void ui_svc_net_accept(bool yes) { (void)yes; }
+void ui_svc_net_set_remote_wipe(bool on) { net_sim.wipe = on; }
+
 // Rekeying: Rekey now runs at once with key 2 to every member but this radio; tokens rk:ack (the next member ACKs) and
 // rk:fail (it doesn't). Change over the net makes this radio's next key active
 static struct {

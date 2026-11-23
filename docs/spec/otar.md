@@ -5,7 +5,7 @@
 
 Status: **phases 1-3 built** (keysets and the changeover; key pairs, the roster, joining; rekeying over the air: 14),
 host-tested (`otarKeysTest`, `otarCryptoTest`, `keyStoreTest`, `radioCoreTest`, `settingsTest`, `uiFlowTest` flows
-`O ...`). Phases 1 and 2 checked on air on three radios (17, 18); phase 3 not yet. Phase 4 is a design, not built.
+`O ...`). Phases 1 and 2 checked on air on three radios (17, 18); phase 3 and the work before phase 4 too (19, 20). Phase 4 is built (21), not yet checked on air.
 
 A net of handhelds changes its AES-256 traffic keys over the air on a schedule, the way professional systems do, but
 with no server: the key management facility is a handheld. One radio is **net control (NC)**. It makes new traffic
@@ -342,3 +342,15 @@ What succession needs before it can work, built on phase 3:
 | Clock across a restart | On a board whose real-time clock is backed (`board.toml` `clock` rtc = "backed", [feature-matrix.md](../feature-matrix.md); the board provides `hal_rtc.h`), the radio task sets it from GPS (the first fix after a start, then every 6 hours) and from Set the clock, counting days from 2026-01-01, and marks it trusted (`settings_t.otar_rtc`). After a restart it reads it twice, 3 s apart, and takes the time only when the clock counted those seconds (within one), unless GPS came first: the clock source is then "RTC" until GPS takes over. On one radio of three the chip held the loaded time but never ran (it read a date years off at 00:00:00): the check leaves such a clock out and the radio waits for GPS. Every read and set is logged with all registers (`rtc` lines in the debug log) A clock this firmware never set (another firmware's, or after a factory reset) isn't read. Boards without one link `hal_rtc_*` defaults that hold nothing |
 | Requests during an over | The radio task holds an OTAR request that comes while it transmits (up to 4, in order) and makes it between overs, instead of dropping it: a net control asks to change over as its last CHANGEOVER copy goes out, and a member to make a stored key next while traffic may be on. Found on air: the net control's own changeover was lost, so it kept sending under the old key the members had erased |
 | Net control's menu | 1 Members, 2 Add a member, 3 Rekey now, 4 Key change, 5 Net status, 6 Change over the net, 7 Send the roster, 8 Leave the net. A member's: 1 Members, 2 Leave the net |
+
+## 21. Phase 4 as built
+
+| Part | What it does |
+|---|---|
+| Ranks | Net control 1: Net > Members, OK on a radio, 1 Rank cycles member, NC 2, NC 3, NC 4. The entry is stored in its own roster, then sent to every member as ROSTER, the radio itself included, which takes its new rank (20). Only net control 1 sets ranks |
+| Revoke | Any net control: 2 Revoke on a member or a lower net control. Its entry, flagged revoked, goes to every other member (not to the revoked radio). A rekey leaves revoked radios out, and no radio takes REKEY, ROSTER, CHANGEOVER or ZEROIZE from a revoked sender, nor sends HELLO to one. A net control of the same or higher rank can't be revoked this way: Take over is for that |
+| Take over | Net control 2-4: Net > Take over takes the highest-ranked net control above it that isn't revoked as lost: revoked in its own roster and sent to every member. A member that gets a lower net control's ROSTER revoking a higher one (only the revoked flag changed) doesn't store it: it answers ACK result 7 (asked) and its Net screen shows "NC 2 says NC 1 is lost" with Accept the take over and Refuse the take over. The net control's Net screen counts these ("asked 2"). Then the net control rekeys without the lost one. The TAKEOVER group message (7, type 9) is not built: the per-member ROSTER carries it |
+| Backup net controls | A net control takes REKEY and CHANGEOVER from another net control like any member, so a backup holds the net's keys; it doesn't while its own rekey run is going |
+| Remote wipe | Net > Remote wipe: Off (default) or On, per radio (`settings_t.otar_wipe`). ZEROIZE (type 8, 21 octets: the target's DMR ID, under the pair's MAC key) from a net control on the roster, not revoked, with a fresh message number and this radio's ID wipes its keys as Clear all keys does ([zeroize.md](zeroize.md)) and restarts; no answer. With Remote wipe off it is dropped. A net control sends it with 3 Wipe its keys on a member |
+| Member screen | Net > Members > OK on a radio (a net control only): 1 Rank, 2 Revoke, 3 Wipe its keys, and the radio's ID and fingerprint. Members shows "revoked" after a revoked radio's ID |
+| Not yet | Changing the active key by INVENTORY, TIME, a scheduled rekey, a revoked radio told it is removed |

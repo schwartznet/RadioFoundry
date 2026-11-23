@@ -5238,14 +5238,59 @@ msgid "Send the roster"
 msgstr "Invia l'elenco"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_TAKE_OVER"
+msgid "Take over"
+msgstr "Prendi il controllo"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_REMOTE_WIPE"
+msgid "Remote wipe"
+msgstr "Cancellazione remota"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ACCEPT"
+msgid "Accept the take over"
+msgstr "Accetta la presa di controllo"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_REFUSE"
+msgid "Refuse the take over"
+msgstr "Rifiuta la presa di controllo"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_LEAVE"
 msgid "Leave the net"
 msgstr "Lascia la rete"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_ON"
+msgid "On"
+msgstr "Sì"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_OFF"
+msgid "Off"
+msgstr "No"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_TYPE_ID"
 msgid "Member's DMR ID: "
 msgstr "ID DMR del membro: "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_PEND_NC"
+msgid "NC "
+msgstr "CR "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_PEND_SAYS"
+msgid " says NC "
+msgstr " dice che CR "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_PEND_LOST"
+msgid " is lost"
+msgstr " è perso"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_NET"
@@ -5298,6 +5343,11 @@ msgid ", no answer "
 msgstr ", nessuna risposta "
 
 #: core/ui/ui_menus.c
+msgctxt "NET_ROSTER_ASKED"
+msgid ", asked "
+msgstr ", chiesto "
+
+#: core/ui/ui_menus.c
 msgctxt "NET_WHY_NC_ONLY"
 msgid "Only a net control does that"
 msgstr "Solo un controllo di rete lo fa"
@@ -5316,6 +5366,26 @@ msgstr "Nessun ID chiave libero"
 msgctxt "NET_WHY_BUSY"
 msgid "A rekey is running"
 msgstr "Un cambio chiave è in corso"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_TOOK_OVER"
+msgid "Take over sent: rekey next"
+msgstr "Presa inviata: cambia chiave"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_WHY_NO_LOST"
+msgid "No higher net control to take over from"
+msgstr "Nessun controllo di rete superiore"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ACCEPTED"
+msgid "Take over accepted"
+msgstr "Presa accettata"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_REFUSED"
+msgid "Take over refused"
+msgstr "Presa rifiutata"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_ROSTER_SENDING"
@@ -5351,6 +5421,81 @@ msgstr "Rete"
 msgctxt "NET_NC_SHORT"
 msgid " NC"
 msgstr " CR"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_M_REVOKED"
+msgid " revoked"
+msgstr " revocata"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_RANK"
+msgid "Rank"
+msgstr "Grado"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_REVOKE"
+msgid "Revoke"
+msgstr "Revoca"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WIPE"
+msgid "Wipe its keys"
+msgstr "Cancella le sue chiavi"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_MEMBER"
+msgid "member"
+msgstr "membro"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_NC"
+msgid "NC "
+msgstr "CR "
+
+#: core/ui/ui_menus.c
+msgctxt "NM_REVOKED"
+msgid "revoked"
+msgstr "revocata"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_RANK_SENT"
+msgid "Rank sent to the net"
+msgstr "Grado inviato alla rete"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WHY_FIRST"
+msgid "Only net control 1 sets ranks"
+msgstr "Solo il controllo di rete 1 dà i gradi"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WHY_MEMBER"
+msgid "Not for this radio"
+msgstr "Non per questa radio"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_REVOKED_T"
+msgid "Revoked: rekey now to lock it out"
+msgstr "Revocata: cambia chiave ora"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WHY_HIGHER"
+msgid "A higher net control: use Take over"
+msgstr "Controllo superiore: Prendi il controllo"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WIPE_SENT"
+msgid "Wipe sent: done if its Remote wipe is on"
+msgstr "Cancellazione inviata: se attiva sulla radio"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_MEMBER_TITLE"
+msgid "Member"
+msgstr "Membro"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_MEMBER_NONE"
+msgid "Nothing to do for this radio"
+msgstr "Niente da fare per questa radio"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_ST_WAIT"

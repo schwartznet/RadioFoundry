@@ -311,6 +311,10 @@ static void test_wipe_keys_only(void)
 	fresh();
 	populate();
 	zeroize_set_keys_only(true);
+#if CONFIG_OTAR
+	settings_begin()->otar.ks_active = 6;	// a net's keysets: they name keys the wipe erases (otar.md 21)
+	settings_end(1);
+#endif
 	CHECK(settings_flush());
 	memcpy(before, sim_flash_data, FLASH_SIZE);
 	uint8_t f = zeroize_run(true);
@@ -337,6 +341,9 @@ static void test_wipe_keys_only(void)
 	settings_read(&st);
 	CHECK(st.privacy_key[0] == 0 && st.privacy_type[0] == 0 && st.privacy_active == 0);
 	CHECK(st.brightness == 51);
+#if CONFIG_OTAR
+	CHECK(st.otar.ks_active == 0);
+#endif
 	CHECK(zeroize_code_check("2468") && zeroize_keys_only());
 	CHECK(radio_zeroizes == 2 && hook_calls == 1);
 	CHECK(sim_flash_violations() == 0);

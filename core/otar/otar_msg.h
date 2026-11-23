@@ -17,11 +17,11 @@
 #define OTAR_MAC		8u
 #define OTAR_MSG_MAX		72u
 
-enum { OTAR_REKEY = 1, OTAR_ACK = 2, OTAR_CHANGEOVER = 3, OTAR_HELLO = 4, OTAR_ROSTER = 6 };
+enum { OTAR_REKEY = 1, OTAR_ACK = 2, OTAR_CHANGEOVER = 3, OTAR_HELLO = 4, OTAR_ROSTER = 6, OTAR_ZEROIZE = 8 };
 
 // ACK results (7.2)
 enum { OTAR_ACK_STORED = 0, OTAR_ACK_HELD = 1, OTAR_ACK_OLD = 2, OTAR_ACK_STORE_FAILED = 3, OTAR_ACK_WRAP = 4,
-       OTAR_ACK_NOT_MANAGED = 5, OTAR_ACK_REFUSED = 6 };
+       OTAR_ACK_NOT_MANAGED = 5, OTAR_ACK_REFUSED = 6, OTAR_ACK_ASKED = 7 };
 
 #define OTAR_REKEY_LEN		(OTAR_HDR + 4u + 1u + 1u + 4u + 1u + 40u + OTAR_MAC)	// 69
 #define OTAR_ACK_LEN		(OTAR_HDR + 4u + 1u + 1u + 3u + OTAR_MAC)		// 27
@@ -29,6 +29,7 @@ enum { OTAR_ACK_STORED = 0, OTAR_ACK_HELD = 1, OTAR_ACK_OLD = 2, OTAR_ACK_STORE_
 #define OTAR_CHANGEOVER_LEN	(OTAR_HDR + 4u + 1u + OTAR_MAC)				// 23
 #define OTAR_ROSTER_REC		37u	// a roster record (otar_net.h OTAR_REC_LEN): DMR ID, rank, flags, public key
 #define OTAR_ROSTER_LEN		(OTAR_HDR + OTAR_ROSTER_REC + OTAR_MAC)			// 55
+#define OTAR_ZEROIZE_LEN	(OTAR_HDR + 3u + OTAR_MAC)				// 21
 
 typedef struct {
 	uint8_t type;
@@ -50,6 +51,8 @@ typedef struct {
 	uint8_t kcv[3];
 	// HELLO
 	uint8_t active_kid, next_kid;
+	// ZEROIZE: the DMR ID of the radio told to wipe its keys
+	uint32_t target;
 } otar_msg_t;
 
 // The addresses a MAC covers: the sender's DMR ID and the receiver's (a radio's, or the talkgroup's)
@@ -64,6 +67,8 @@ int otar_hello_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTA
 int otar_changeover_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m);
 // ROSTER (otar.md 7.5): a net control to a member, one roster entry under the pair's MAC key
 int otar_roster_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m);
+// ZEROIZE (otar.md 7.5): a net control tells one member to wipe its keys, under the pair's MAC key
+int otar_zeroize_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m);
 
 // The header of a message (no MAC checked yet): its type, net, message number and rank. False for one that isn't an
 // OTAR message of this version, or has another length for its type

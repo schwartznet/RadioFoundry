@@ -104,6 +104,15 @@ int otar_roster_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OT
 	return seal(out, (int)(OTAR_ROSTER_LEN - OTAR_MAC), a, k_mac);
 }
 
+int otar_zeroize_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m)
+{
+	header(out, OTAR_ZEROIZE, m);
+	out[OTAR_HDR] = (uint8_t)(m->target >> 16);
+	out[OTAR_HDR + 1] = (uint8_t)(m->target >> 8);
+	out[OTAR_HDR + 2] = (uint8_t)m->target;
+	return seal(out, (int)(OTAR_ZEROIZE_LEN - OTAR_MAC), a, k_mac);
+}
+
 static int len_of(uint8_t type)
 {
 	switch (type) {
@@ -112,6 +121,7 @@ static int len_of(uint8_t type)
 	case OTAR_HELLO: return (int)OTAR_HELLO_LEN;
 	case OTAR_CHANGEOVER: return (int)OTAR_CHANGEOVER_LEN;
 	case OTAR_ROSTER: return (int)OTAR_ROSTER_LEN;
+	case OTAR_ZEROIZE: return (int)OTAR_ZEROIZE_LEN;
 	default: return -1;
 	}
 }
@@ -169,6 +179,9 @@ bool otar_open(const uint8_t *msg, int len, const otar_addr_t *a, const uint8_t 
 		return true;
 	case OTAR_ROSTER:
 		memcpy(m->rec, p, OTAR_ROSTER_REC);
+		return true;
+	case OTAR_ZEROIZE:
+		m->target = ((uint32_t)p[0] << 16) | ((uint32_t)p[1] << 8) | p[2];
 		return true;
 	default:
 		return false;

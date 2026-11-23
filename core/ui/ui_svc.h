@@ -141,6 +141,10 @@ typedef struct {
 	uint8_t fp[3];		// its fingerprint
 	uint8_t presses;	// Start a net: random key presses the pool still wants (0: not starting, or done)
 	bool starting;
+	// A take over waiting for this radio's OK (otar.md 10): net control pend_from says pend_lost is lost
+	bool pend;
+	uint8_t pend_from, pend_lost;
+	bool remote_wipe;	// a net control may wipe this radio's keys (Remote wipe)
 } ui_net_view_t;
 void ui_svc_net_view(ui_net_view_t *v);
 // Start a net with this radio as net control 1: the pool fills first (ui_svc_net_tick makes the key pair, the net ID
@@ -157,7 +161,8 @@ bool ui_svc_net_member(uint16_t i, uint32_t *id, uint8_t *rank, uint8_t fp[3]);
 // net control's rekey run. True: what the Net screens show changed
 bool ui_svc_net_tick(const radio_view_t *v, uint32_t now);
 // Net control: rekey the net now (otar.md 9): a new key from the pool, sent to every member. UI_NET_* or 0 (started)
-enum { UI_NET_OK, UI_NET_NOT_NC, UI_NET_NOT_MANAGED, UI_NET_BUSY, UI_NET_NO_TG, UI_NET_NO_NEXT, UI_NET_NO_KID };
+enum { UI_NET_OK, UI_NET_NOT_NC, UI_NET_NOT_MANAGED, UI_NET_BUSY, UI_NET_NO_TG, UI_NET_NO_NEXT, UI_NET_NO_KID,
+       UI_NET_NOT_FIRST, UI_NET_NO_MEMBER, UI_NET_HIGHER, UI_NET_NO_LOST };
 uint8_t ui_svc_net_rekey(const radio_view_t *v, uint16_t mins);
 // Net control: change the net over now: CHANGEOVER to the talkgroup, then this radio. UI_NET_*
 uint8_t ui_svc_net_change_over(const radio_view_t *v);
@@ -178,8 +183,26 @@ uint8_t ui_svc_net_roster_send(uint32_t only);
 typedef struct {
 	bool on, done;		// running; finished (until the next run)
 	uint16_t sent, failed;	// entries a member took; entries that got no answer after the tries
+	uint16_t asked;		// entries a member is asking its user about (a take over)
 } ui_roster_view_t;
 void ui_svc_net_roster_view(ui_roster_view_t *r);
+// Phase 4 (otar.md 10, 7.5). Member i's flags (UI_NET_M_*, otar_net.h OTAR_M_*), 0 when there is none
+#define UI_NET_M_REVOKED	0x01u
+uint8_t ui_svc_net_member_flags(uint16_t i);
+// Net control 1: member id's rank (0 member, 2-4 net control), sent to the net. UI_NET_OK, NOT_NC, NOT_FIRST,
+// NO_MEMBER (not on the roster, this radio, revoked, or rank 1), BUSY
+uint8_t ui_svc_net_set_rank(const radio_view_t *v, uint32_t id, uint8_t rank);
+// A net control: member id revoked on the roster and the net told; the next rekey leaves it out. HIGHER: a net control
+// of this radio's rank or higher (Take over is for that)
+uint8_t ui_svc_net_revoke(const radio_view_t *v, uint32_t id);
+// Net control 2-4: the highest-ranked net control above this one taken as lost: revoked and the net told, each member
+// asked to accept it. *lost its rank. NOT_NC, NO_LOST, BUSY
+uint8_t ui_svc_net_take_over(const radio_view_t *v, uint8_t *lost);
+// A net control: ZEROIZE to member id (it wipes its keys when its Remote wipe is on)
+uint8_t ui_svc_net_wipe(const radio_view_t *v, uint32_t id);
+// A take over waiting (ui_net_view_t.pend): accepted (the lost net control revoked here) or refused
+void ui_svc_net_accept(bool yes);
+void ui_svc_net_set_remote_wipe(bool on);
 #endif
 #if CONFIG_GROUP_KEY_FILL
 // Group key fill (ui_svc_groupkey.c, docs/spec/group-key-fill.md): one session while the Group key screen is open.

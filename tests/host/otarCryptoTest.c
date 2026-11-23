@@ -225,6 +225,17 @@ static void test_msgs(void)
 	buf[20] ^= 1;
 	CHECK(!otar_open(buf, n, &a, NULL, kmac, &got));
 
+	// ZEROIZE: the target's DMR ID
+	memset(&m, 0, sizeof m);
+	m.net_id = 0xE721;
+	m.msgnum = 8;
+	m.rank = 1;
+	m.target = 4675810;
+	n = otar_zeroize_build(buf, &a, kmac, &m);
+	CHECK(n == (int)OTAR_ZEROIZE_LEN && otar_open(buf, n, &a, NULL, kmac, &got));
+	CHECK(got.type == OTAR_ZEROIZE && got.target == 4675810 && got.rank == 1);
+	CHECK(!otar_open(buf, n, &swapped, NULL, kmac, &got));
+
 	// CHANGEOVER: to the talkgroup, under the key from the TEK it makes active
 	uint8_t gk[32], gk2[32];
 	otar_group_mac_key(tek, gk);
