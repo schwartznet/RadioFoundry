@@ -1068,6 +1068,7 @@ static const flow_t flows[] = {
 	  "wipecode:2468 ok 7 4 down down down down down down down ok long:back long:quick",
 	  "1 1 1 1 ctx 1 1 1 1 ctx long:quick long:quick 1 1 1 1 ctx", "wipes=0 locked=1", 17, false },
 #endif
+#endif
 	{ "S number typed", "", "ok 7 3 down down ok 3 ok", "sq=5 set12=3", 8, false },
 	{ "S voice prompts not built", "ok 7 1 down down down down down down down down down", "ok", "toast=Voice_prompts", 1, false },
 	{ "S mode tile in the VFO", "ok 4 up ok", "quick 4", "toast=VFO:_DMR mode=dmr temporary=0 vfo=1", 2, false },
