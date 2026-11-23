@@ -9,6 +9,7 @@
 #include "hal_rtc.h"
 #include "hal_time.h"
 #include "platform.h"
+#include "debuglink/dlog.h"
 
 #define I2C2_BASE		0x14080000u
 #define IC_CON			REG32(I2C2_BASE + 0x00)
@@ -116,10 +117,22 @@ static bool rd_time(uint8_t t[5])
 	return true;
 }
 
+// Every register 0x00-0x12 into the debug log: the clock's layout is only partly known (hardware-dm32.md 3.3)
+static void log_regs(const char *what)
+{
+	uint8_t r[0x13];
+	for (uint8_t i = 0; i < sizeof r; i++)
+		if (!rd(i, &r[i]))
+			r[i] = 0xEE;
+	dlog("rtc %s %x %x %x %x %x %x %x %x %x %x", what, r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9]);
+	dlog("rtc %s %x %x %x %x %x %x %x %x %x", what, r[10], r[11], r[12], r[13], r[14], r[15], r[16], r[17], r[18]);
+}
+
 bool hal_rtc_get(int64_t *unix_s)
 {
 	if (!ready)
 		bus_init();
+	log_regs("get");
 	uint8_t v = 0, a[5], b[5];
 	if (!rd(R_VSTAT, &v) || !(v & 1u))
 		return false;
@@ -135,6 +148,7 @@ bool hal_rtc_get(int64_t *unix_s)
 		return false;
 	uint32_t days = (uint32_t)a[3] | ((uint32_t)a[4] << 8);
 	*unix_s = EPOCH + (int64_t)days * DAY_S + (int64_t)h * 3600 + (int64_t)m * 60 + s;
+	dlog("rtc read day %u %u:%u:%u", (unsigned)days, (unsigned)h, (unsigned)m, (unsigned)s);
 	return true;
 }
 
@@ -154,5 +168,8 @@ bool hal_rtc_set(int64_t unix_s)
 	uint32_t t0 = hal_millis();
 	while (ok && (ccr & CCR_LOAD) && (uint32_t)(hal_millis() - t0) < LOAD_WAIT_MS)
 		ok = rd(R_CCR, &ccr);
-	return ok && !(ccr & CCR_LOAD) && wr(R_VSTAT, 1);
+	ok = ok && !(ccr & CCR_LOAD) && wr(R_VSTAT, 1);
+	dlog("rtc set %d days %u sod %u ok %d", (int)(unix_s - EPOCH), (unsigned)days, (unsigned)sod, ok ? 1 : 0);
+	log_regs("after");
+	return ok;
 }

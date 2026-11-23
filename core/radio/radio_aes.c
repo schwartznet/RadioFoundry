@@ -32,10 +32,13 @@ static otar_keys_t otar;
 static bool prev_live;			// the previous keyset is in its overlap (RAM: a restart ends it)
 static uint32_t prev_end_ms;
 static uint32_t gps_ms;			// when the GPS time was last taken
-static bool rtc_read;			// the board's clock read once since the start
+static uint8_t rtc_check;		// the board's clock after a start: 0 not read, 1 read once, 2 done
+static int64_t rtc_first_s;		// its first read, and when
+static uint32_t rtc_first_ms;
 static uint32_t rtc_set_ms;		// when this radio last set it from GPS (0: not since the start)
 
 #define RTC_KEEP_MS	(6u * 3600u * 1000u)	// GPS sets the board's clock again after this
+#define RTC_CHECK_MS	3000u	// the board's clock is read twice this far apart: it must have counted that time
 
 // The board's real-time clock (hal_rtc.h): set from a GPS or hand-set time, and marked as holding UTC
 static void rtc_keep(int64_t unix_s, uint32_t now_ms)
@@ -112,12 +115,26 @@ static bool clock_minutes(uint32_t now_ms, uint32_t *min)
 // Between overs: the GPS time taken once a minute, a due changeover made, the overlap ended. True: the keys changed
 static bool otar_poll(uint32_t now_ms)
 {
-	// After a restart: the board's clock, when this firmware set it (a time from no source is kept by no one)
-	if (!rtc_read) {
-		rtc_read = true;
+	// After a restart: the board's clock, when this firmware set it, and only when it counts. Read twice RTC_CHECK_MS
+	// apart, it must have moved on by that time (within a second): a clock chip that holds a time but doesn't run
+	// (seen on a radio, otar.md 20) is left out and the radio waits for GPS
+	if (rtc_check == 0) {
+		rtc_check = 2;
+		if (SETTINGS_FIELD(otar_rtc) == 1u && hal_rtc_get(&rtc_first_s)) {
+			rtc_first_ms = now_ms;
+			rtc_check = 1;
+		}
+	} else if (rtc_check == 1 && (uint32_t)(now_ms - rtc_first_ms) >= RTC_CHECK_MS) {
+		rtc_check = 2;
 		int64_t s;
-		if (SETTINGS_FIELD(otar_rtc) == 1u && hal_rtc_get(&s))
-			utc_clock_set(s, now_ms, UTC_SRC_RTC);
+		uint8_t src = UTC_SRC_NONE;
+		int64_t had;
+		bool clock = utc_clock_now(now_ms, &had, &src);
+		if (hal_rtc_get(&s) && !(clock && src == UTC_SRC_GPS)) {
+			int64_t counted = s - rtc_first_s, passed = (int64_t)((now_ms - rtc_first_ms) / 1000u);
+			if (counted >= passed - 1 && counted <= passed + 1)
+				utc_clock_set(s, now_ms, UTC_SRC_RTC);
+		}
 	}
 #if CONFIG_SATELLITE_TLE
 	if (gps_ms == 0 || (uint32_t)(now_ms - gps_ms) >= 60000u) {
