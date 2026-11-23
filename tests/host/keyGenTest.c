@@ -92,6 +92,7 @@ bool storage_job_post(storage_job_fn fn, void *ctx)
 }
 uint16_t key_store_count(void) { return 0; }
 bool key_store_get(uint16_t i, key_entry_t *e, uint8_t *key) { (void)i; (void)e; (void)key; return false; }
+bool key_store_get_record(uint16_t r, key_entry_t *e, uint8_t *key) { (void)r; (void)e; (void)key; return false; }
 bool ui_svc_key(uint16_t i, key_entry_t *e) { (void)i; (void)e; return false; }
 int key_store_identity(uint8_t system, uint8_t *out, uint8_t cap)
 {

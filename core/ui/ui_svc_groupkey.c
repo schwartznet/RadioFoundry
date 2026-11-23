@@ -343,10 +343,8 @@ static bool build(void)
 {
 	key_entry_t e;
 	uint8_t key[KEY_STORE_MAX_LEN];
-	bool found = false;
-	for (uint16_t i = 0, n = key_store_count(); i < n && !found; i++)
-		found = key_store_get(i, &e, key) && e.cls == KCV_CLASS_TRAFFIC && e.record == gk->pick_record &&
-			e.kcv_ok && memcmp(e.kcv, gk->pick_kcv, KCV_LEN) == 0 && e.len == GK_KEY_LEN;
+	bool found = key_store_get_record(gk->pick_record, &e, key) && e.cls == KCV_CLASS_TRAFFIC && e.kcv_ok &&
+		     memcmp(e.kcv, gk->pick_kcv, KCV_LEN) == 0 && e.len == GK_KEY_LEN;
 	if (found) {
 		uint8_t session[GK_SESSION_LEN];
 		entropy_take(session, sizeof session);
