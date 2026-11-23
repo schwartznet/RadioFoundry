@@ -9133,7 +9133,7 @@ static void nk_enter(void)
 // This radio's net and key pair. Not in a net: 1 Start a net (this radio net control 1), 2 Join a net (key fill with
 // the net control's radio). In a net: 1 Members, 2 Add a member (net control: its DMR ID typed, then key fill), 3 Leave.
 // The fingerprint is the radio's public key's, which another radio's Members list shows for it
-enum { NET_START, NET_JOIN, NET_MEMBERS, NET_ADD, NET_LEAVE };
+enum { NET_START, NET_JOIN, NET_MEMBERS, NET_ADD, NET_REKEY, NET_STATUS, NET_CHANGE_OVER, NET_LEAVE };
 static uint32_t net_typed;	// Add a member: the ID typed
 static uint8_t net_typed_n;	// its digits; 0 and not typing: no entry
 static bool net_typing;
@@ -9149,14 +9149,15 @@ static uint16_t net_count(void)
 {
 	ui_net_view_t n;
 	net_view_now(&n);
-	return n.in_net ? 3 : 2;
+	return n.in_net ? 6 : 2;
 }
 
 static void net_item(uint16_t i, ui_item_t *it)
 {
 	static const tr_id_t names[] = { TRN(NET_START, "Start a net"), TRN(NET_JOIN, "Join a net"),
 					 TRN(NET_MEMBERS, "Members"), TRN(NET_ADD, "Add a member"),
-					 TRN(NET_LEAVE, "Leave the net") };
+					 TRN(NET_REKEY, "Rekey now"), TRN(NET_STATUS, "Net status"),
+					 TRN(NET_CHANGE_OVER, "Change over the net"), TRN(NET_LEAVE, "Leave the net") };
 	str_copy(it->label, sizeof it->label, tr(names[net_row(i)]));
 	item_num(it, (uint16_t)(i + 1u));
 }
@@ -9233,6 +9234,24 @@ static void net_select(uint16_t i, bool hold)
 		net_typed = 0;
 		net_typed_n = 0;
 		break;
+	case NET_REKEY:
+		switch (ui_svc_net_rekey(v)) {
+		case UI_NET_OK: ui_push(SCR_NET_STATUS, 0); break;
+		case UI_NET_NOT_NC: ui_toast(TR(NET_WHY_NC_ONLY, "Only a net control does that")); break;
+		case UI_NET_NOT_MANAGED: ui_toast(TR(NET_WHY_MANAGE, "Manage this channel's keys first (Net keys)")); break;
+		case UI_NET_NO_KID: ui_toast(TR(NET_WHY_NO_KID, "No free key ID")); break;
+		default: ui_toast(TR(NET_WHY_BUSY, "A rekey is running")); break;
+		}
+		break;
+	case NET_STATUS: ui_push(SCR_NET_STATUS, 0); break;
+	case NET_CHANGE_OVER:
+		switch (ui_svc_net_change_over(v)) {
+		case UI_NET_OK: ui_toast(TR(NET_CHANGING, "Changing the net over")); break;
+		case UI_NET_NOT_NC: ui_toast(TR(NET_WHY_NC_ONLY, "Only a net control does that")); break;
+		case UI_NET_NO_TG: ui_toast(TR(NET_WHY_TG, "Needs a talkgroup as the target")); break;
+		default: ui_toast(TR(NET_WHY_NO_NEXT, "No next key to change over to")); break;
+		}
+		break;
 	default:
 		ui_svc_net_leave();
 		ui_toast(TR(NET_LEFT, "Left the net"));
@@ -9305,6 +9324,76 @@ static void members_item(uint16_t i, ui_item_t *it)
 	}
 	kcv_text(fp, it->value);
 }
+
+// Net status (otar.md 9): the rekey run's key and progress, each member: OK, waiting, sent, or failed (tried again)
+static uint16_t status_count(void)
+{
+	ui_rekey_view_t r;
+	ui_svc_net_rekey_view(&r);
+	return r.on ? r.members : 0;
+}
+
+static void status_item(uint16_t i, ui_item_t *it)
+{
+	static const tr_id_t states[] = { TRN(NET_ST_WAIT, "waiting"), TRN(NET_ST_SENT, "sent"), TRN(NET_ST_OK, "OK"),
+					  TRN(NET_ST_FAIL, "no answer") };
+	uint32_t id;
+	uint8_t state, tries;
+	if (!ui_svc_net_rekey_member(i, &id, &state, &tries))
+		return;
+	sbuf_t b;
+	sb_init(&b, it->label, sizeof it->label);
+	sb_u32(&b, id, 1);
+	str_copy(it->value, sizeof it->value, tr(states[state < 4 ? state : 0]));
+}
+
+static const char *status_body(void)
+{
+	ui_rekey_view_t r;
+	ui_svc_net_rekey_view(&r);
+	sbuf_t b;
+	sb_init(&b, id_body, sizeof id_body);
+	if (!r.on) {
+		sb_str(&b, TR(NET_NO_REKEY, "No rekey running"));
+		return id_body;
+	}
+	if (r.presses > 0) {
+		sb_str(&b, TR(KF_BODY_PRESS_KEYS, "Press keys at random: "));
+		sb_u32(&b, r.presses, 1);
+		return id_body;
+	}
+	sb_str(&b, TR(NET_REKEY_TO, "Key "));
+	sb_u32(&b, r.kid, 1);
+	sb_str(&b, TR(NET_REKEY_HAVE, ": "));
+	sb_u32(&b, r.done, 1);
+	sb_str(&b, TR(NET_REKEY_OF, " of "));
+	sb_u32(&b, r.members, 1);
+	sb_str(&b, TR(NET_REKEY_HAVE_IT, " have it"));
+	sb_chr(&b, '\n');
+	if (r.changeover != 0) {
+		sb_str(&b, TR(NET_REKEY_AT, "Change over at "));
+		nk_time(&b, r.changeover, false);
+	} else {
+		sb_str(&b, TR(NET_REKEY_BY_HAND, "Change over by hand"));
+	}
+	return id_body;
+}
+
+static bool status_key(const input_event_t *ev)
+{
+	ui_rekey_view_t r;
+	ui_svc_net_rekey_view(&r);
+	// While the pool fills, every key but Back is a random press (ui.c)
+	if (r.on && r.presses > 0 && !(ev->gesture == GESTURE_PRESS && ev->action == ACT_BACK))
+		return true;
+	return false;
+}
+
+static const ui_scr_def_t net_status_screen = {
+	.name = "net-status", .flags = SF_LIST | SF_HINT_FN, .prefix = TRN(NET_STATUS_TITLE, "Net status"),
+	.hint_fn = net_hint,
+	.count = status_count, .item = status_item, .body = status_body, .key = status_key,
+};
 
 static const ui_scr_def_t net_members_screen = {
 	.name = "net-members", .flags = SF_LIST, .prefix = TRN(NET_MEMBERS_TITLE, "Members"),
@@ -9654,6 +9743,7 @@ const ui_scr_def_t *const ui_scr[SCR_COUNT] = {
 #endif
 #if CONFIG_OTAR
 	[SCR_NET_KEYS] = &net_keys_screen, [SCR_NET] = &net_screen, [SCR_NET_MEMBERS] = &net_members_screen,
+	[SCR_NET_STATUS] = &net_status_screen,
 #endif
 #if CONFIG_ZEROIZE
 	[SCR_WIPE_CODE] = &wipe_code_screen, [SCR_WIPE] = &wipe_screen,

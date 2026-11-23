@@ -945,8 +945,10 @@ static void test_settings_layout(void)
 		{ offsetof(settings_t, zz_hash), 420 },
 		{ offsetof(settings_t, otar), 436 },	// OTAR keysets (otar.md 17), appended
 		{ offsetof(settings_t, otar_net), 472 },	// OTAR net membership, page 2's first field
+		{ offsetof(settings_t, otar_msgnum), 508 },	// OTAR message numbers
+		{ offsetof(settings_t, otar_seen), 512 },
 	};
-	CHECK(sizeof(settings_t) == 508);
+	CHECK(sizeof(settings_t) == 516);
 	for (unsigned i = 0; i < sizeof(offs) / sizeof(offs[0]); i++) {
 		if (offs[i].got != offs[i].want) {
 			printf("FAIL settings_t field %u at %zu, layout 1 has it at %zu\n", i, offs[i].got, offs[i].want);

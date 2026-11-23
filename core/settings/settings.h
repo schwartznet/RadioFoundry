@@ -272,6 +272,9 @@ typedef struct {
 	uint8_t reserved12[12];		// 0: otar_net starts page 2
 	// OTAR net membership (otar.md 5, 6), appended: an older record reads no key pair and no net
 	otar_net_t otar_net;
+	// OTAR message numbers (otar.md 7), appended: this radio's last sent, and the last taken from its net control
+	uint32_t otar_msgnum;
+	uint32_t otar_seen;
 } settings_t;
 
 // Pages: settings_t is stored as records of SETTINGS_PAGE_BYTES each (settings-store.md 2.1). Only the pages its size

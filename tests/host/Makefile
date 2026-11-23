@@ -320,7 +320,7 @@ RCORE   := radioCoreTest.c $(CORE)/radio/radio_sm.c $(CORE)/radio/silence.c $(CO
            $(CORE)/radio/pa_sweep.c $(CORE)/radio/pa_keyrun.c \
            $(POSLIB) $(CORE)/ui/ui_svc_position.c $(CORE)/ui/i18n.c \
            $(CORE)/support/sha256.c $(CORE)/support/hkdf.c $(CORE)/support/kcv.c $(CORE)/codeplug/key_store.c \
-           $(CORE)/keyfill/keyfill_svc.c $(CORE)/keyfill/groupkey_svc.c \
+           $(CORE)/keyfill/keyfill_svc.c $(CORE)/keyfill/groupkey_svc.c $(CORE)/otar/otar_svc.c \
            $(CORE)/ui/ui_svc_zeroize.c $(CORE)/zeroize/zeroize.c
 
 radioCoreTest: $(RCORE) $(wildcard $(CORE)/radio/*.h) $(wildcard $(CORE)/dmr/call/*.h) $(CORE)/dmr/dmrDataService.h \
@@ -394,7 +394,7 @@ RFTEST  := radioFeaturesTest.c $(CORE)/radio/radio_sm.c $(CORE)/radio/silence.c 
            $(CORE)/dmr/dmrPrivacy.c $(CORE)/dmr/dmrAes.c $(CORE)/radio/radio_aes.c $(CORE)/otar/otar_keys.c $(CORE)/support/utc_clock.c sim/dmr_sim_modem.c $(CORE)/dmr/dmrData.c $(CORE)/dmr/dmrDataService.c \
            $(CORE)/dmr/dmrLrrp.c $(CORE)/dmr/dmr_emergency.c $(CORE)/radio/morse.c $(CORE)/dmr/zoneShare.c $(CORE)/dmr/zoneShareSvc.c $(CORE)/dmr/dmrAirQueue.c \
            $(CORE)/settings/settings.c $(CORE)/storage/storage.c $(CORE)/usbaudio/audio_mux.c \
-           $(CORE)/usbaudio/pcm_slip.c $(CORE)/dmr/sfrRunner.c $(CORE)/dmr/sfr.c $(POSLIB) $(CORE)/keyfill/keyfill_svc.c $(CORE)/keyfill/groupkey_svc.c
+           $(CORE)/usbaudio/pcm_slip.c $(CORE)/dmr/sfrRunner.c $(CORE)/dmr/sfr.c $(POSLIB) $(CORE)/keyfill/keyfill_svc.c $(CORE)/keyfill/groupkey_svc.c $(CORE)/otar/otar_svc.c
 
 # CONFIG_NET_USRP without the gateway: only the radio core's half (host audio PTT, the shared stream) is tested here;
 # the network half is usrpNetTest
@@ -906,8 +906,8 @@ run-key-fill: keyFillTest
 # OTAR's cryptography (core/otar/otar_crypto.c, otar.md 5, 7): AES-256 decryption, key wrap and CMAC against the
 # published vectors, the pair keys
 TESTS   += otarCryptoTest
-OTARCRYPTO := $(CORE)/otar/otar_crypto.c $(CORE)/support/x25519.c $(CORE)/support/hkdf.c $(CORE)/support/sha256.c $(KCV_AES)
-otarCryptoTest: otarCryptoTest.c $(OTARCRYPTO) $(CORE)/otar/otar_crypto.h
+OTARCRYPTO := $(CORE)/otar/otar_crypto.c $(CORE)/otar/otar_msg.c $(CORE)/support/x25519.c $(CORE)/support/hkdf.c $(CORE)/support/sha256.c $(KCV_AES)
+otarCryptoTest: otarCryptoTest.c $(OTARCRYPTO) $(CORE)/otar/otar_crypto.h $(CORE)/otar/otar_msg.h
 	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -o $@ otarCryptoTest.c $(OTARCRYPTO)
 run: run-otar-crypto
 run-otar-crypto: otarCryptoTest
@@ -1058,7 +1058,7 @@ DCHAIN  := dmrDataChainTest.c $(HRCDMR)/hrc6000_dmr.c $(HRC6K)/hrc6000.c $(HRCDM
            $(CORE)/dmr/sfr.c \
            $(CORE)/dmr/call/dmr_lc.c $(DATA) $(FRAME) $(CORE)/dmr/dmrDataService.c $(CORE)/radio/silence.c $(CORE)/dmr/dmrLrrp.c \
            $(CORE)/dmr/dmr_emergency.c $(CORE)/dmr/zoneShare.c $(CORE)/dmr/zoneShareSvc.c $(CORE)/dmr/dmrAirQueue.c $(CORE)/dmr/ambe/ambeFec.c \
-           $(CORE)/keyfill/keyfill_svc.c $(CORE)/keyfill/groupkey_svc.c
+           $(CORE)/keyfill/keyfill_svc.c $(CORE)/keyfill/groupkey_svc.c $(CORE)/otar/otar_svc.c
 
 dmrDataChainTest: $(DCHAIN) $(HRCDMR)/hrc6000_dmr.h $(ROOT)/hal/hal_dmr_modem.h $(wildcard $(CORE)/dmr/call/*.h) \
                   $(CORE)/dmr/dmrDataService.h $(CORE)/dmr/dmr_data_api.h

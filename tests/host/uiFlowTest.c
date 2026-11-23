@@ -1114,7 +1114,20 @@ static const flow_t flows[] = {
 	  "screen=net-members shows=4675810", 1, false },
 	{ "O add a member: Back takes a digit, then leaves the entry", NET_STARTED " 2 4 6", "back back back",
 	  "screen=net hides=Member's_DMR_ID", 3, false },
-	{ "O leave the net", NET_STARTED, "3", "toast=Left_the_net shows=Not_in_a_net", 1, false },
+	{ "O leave the net", NET_STARTED, "6", "toast=Left_the_net shows=Not_in_a_net", 1, false },
+	// Rekeying (otar.md 9): the net control's rows. NET_ADDED: this radio manages the AES channel's keys (key 1), runs
+	// net 1A2B and added 4675810; the simulator's rekey sends key 2, rk:ack is the next member's ACK
+#define NET_ADDED	"aeschan ok 6 up ok 5 ok back 6 1 net:full 2 4 6 7 5 8 1 0 ok kf:full kf:peer ok kf:peer back"
+	{ "O rekey is the net control's", NET_JOINED, "3", "toast=Only_a_net_control_does_that", 1, false },
+	{ "O rekey needs the keys managed", NET_STARTED, "3", "toast=Manage_this_channel's_keys_first", 1, false },
+	{ "O rekey runs", NET_ADDED, "3", "screen=net-status shows=Key_2:_0_of_1_have_it shows=4675810 shows=waiting", 1,
+	  false },
+	{ "O a member's ACK", NET_ADDED " 3", "rk:ack", "shows=Key_2:_1_of_1_have_it shows=OK", 0, false },
+	{ "O a member that doesn't answer", NET_ADDED " 3", "rk:fail", "shows=no_answer shows=0_of_1", 0, false },
+	{ "O a second rekey waits for the first", NET_ADDED " 3 back", "3", "toast=A_rekey_is_running", 1, false },
+	{ "O net status with no rekey", NET_STARTED, "4", "screen=net-status shows=No_rekey_running", 1, false },
+	{ "O change over the net", NET_ADDED " 3 rk:ack back", "5", "toast=Changing_the_net_over", 1, false },
+	{ "O change over needs a next key", NET_ADDED, "5", "toast=No_next_key_to_change_over_to", 1, false },
 #endif
 	{ "G a copy that fails says so", "gk:aes ok 6 up ok 2 ok down ok", "gk:fail",
 	  "shows=Couldn't_send", 0, false },

@@ -340,6 +340,8 @@ void dmrDataServiceZoneShareRx(uint32_t src, bool group, const uint8_t *payload,
 void dmrDataServiceKeyFillRx(uint32_t src, const uint8_t *payload, int length);
 // A group key fill message for a talkgroup (keyfill/groupkey_svc.c, docs/spec/group-key-fill.md 3)
 void dmrDataServiceGroupKeyRx(uint32_t src, const uint8_t *payload, int length);
+// An OTAR key management message, to us or a talkgroup (otar/otar_svc.c, docs/spec/otar.md 7)
+void dmrDataServiceOtarRx(uint32_t src, uint32_t dst, bool group, const uint8_t *payload, int length);
 
 // Control station passthrough (CONFIG_DMR_CONTROL_STATION, docs/spec/usb-network.md 5): while on, IP based packets
 // (SAP 4, SAP 3) to us or our groups are left to the PC on the USB network link: no TMS ACK, no inbox entry, no ARS

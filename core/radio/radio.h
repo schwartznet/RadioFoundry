@@ -447,7 +447,8 @@ typedef struct {
 	uint32_t now_min;	// UTC minutes now (0: no clock)
 } radio_otar_view_t;
 // radio_req_otar's operations
-enum { RADIO_OTAR_START, RADIO_OTAR_STOP, RADIO_OTAR_NEXT, RADIO_OTAR_CLEAR_NEXT, RADIO_OTAR_NOW, RADIO_OTAR_CLOCK };
+enum { RADIO_OTAR_START, RADIO_OTAR_STOP, RADIO_OTAR_NEXT, RADIO_OTAR_CLEAR_NEXT, RADIO_OTAR_NOW, RADIO_OTAR_CLOCK,
+       RADIO_OTAR_NEXT_AT };
 #endif
 
 typedef struct {
@@ -644,7 +645,8 @@ void radio_req_tx_low(bool on);
 #if CONFIG_OTAR
 // OTAR keysets (docs/spec/otar.md 8), on the channel on view: START value = the key ID now in use (the channel's system
 // becomes managed), STOP, NEXT value = key ID | minutes to the changeover << 8 (0: by hand), CLEAR_NEXT, NOW (change
-// over), CLOCK value = UTC seconds set by hand
+// over), CLOCK value = UTC seconds set by hand, NEXT_AT value = key ID | the changeover's UTC minute << 8 (0: by hand;
+// an OTAR REKEY's, otar.md 7.1)
 void radio_req_otar(uint8_t op, uint32_t value);
 #endif
 void radio_req_squelch(int8_t dir);

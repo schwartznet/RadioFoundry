@@ -21,6 +21,9 @@
 #if CONFIG_KEY_FILL
 #include "keyfill/keyfill.h"
 #include "keyfill/groupkey.h"
+#if CONFIG_OTAR
+#include "otar/otar_msg.h"
+#endif
 #endif
 
 #if CONFIG_DMR_DATA_CORE
@@ -2503,6 +2506,13 @@ static void handlePacket(const dmrDataPacket_t *packet)
 	if (!toPc && isUDP && (udp.dstPort == KF_PORT) && !packet->group)
 	{
 		dmrDataServiceKeyFillRx(packet->src, udp.payload, udp.length);
+	}
+#endif
+#if CONFIG_OTAR
+	// An OTAR key management message (docs/spec/otar.md 7): to us, or a talkgroup (CHANGEOVER)
+	if (!toPc && isUDP && (udp.dstPort == OTAR_PORT))
+	{
+		dmrDataServiceOtarRx(packet->src, packet->dst, packet->group, udp.payload, udp.length);
 	}
 #endif
 #if CONFIG_GROUP_KEY_FILL

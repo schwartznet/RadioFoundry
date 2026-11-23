@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "otar/otar_crypto.h"
+#include "otar/otar_msg.h"
 
 static int failures;
 
@@ -135,12 +136,124 @@ static void test_pair_keys(void)
 	CHECK(memcmp(f1, f2, 3) == 0 && memcmp(f1, f3, 3) != 0);
 }
 
+// The key management messages (otar_msg.c, otar.md 7): each type round trips; every octet altered, another MAC key,
+// other addresses and another UKEK are refused; the lengths and the header checks
+static void test_msgs(void)
+{
+	uint8_t ukek[32], kmac[32], kmac2[32], tek[32], buf[OTAR_MSG_MAX];
+	for (int i = 0; i < 32; i++) {
+		ukek[i] = (uint8_t)(i + 1);
+		kmac[i] = (uint8_t)(0x80 + i);
+		kmac2[i] = (uint8_t)(0x81 + i);
+		tek[i] = (uint8_t)(0xC0 ^ i);
+	}
+	otar_addr_t a = { 4674131, 4675810 }, swapped = { 4675810, 4674131 };
+	otar_msg_t m, got;
+	memset(&m, 0, sizeof m);
+	m.net_id = 0xE721;
+	m.msgnum = 77;
+	m.rank = 1;
+	m.keyset = 3;
+	m.ckr = 1;
+	m.kid = 34;
+	m.changeover = 476000;
+	m.flags = 1;
+	memcpy(m.tek, tek, 32);
+	int n = otar_rekey_build(buf, &a, ukek, kmac, &m);
+	CHECK(n == (int)OTAR_REKEY_LEN && n <= (int)OTAR_MSG_MAX);
+	CHECK(otar_peek(buf, n, &got) && got.type == OTAR_REKEY && got.net_id == 0xE721 && got.msgnum == 77 && got.rank == 1);
+	CHECK(otar_open(buf, n, &a, ukek, kmac, &got));
+	CHECK(got.keyset == 3 && got.ckr == 1 && got.kid == 34 && got.changeover == 476000 && got.flags == 1 &&
+	      memcmp(got.tek, tek, 32) == 0);
+	// The TEK isn't in the message in the clear
+	int found = 0;
+	for (int i = 0; i + 4 <= n; i++)
+		found += memcmp(&buf[i], tek, 4) == 0;
+	CHECK(found == 0);
+	for (int i = 0; i < n; i++) {
+		uint8_t bad[OTAR_MSG_MAX];
+		memcpy(bad, buf, (size_t)n);
+		bad[i] ^= 0x10;
+		CHECK(!otar_open(bad, n, &a, ukek, kmac, &got));
+	}
+	CHECK(!otar_open(buf, n, &a, ukek, kmac2, &got));
+	CHECK(!otar_open(buf, n, &swapped, ukek, kmac, &got));
+	uint8_t ukek2[32];
+	memcpy(ukek2, ukek, 32);
+	ukek2[0] ^= 1;
+	CHECK(!otar_open(buf, n, &a, ukek2, kmac, &got));
+	CHECK(!otar_open(buf, n, &a, NULL, kmac, &got));
+	CHECK(!otar_open(buf, n - 1, &a, ukek, kmac, &got) && !otar_peek(buf, n + 1, &got));
+
+	// ACK
+	memset(&m, 0, sizeof m);
+	m.net_id = 0xE721;
+	m.msgnum = 5;
+	m.keyset = 3;
+	m.ckr = 1;
+	m.result = OTAR_ACK_STORED;
+	m.kcv[0] = 0x4B;
+	m.kcv[1] = 0x02;
+	m.kcv[2] = 0x69;
+	n = otar_ack_build(buf, &swapped, kmac, &m);
+	CHECK(n == (int)OTAR_ACK_LEN && otar_open(buf, n, &swapped, NULL, kmac, &got));
+	CHECK(got.type == OTAR_ACK && got.keyset == 3 && got.result == OTAR_ACK_STORED && got.kcv[2] == 0x69 && got.rank == 0);
+	CHECK(!otar_open(buf, n, &a, NULL, kmac, &got));
+
+	// HELLO
+	memset(&m, 0, sizeof m);
+	m.net_id = 0xE721;
+	m.msgnum = 6;
+	m.active_kid = 32;
+	m.next_kid = 34;
+	m.flags = 1;
+	n = otar_hello_build(buf, &swapped, kmac, &m);
+	CHECK(n == (int)OTAR_HELLO_LEN && otar_open(buf, n, &swapped, NULL, kmac, &got));
+	CHECK(got.type == OTAR_HELLO && got.active_kid == 32 && got.next_kid == 34 && got.flags == 1);
+
+	// CHANGEOVER: to the talkgroup, under the key from the TEK it makes active
+	uint8_t gk[32], gk2[32];
+	otar_group_mac_key(tek, gk);
+	tek[5] ^= 1;
+	otar_group_mac_key(tek, gk2);
+	CHECK(memcmp(gk, gk2, 32) != 0 && memcmp(gk, tek, 32) != 0);
+	otar_addr_t tg = { 4674131, 42001 };
+	memset(&m, 0, sizeof m);
+	m.net_id = 0xE721;
+	m.msgnum = 78;
+	m.rank = 1;
+	m.keyset = 3;
+	m.kid = 34;
+	n = otar_changeover_build(buf, &tg, gk, &m);
+	CHECK(n == (int)OTAR_CHANGEOVER_LEN && otar_open(buf, n, &tg, NULL, gk, &got) && got.kid == 34 && got.keyset == 3);
+	CHECK(!otar_open(buf, n, &tg, NULL, gk2, &got));	// a radio without the next TEK can't make or check one
+
+	// Headers: another version, magic, net 0, a rank past 4, an unknown type
+	uint8_t h[OTAR_MSG_MAX];
+	memcpy(h, buf, (size_t)n);
+	h[1] = 2;
+	CHECK(!otar_peek(h, n, &got));
+	memcpy(h, buf, (size_t)n);
+	h[0] = 'P';
+	CHECK(!otar_peek(h, n, &got));
+	memcpy(h, buf, (size_t)n);
+	h[3] = h[4] = 0;
+	CHECK(!otar_peek(h, n, &got));
+	memcpy(h, buf, (size_t)n);
+	h[9] = 5;
+	CHECK(!otar_peek(h, n, &got));
+	memcpy(h, buf, (size_t)n);
+	h[2] = 9;
+	CHECK(!otar_peek(h, n, &got));
+}
+
 int main(void)
 {
 	test_aes_decrypt();
 	test_kw();
 	test_cmac();
 	test_pair_keys();
+	test_msgs();
 	if (failures == 0)
 		printf("# otarCryptoTest PASSED\n");
 	else

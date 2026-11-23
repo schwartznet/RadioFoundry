@@ -161,6 +161,38 @@ int codeplug_traffic_key(uint8_t system, uint8_t alg, uint16_t key_id, uint8_t *
 	return -1;
 }
 
+bool codeplug_traffic_key_set(uint8_t system, uint8_t alg, uint16_t key_id, const uint8_t *key, uint8_t len)
+{
+	uint8_t v[CODEPLUG_TRAFFIC_HDR + 64u];
+	codeplug_kv_cursor_t c;
+	uint16_t k, hit = 0, free_key = 0, next = CODEPLUG_KEY_TRAFFIC;
+	int n;
+	if (len == 0 || len > 64u)
+		return false;
+	codeplug_kv_begin(&c, CODEPLUG_KEY_TRAFFIC, (uint16_t)(CODEPLUG_KEY_TRAFFIC + TRAFFIC_MAX - 1u));
+	while ((n = codeplug_kv_next(&c, &k, v, CODEPLUG_TRAFFIC_HDR)) >= 0) {
+		if (free_key == 0 && k > next)
+			free_key = next;	// a gap before this record
+		next = (uint16_t)(k + 1u);
+		if (hit == 0 && n >= (int)CODEPLUG_TRAFFIC_HDR && v[0] == system && v[1] == alg && rec_rd16(&v[2]) == key_id)
+			hit = k;
+	}
+	if (free_key == 0 && next < CODEPLUG_KEY_TRAFFIC + TRAFFIC_MAX)
+		free_key = next;
+	uint16_t at = hit != 0 ? hit : free_key;
+	if (at == 0)
+		return false;
+	v[0] = system;
+	v[1] = alg;
+	v[2] = (uint8_t)key_id;
+	v[3] = (uint8_t)(key_id >> 8);
+	v[4] = 0;	// flags
+	memcpy(&v[CODEPLUG_TRAFFIC_HDR], key, len);
+	bool ok = codeplug_kv_set(at, v, (uint16_t)(CODEPLUG_TRAFFIC_HDR + len));
+	memset(v, 0, sizeof v);
+	return ok;
+}
+
 bool codeplug_traffic_key_remove(uint8_t system, uint8_t alg, uint16_t key_id)
 {
 	uint8_t v[CODEPLUG_TRAFFIC_HDR];	// the header is enough: longer values are cut, not read

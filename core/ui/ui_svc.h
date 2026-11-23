@@ -153,8 +153,25 @@ void ui_svc_net_leave(void);
 uint16_t ui_svc_net_members(void);
 struct otar_member_s;
 bool ui_svc_net_member(uint16_t i, uint32_t *id, uint8_t *rank, uint8_t fp[3]);
-// The UI task's tick: the start's steps and the roster's writes. True: the view changed
-bool ui_svc_net_tick(uint32_t now);
+// The UI task's tick: the start's steps, the roster's writes, and rekeying (otar.md 7, 9): messages in and out, the
+// net control's rekey run. True: what the Net screens show changed
+bool ui_svc_net_tick(const radio_view_t *v, uint32_t now);
+// Net control: rekey the net now (otar.md 9): a new key from the pool, sent to every member. UI_NET_* or 0 (started)
+enum { UI_NET_OK, UI_NET_NOT_NC, UI_NET_NOT_MANAGED, UI_NET_BUSY, UI_NET_NO_TG, UI_NET_NO_NEXT, UI_NET_NO_KID };
+uint8_t ui_svc_net_rekey(const radio_view_t *v);
+// Net control: change the net over now: CHANGEOVER to the talkgroup, then this radio. UI_NET_*
+uint8_t ui_svc_net_change_over(const radio_view_t *v);
+// The rekey run as Net status shows it: the key it sends, how many have it, and member i's state
+typedef struct {
+	bool on;
+	uint8_t kid;
+	uint8_t members, done;
+	uint8_t presses;	// random key presses the pool still wants before the key is made
+	uint32_t changeover;	// UTC minutes, 0 by hand
+} ui_rekey_view_t;
+enum { UI_RK_WAIT, UI_RK_SENT, UI_RK_OK, UI_RK_FAIL };
+void ui_svc_net_rekey_view(ui_rekey_view_t *r);
+bool ui_svc_net_rekey_member(uint16_t i, uint32_t *id, uint8_t *state, uint8_t *tries);
 #endif
 #if CONFIG_GROUP_KEY_FILL
 // Group key fill (ui_svc_groupkey.c, docs/spec/group-key-fill.md): one session while the Group key screen is open.

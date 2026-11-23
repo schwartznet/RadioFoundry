@@ -2551,7 +2551,7 @@ bool ui_app_tick(const radio_view_t *v, uint32_t now_ms)
 	if (ui_svc_gk_tick(v, now_ms))
 		dirty = true;
 #if CONFIG_OTAR
-	if (ui_svc_net_tick(now_ms))	// Start a net's steps and the roster's writes (otar.md 6)
+	if (ui_svc_net_tick(v, now_ms))	// Start a net, the roster's writes, rekeying (otar.md 6, 7)
 		dirty = true;
 #endif
 	if (stack[sp].scr == SCR_GROUP_KEY || stack[sp].scr == SCR_KEY_GEN)

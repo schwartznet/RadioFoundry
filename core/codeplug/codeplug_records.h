@@ -102,6 +102,9 @@ int codeplug_traffic_key(uint8_t system, uint8_t alg, uint16_t key_id, uint8_t *
 // Remove that traffic key's record (an OTAR keyset's key after its overlap, otar.md 8). Writes flash: the housekeeping
 // task's. True when it was there and is gone
 bool codeplug_traffic_key_remove(uint8_t system, uint8_t alg, uint16_t key_id);
+// Store a traffic key of system under this algorithm and key ID: over that record, else in the first free one (an OTAR
+// REKEY's TEK, otar.md 7.1). Writes flash: the housekeeping task's. False when the family is full or the write fails
+bool codeplug_traffic_key_set(uint8_t system, uint8_t alg, uint16_t key_id, const uint8_t *key, uint8_t len);
 // A reference from the 4 octets a record stores
 codeplug_ref_t codeplug_ref_at(const uint8_t *p);
 #endif

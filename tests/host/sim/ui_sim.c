@@ -2805,8 +2805,80 @@ bool ui_svc_net_member(uint16_t i, uint32_t *id, uint8_t *rank, uint8_t fp[3])
 	fp[2] = 0x3E;
 	return true;
 }
-bool ui_svc_net_tick(uint32_t now)
+// Rekeying: Rekey now runs at once with key 2 to every member but this radio; tokens rk:ack (the next member ACKs) and
+// rk:fail (it doesn't). Change over the net makes this radio's next key active
+static struct {
+	bool on;
+	uint8_t n;
+	uint32_t ids[8];
+	uint8_t state[8];
+} rk_sim;
+
+uint8_t ui_svc_net_rekey(const radio_view_t *v)
 {
+	if (!net_sim.in || net_sim.rank == 0)
+		return UI_NET_NOT_NC;
+	if (!v->otar.on)
+		return UI_NET_NOT_MANAGED;
+	if (rk_sim.on)
+		return UI_NET_BUSY;
+	memset(&rk_sim, 0, sizeof rk_sim);
+	rk_sim.on = true;
+	for (uint8_t i = 0; i < net_sim.n; i++)
+		if (net_sim.ids[i] != v->dmr.own_id)
+			rk_sim.ids[rk_sim.n++] = net_sim.ids[i];
+	radio_req_otar(RADIO_OTAR_NEXT, 2);
+	return UI_NET_OK;
+}
+uint8_t ui_svc_net_change_over(const radio_view_t *v)
+{
+	if (!net_sim.in || net_sim.rank == 0)
+		return UI_NET_NOT_NC;
+	if (!v->otar.has_next)
+		return UI_NET_NO_NEXT;
+	if (v->dmr.target_private || v->dmr.target_id == 0)
+		return UI_NET_NO_TG;
+	radio_req_otar(RADIO_OTAR_NOW, 0);
+	rk_sim.on = false;
+	return UI_NET_OK;
+}
+void ui_svc_net_rekey_view(ui_rekey_view_t *r)
+{
+	memset(r, 0, sizeof *r);
+	if (!rk_sim.on)
+		return;
+	r->on = true;
+	r->kid = 2;
+	r->members = rk_sim.n;
+	for (uint8_t i = 0; i < rk_sim.n; i++)
+		r->done = (uint8_t)(r->done + (rk_sim.state[i] == UI_RK_OK));
+}
+bool ui_svc_net_rekey_member(uint16_t i, uint32_t *id, uint8_t *state, uint8_t *tries)
+{
+	if (!rk_sim.on || i >= rk_sim.n)
+		return false;
+	*id = rk_sim.ids[i];
+	*state = rk_sim.state[i];
+	*tries = 1;
+	return true;
+}
+static bool rk_sim_token(const char *arg)
+{
+	if (!rk_sim.on)
+		return false;
+	for (uint8_t i = 0; i < rk_sim.n; i++) {
+		if (rk_sim.state[i] == UI_RK_WAIT) {
+			rk_sim.state[i] = strcmp(arg, "ack") == 0 ? UI_RK_OK : UI_RK_FAIL;
+			changed();
+			return true;
+		}
+	}
+	return false;
+}
+
+bool ui_svc_net_tick(const radio_view_t *v, uint32_t now)
+{
+	(void)v;
 	(void)now;
 	if (!net_sim.starting)
 		return false;
@@ -3373,6 +3445,7 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 #endif
 #if CONFIG_OTAR
 	memset(&net_sim, 0, sizeof net_sim);
+	memset(&rk_sim, 0, sizeof rk_sim);
 	memset(&view.otar, 0, sizeof view.otar);
 #endif
 	ptt_blocked = false;
@@ -4206,6 +4279,14 @@ static bool run_token(char *t, char *err, size_t len)
 	}
 #endif
 #if CONFIG_OTAR
+	if (strcmp(t, "rk") == 0 && arg != NULL) {	// rk:ack, rk:fail: the rekey run's next member
+		if (!rk_sim_token(arg)) {
+			snprintf(err, len, "rk:%s: not now", arg);
+			return false;
+		}
+		advance(200);
+		return true;
+	}
 	if (strcmp(t, "net") == 0 && arg != NULL && strcmp(arg, "full") == 0) {	// net:full: Start a net's pool full
 		if (!net_sim.starting) {
 			snprintf(err, len, "net:%s: not now", arg);

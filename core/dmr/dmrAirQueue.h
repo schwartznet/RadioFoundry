@@ -38,7 +38,8 @@
 #define AIRQ_OWNER_ZONE_SHARE	1
 #define AIRQ_OWNER_KEY_FILL		2
 #define AIRQ_OWNER_GROUP_KEY	3
-#define AIRQ_OWNERS				4
+#define AIRQ_OWNER_OTAR			4		// OTAR's key management messages (docs/spec/otar.md 7)
+#define AIRQ_OWNERS				5
 
 // How a packet ended
 typedef enum

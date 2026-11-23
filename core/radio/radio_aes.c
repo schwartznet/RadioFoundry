@@ -152,6 +152,12 @@ bool radio_aes_otar_request(uint8_t op, uint32_t value, const channel_t *ch, uin
 			return false;
 		break;
 	}
+	case RADIO_OTAR_NEXT_AT: {
+		uint32_t at = value >> 8;	// UTC minutes since 2026, 24 bits: 31 years
+		if (!otar_set_next(&otar, 1, (uint8_t)value, at, at != 0))
+			return false;
+		break;
+	}
 	case RADIO_OTAR_CLEAR_NEXT:
 		otar_clear_next(&otar);
 		break;

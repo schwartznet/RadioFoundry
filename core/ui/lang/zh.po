@@ -5200,6 +5200,21 @@ msgid "Add a member"
 msgstr "添加电台"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_REKEY"
+msgid "Rekey now"
+msgstr "现在更换密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_STATUS"
+msgid "Net status"
+msgstr "网络状态"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_CHANGE_OVER"
+msgid "Change over the net"
+msgstr "全网更换密钥"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_LEAVE"
 msgid "Leave the net"
 msgstr "退出网络"
@@ -5240,6 +5255,41 @@ msgid "No key pair yet"
 msgstr "尚无密钥对"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_WHY_NC_ONLY"
+msgid "Only a net control does that"
+msgstr "仅限主台"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_WHY_MANAGE"
+msgid "Manage this channel's keys first (Net keys)"
+msgstr "请先启用本信道的网络密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_WHY_NO_KID"
+msgid "No free key ID"
+msgstr "无空闲密钥 ID"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_WHY_BUSY"
+msgid "A rekey is running"
+msgstr "正在更换密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_CHANGING"
+msgid "Changing the net over"
+msgstr "正在全网更换"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_WHY_TG"
+msgid "Needs a talkgroup as the target"
+msgstr "目标须为群组"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_WHY_NO_NEXT"
+msgid "No next key to change over to"
+msgstr "无下一密钥"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_LEFT"
 msgid "Left the net"
 msgstr "已退出网络"
@@ -5253,6 +5303,66 @@ msgstr "网络"
 msgctxt "NET_NC_SHORT"
 msgid " NC"
 msgstr " 主台"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ST_WAIT"
+msgid "waiting"
+msgstr "等待"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ST_SENT"
+msgid "sent"
+msgstr "已发送"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ST_OK"
+msgid "OK"
+msgstr "OK"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ST_FAIL"
+msgid "no answer"
+msgstr "无回应"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_NO_REKEY"
+msgid "No rekey running"
+msgstr "未在更换密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_REKEY_TO"
+msgid "Key "
+msgstr "密钥 "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_REKEY_HAVE"
+msgid ": "
+msgstr ": "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_REKEY_OF"
+msgid " of "
+msgstr " / "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_REKEY_HAVE_IT"
+msgid " have it"
+msgstr " 已收到"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_REKEY_AT"
+msgid "Change over at "
+msgstr "更换时间 "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_REKEY_BY_HAND"
+msgid "Change over by hand"
+msgstr "人工更换"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_STATUS_TITLE"
+msgid "Net status"
+msgstr "网络状态"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_MEMBERS_TITLE"
