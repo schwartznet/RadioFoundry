@@ -7555,12 +7555,16 @@ int16_t radio_sm_rf_floor(const radio_sm_t *sm)
 
 void radio_sm_floor_track(radio_sm_t *sm, int16_t rssi_dbm, uint32_t now_ms)
 {
-	if (rssi_dbm >= 0 || rssi_dbm < -150)
-		return;		// no reading
-	if (sm->rf_floor_dbm == 0 || rssi_dbm < sm->rf_floor_dbm) {
-		sm->rf_floor_dbm = rssi_dbm;	// quieter: at once
+	if (rssi_dbm >= 0 || rssi_dbm < RADIO_FLOOR_MIN_DBM)
+		return;		// no reading: right after a retune the chip reads about -127 for a moment
+	// A running average (1/8 per reading), so one odd reading moves it little; the floor follows the average
+	int32_t q = (int32_t)rssi_dbm * 16;
+	sm->rf_avg_q4 = sm->rf_avg_q4 == 0 ? q : sm->rf_avg_q4 + (q - sm->rf_avg_q4) / 8;
+	int16_t avg = (int16_t)(sm->rf_avg_q4 / 16);
+	if (sm->rf_floor_dbm == 0 || avg < sm->rf_floor_dbm) {
+		sm->rf_floor_dbm = avg;		// quieter: at once
 		sm->rf_floor_ms = now_ms;
-	} else if (rssi_dbm > sm->rf_floor_dbm && (uint32_t)(now_ms - sm->rf_floor_ms) >= RADIO_FLOOR_RISE_MS) {
+	} else if (avg > sm->rf_floor_dbm && (uint32_t)(now_ms - sm->rf_floor_ms) >= RADIO_FLOOR_RISE_MS) {
 		// louder for a while: 1 dB at a time, so a carrier switched on to fool the gate takes minutes to move it
 		if (sm->rf_floor_dbm < RADIO_FLOOR_MAX_DBM)
 			sm->rf_floor_dbm++;

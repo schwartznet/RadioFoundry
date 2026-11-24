@@ -11974,25 +11974,34 @@ static void test_rf_floor(void)
 	memset(&f, 0, sizeof f);
 	CHECK(radio_sm_rf_floor(&f) == 0);
 	radio_sm_floor_track(&f, 0, 1000);		// no reading: nothing
+	radio_sm_floor_track(&f, -127, 1000);		// the chip's "nothing yet" after a retune: nothing
 	CHECK(radio_sm_rf_floor(&f) == 0);
-	radio_sm_floor_track(&f, -104, 1000);
-	radio_sm_floor_track(&f, -107, 1100);		// quieter: at once
-	CHECK(radio_sm_rf_floor(&f) == -107);
-	radio_sm_floor_track(&f, -60, 1200);		// a carrier: not yet
-	CHECK(radio_sm_rf_floor(&f) == -107);
-	uint32_t t = 1100;
+	uint32_t t = 1000;
+	for (int i = 0; i < 40; i++)
+		radio_sm_floor_track(&f, -106, t += 100);	// the channel's floor, read again and again
+	CHECK(radio_sm_rf_floor(&f) == -106);
+	radio_sm_floor_track(&f, -118, t += 100);	// one odd low reading: the floor moves little
+	CHECK(radio_sm_rf_floor(&f) >= -108);
+	for (int i = 0; i < 40; i++)
+		radio_sm_floor_track(&f, -106, t += 100);
+	for (int i = 0; i < 40; i++)
+		radio_sm_floor_track(&f, -110, t += 100);	// quieter for a few seconds: down with it
+	CHECK(radio_sm_rf_floor(&f) <= -109);
+	int16_t low = radio_sm_rf_floor(&f);
+	radio_sm_floor_track(&f, -60, t += 100);	// a carrier: up only 1 dB per RADIO_FLOOR_RISE_MS
 	for (int i = 0; i < 6; i++) {
 		t += RADIO_FLOOR_RISE_MS;
-		radio_sm_floor_track(&f, -60, t);	// a minute of it: 6 dB
+		radio_sm_floor_track(&f, -60, t);
 	}
-	CHECK(radio_sm_rf_floor(&f) == -101);
-	for (int i = 0; i < 40; i++) {
+	CHECK(radio_sm_rf_floor(&f) <= low + 6);
+	for (int i = 0; i < 60; i++) {
 		t += RADIO_FLOOR_RISE_MS;
 		radio_sm_floor_track(&f, -60, t);
 	}
 	CHECK(radio_sm_rf_floor(&f) == RADIO_FLOOR_MAX_DBM);	// capped however long it lasts
-	radio_sm_floor_track(&f, -103, t + 1);
-	CHECK(radio_sm_rf_floor(&f) == -103);		// gone: back down at once
+	for (int i = 0; i < 60; i++)
+		radio_sm_floor_track(&f, -104, t += 100);	// gone: back down as the average comes down
+	CHECK(radio_sm_rf_floor(&f) <= -103);
 }
 #endif
 

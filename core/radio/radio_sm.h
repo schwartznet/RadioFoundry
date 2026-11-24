@@ -360,6 +360,7 @@ typedef struct {
 #if CONFIG_KEY_FILL && CONFIG_AIR
 	int16_t rf_floor_dbm;		// the receiver's own floor, learned while idle (0 none yet): the noise grab's gate
 	uint32_t rf_floor_ms;		// ... when it last moved up
+	int32_t rf_avg_q4;		// ... from this running average of the readings (dBm x 16; 0 none yet)
 #endif
 #if RADIO_BENCH
 	bool air_bench;			// the air interface bench, or key fill's noise grab, has the modem (RREQ_AIR_BENCH)
@@ -660,6 +661,7 @@ bool radio_sm_noise_hold(radio_sm_t *sm, bool on, uint32_t now_ms);
 // RADIO_FLOOR_RISE_MS at most, never above RADIO_FLOOR_MAX_DBM (key-fill.md 6.1)
 #define RADIO_FLOOR_RISE_MS	10000u
 #define RADIO_FLOOR_MAX_DBM	(-85)
+#define RADIO_FLOOR_MIN_DBM	(-120)	// a reading below this is the chip's "nothing yet" (as after a retune), not a floor
 int16_t radio_sm_rf_floor(const radio_sm_t *sm);
 void radio_sm_floor_track(radio_sm_t *sm, int16_t rssi_dbm, uint32_t now_ms);
 #endif
