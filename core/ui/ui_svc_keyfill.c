@@ -319,6 +319,9 @@ static void storing(uint32_t now)
 			st->otar_net.net_id = kf->net_id;
 			st->otar_net.rank = 0;
 			st->otar_net.flags = OTAR_NET_IN;
+			// A new net: its net controls' message numbers start from what they are, not the last net's
+			st->otar_seen = 0;
+			memset(st->otar_seen_nc, 0, sizeof st->otar_seen_nc);
 			settings_end(now);
 		}
 #endif

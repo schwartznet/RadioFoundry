@@ -128,6 +128,8 @@ void ui_svc_net_leave(void)
 	st->otar_net.net_id = 0;
 	st->otar_net.rank = 0;
 	st->otar_net.flags = 0;
+	st->otar_seen = 0;	// the next net's net controls count from their own numbers
+	memset(st->otar_seen_nc, 0, sizeof st->otar_seen_nc);
 	settings_end(hal_millis());
 	net.want_clear = true;
 	net.page_ok = false;
@@ -157,6 +159,8 @@ static void start_now(uint32_t now)
 	st->otar_net.net_id = id != 0 ? id : 1u;
 	st->otar_net.rank = 1;
 	st->otar_net.flags = OTAR_NET_IN;
+	st->otar_seen = 0;
+	memset(st->otar_seen_nc, 0, sizeof st->otar_seen_nc);
 	otar_net_t n = st->otar_net;
 	settings_end(now);
 	crypto_wipe(rnd, sizeof rnd);

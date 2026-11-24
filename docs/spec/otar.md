@@ -267,7 +267,7 @@ on voice.
 | 2 | Radio key pair, roster, joining in person (key fill class 3), UKEKs; AES-256 decryption, AES-KW and AES-CMAC with their test vectors | 6 KB | #950 |
 | 3 | REKEY, ACK, HELLO, INVENTORY, CHANGEOVER, TIME; NC's rekey run, schedule and net status | 5-6 KB | phases 1, 2 |
 | 4 | ROSTER changes, revocation, succession and TAKEOVER, remote zeroize | 3 KB | phase 3, #951 |
-| Rest | The rekey schedule, TIME, INVENTORY, a revoked radio told (22) | 3.6 KB flash, 48 B RAM measured on DM-32 | phase 4 |
+| Rest | The rekey schedule, TIME, INVENTORY, a revoked radio told (22) | 3.6 KB flash, 48 B RAM as measured on one board ([feature-matrix.md](../feature-matrix.md)) | phase 4 |
 
 Each phase is its own PR with host tests and UI flows, and useful alone: phase 1 already gives scheduled changeovers
 with keys loaded by key fill or group key fill.
@@ -336,7 +336,7 @@ What succession needs before it can work, built on phase 3:
 
 | Part | What it does |
 |---|---|
-| Message numbers per net control | A member keeps the last message number taken from each net control rank: `otar_seen` for rank 1, `otar_seen_nc[3]` for ranks 2-4 ([settings-store.md](settings-store.md)). The rank is the sender's on this radio's roster, not the header's. So NC 2's numbers, lower than NC 1's, aren't refused as replays |
+| Message numbers per net control | A member keeps the last message number taken from each net control rank: `otar_seen` for rank 1, `otar_seen_nc[3]` for ranks 2-4 ([settings-store.md](settings-store.md)). The rank is the sender's on this radio's roster, not the header's. So NC 2's numbers, lower than NC 1's, aren't refused as replays. Starting, joining or leaving a net clears them: another net's net control 1 counts from its own numbers |
 | ROSTER | Type 6 as in 7 (55 octets): one roster record under the pair's MAC key. A member takes it from a net control on its roster (not revoked; message number above the last from that rank), stores the entry (a storage job) and ACKs with CKR 0, keyset 0 and the entry's fingerprint as the check value: stored, already held, couldn't store, or refused (6). Refused: an entry that would change a net control of higher rank than the sender's, or would revoke this radio; both wait for phase 4's confirmation (10). An entry for the radio itself sets its rank (how NC 1 will name NC 2) |
 | Roster run | The net control sends each wanted (member, entry) pair in roster order, one at a time, waiting 20 s for the ACK and sending each up to 3 times. After Add a member: the new member's entry to every other member and every entry but the net control's to the new member. Net > 7 Send the roster: every entry to every member. The Net screen shows "Roster: sending, 2 sent" and "Roster: 4 sent, no answer 1". A rekey and a roster run don't run at once |
 | A member's Net keys | A net's member gets its next key and changeover from the net control: Net keys shows it Change over now (a CHANGEOVER missed while off), Set the clock and Stop managing keys, not Next key, Change over (when) or Drop |
