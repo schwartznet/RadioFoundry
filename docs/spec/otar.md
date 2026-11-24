@@ -510,9 +510,8 @@ check and the noise gate's signal reading are checked by reading the code and on
 On air the same night, all four radios on this build: Rekey now on NC 1 with no key pressed made key 84 from the
 receiver's noise (3 grabs: 2 credited nothing as "loud", the signal then -101 dBm against the -100 gate, 1 passed) and
 reached all three members, each ACK echoing its REKEY ("Key 84: 3 of 3 have it"). The same radio's floor read -90 to
--92 dBm minutes later: a fixed -100 dBm gate turns many grabs down on a busy bench, and the presses take over. Tuning it
-(a floor the radio learns, plus a margin, against measurements of where a carrier starts to quiet the discriminator)
-is open.
+-92 dBm minutes later: a fixed -100 dBm gate turned many grabs down on a busy bench. The gate now follows a floor the
+radio learns while idle, plus 6 dB, capped at -85 dBm ([key-fill.md](key-fill.md) 6.1).
 
 ### 23.1 Independent review (2026-11-24)
 

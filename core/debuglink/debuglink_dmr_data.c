@@ -135,6 +135,7 @@ void debuglink_view_dmr_data(uint8_t part, dl_text_t *t)
 		"noise.taken=%u\n", (unsigned)ns.grabs, (unsigned)ns.passed, (unsigned)ns.failed[NOISE_SHORT],
 		(unsigned)ns.failed[NOISE_RCT], (unsigned)ns.failed[NOISE_APT], (unsigned)ns.failed[NOISE_FLAT],
 		(unsigned)ns.failed[NOISE_LOUD], (unsigned)ns.taken);
+	dl_text(t, "noise.last_rssi=%d\nnoise.last_floor=%d\n", ns.last_rssi, ns.last_floor);
 #endif
 	return;
 counters:

@@ -11965,8 +11965,42 @@ static void test_t3_stun(void)
 }
 #endif
 
+#if CONFIG_KEY_FILL && CONFIG_AIR
+// The receiver's floor for the noise grab's gate (key-fill.md 6.1): down at once, up 1 dB per RADIO_FLOOR_RISE_MS at
+// most, never above RADIO_FLOOR_MAX_DBM
+static void test_rf_floor(void)
+{
+	static radio_sm_t f;
+	memset(&f, 0, sizeof f);
+	CHECK(radio_sm_rf_floor(&f) == 0);
+	radio_sm_floor_track(&f, 0, 1000);		// no reading: nothing
+	CHECK(radio_sm_rf_floor(&f) == 0);
+	radio_sm_floor_track(&f, -104, 1000);
+	radio_sm_floor_track(&f, -107, 1100);		// quieter: at once
+	CHECK(radio_sm_rf_floor(&f) == -107);
+	radio_sm_floor_track(&f, -60, 1200);		// a carrier: not yet
+	CHECK(radio_sm_rf_floor(&f) == -107);
+	uint32_t t = 1100;
+	for (int i = 0; i < 6; i++) {
+		t += RADIO_FLOOR_RISE_MS;
+		radio_sm_floor_track(&f, -60, t);	// a minute of it: 6 dB
+	}
+	CHECK(radio_sm_rf_floor(&f) == -101);
+	for (int i = 0; i < 40; i++) {
+		t += RADIO_FLOOR_RISE_MS;
+		radio_sm_floor_track(&f, -60, t);
+	}
+	CHECK(radio_sm_rf_floor(&f) == RADIO_FLOOR_MAX_DBM);	// capped however long it lasts
+	radio_sm_floor_track(&f, -103, t + 1);
+	CHECK(radio_sm_rf_floor(&f) == -103);		// gone: back down at once
+}
+#endif
+
 int main(void)
 {
+#if CONFIG_KEY_FILL && CONFIG_AIR
+	test_rf_floor();
+#endif
 	test_tx_limit_op();
 	test_startup();
 #if CONFIG_SATELLITE_TLE

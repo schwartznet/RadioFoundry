@@ -7548,6 +7548,26 @@ static void bench_leave(radio_sm_t *sm, uint32_t now_ms)
 }
 
 #if CONFIG_KEY_FILL && CONFIG_AIR
+int16_t radio_sm_rf_floor(const radio_sm_t *sm)
+{
+	return sm->rf_floor_dbm;
+}
+
+void radio_sm_floor_track(radio_sm_t *sm, int16_t rssi_dbm, uint32_t now_ms)
+{
+	if (rssi_dbm >= 0 || rssi_dbm < -150)
+		return;		// no reading
+	if (sm->rf_floor_dbm == 0 || rssi_dbm < sm->rf_floor_dbm) {
+		sm->rf_floor_dbm = rssi_dbm;	// quieter: at once
+		sm->rf_floor_ms = now_ms;
+	} else if (rssi_dbm > sm->rf_floor_dbm && (uint32_t)(now_ms - sm->rf_floor_ms) >= RADIO_FLOOR_RISE_MS) {
+		// louder for a while: 1 dB at a time, so a carrier switched on to fool the gate takes minutes to move it
+		if (sm->rf_floor_dbm < RADIO_FLOOR_MAX_DBM)
+			sm->rf_floor_dbm++;
+		sm->rf_floor_ms = now_ms;
+	}
+}
+
 bool radio_sm_noise_hold(radio_sm_t *sm, bool on, uint32_t now_ms)
 {
 	if (!on) {
@@ -9779,6 +9799,14 @@ void radio_sm_poll(radio_sm_t *sm, uint32_t now_ms)
 #endif
 	sm->view.rssi_dbm = rssi_held(sm, st.rssi_dbm);
 	sm->view.noise = st.noise;
+#if CONFIG_KEY_FILL && CONFIG_AIR
+	if (sm->view.state == RS_IDLE
+#if CONFIG_DMR
+	    && sm->view.dmr.state == RDMR_IDLE
+#endif
+	   )
+		radio_sm_floor_track(sm, st.rssi_dbm, now_ms);	// idle, no call: what the channel sounds like empty
+#endif
 #if CONFIG_DMR
 	// The modem may not report a level per burst: then the call's level is the held one while a call is heard. A
 	// finished call keeps its last value (dmr_publish leaves it alone once the stack's own is 0 and the state is idle).

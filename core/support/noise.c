@@ -54,8 +54,21 @@ static uint16_t box_credit;
 static uint32_t taken_seq;
 static noise_stats_t stats;
 
-void noise_post(const int16_t *x, unsigned n, bool quiet)
+bool noise_quiet(int16_t rssi, int16_t floor)
 {
+	if (floor == 0)
+		return rssi <= NOISE_QUIET_DBM;
+	int limit = floor + NOISE_FLOOR_MARGIN_DB;
+	if (limit > NOISE_QUIET_MAX_DBM)
+		limit = NOISE_QUIET_MAX_DBM;
+	return rssi <= limit;
+}
+
+void noise_post(const int16_t *x, unsigned n, int16_t rssi, int16_t floor)
+{
+	bool quiet = noise_quiet(rssi, floor);
+	stats.last_rssi = rssi;
+	stats.last_floor = floor;
 	uint8_t why = noise_health(x, n);
 	if (why == NOISE_OK && !quiet)
 		why = NOISE_LOUD;	// mixed in, credited nothing: a signal may have shaped it

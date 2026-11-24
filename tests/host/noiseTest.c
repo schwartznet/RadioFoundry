@@ -56,20 +56,25 @@ int main(void)
 	CHECK(!noise_take(d1, &credit));
 	noisy(5);
 	noise_digest(x, NOISE_SAMPLES, want);
-	noise_post(x, NOISE_SAMPLES, true);
+	noise_post(x, NOISE_SAMPLES, -106, -106);
 	CHECK(noise_take(d1, &credit) && credit == NOISE_SAMPLES / NOISE_CREDIT_PER && memcmp(d1, want, 32) == 0);
 	CHECK(!noise_take(d2, &credit));		// taken once
-	noise_post(x, 10, true);			// short: failed, still mixed in
+	noise_post(x, 10, -106, -106);		// short: failed, still mixed in
 	CHECK(noise_take(d2, &credit) && credit == 0 && memcmp(d1, d2, 32) != 0);
 	noisy(6);
 	uint8_t other[32];
 	noise_digest(x, NOISE_SAMPLES, other);
 	CHECK(memcmp(other, want, 32) != 0);	// another grab, another digest
 	// A good grab with a signal on the channel: mixed in, credited nothing (a carrier could have shaped it)
-	noise_post(x, NOISE_SAMPLES, false);
+	noise_post(x, NOISE_SAMPLES, -60, -106);
 	CHECK(noise_take(d2, &credit) && credit == 0);
+	// The gate: within 6 dB of the learned floor, never above -85; -100 before a floor is known
+	CHECK(noise_quiet(-101, -106) && noise_quiet(-100, -106) && !noise_quiet(-99, -106));
+	CHECK(noise_quiet(-86, -92) && !noise_quiet(-85, -92) && noise_quiet(-85, -91) && !noise_quiet(-84, -88));
+	CHECK(noise_quiet(-100, 0) && !noise_quiet(-99, 0));
 	noise_stats_t st;
 	noise_get_stats(&st);
+	CHECK(st.last_rssi == -60 && st.last_floor == -106);
 	CHECK(st.grabs == 3 && st.passed == 1 && st.failed[NOISE_SHORT] == 1 && st.failed[NOISE_LOUD] == 1 && st.taken == 3);
 
 	printf("noiseTest: %d checks, %d failures\n", checks, failures);

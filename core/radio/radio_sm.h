@@ -357,6 +357,10 @@ typedef struct {
 	bool p25_talk;			// the transmission runs on the voice channel granted to us
 #endif
 #endif
+#if CONFIG_KEY_FILL && CONFIG_AIR
+	int16_t rf_floor_dbm;		// the receiver's own floor, learned while idle (0 none yet): the noise grab's gate
+	uint32_t rf_floor_ms;		// ... when it last moved up
+#endif
 #if RADIO_BENCH
 	bool air_bench;			// the air interface bench, or key fill's noise grab, has the modem (RREQ_AIR_BENCH)
 #endif
@@ -650,6 +654,14 @@ uint8_t radio_sm_squelch_open_below(uint8_t level);
 // DMR on the channel's frequency): true when held, false when it can't be now (transmitting, a hotspot, the bench). Off
 // gives the channel back
 bool radio_sm_noise_hold(radio_sm_t *sm, bool on, uint32_t now_ms);
+#endif
+#if CONFIG_KEY_FILL && CONFIG_AIR
+// The receiver's floor as learned while idle (dBm; 0 none yet): down at once to a quieter reading, up by 1 dB every
+// RADIO_FLOOR_RISE_MS at most, never above RADIO_FLOOR_MAX_DBM (key-fill.md 6.1)
+#define RADIO_FLOOR_RISE_MS	10000u
+#define RADIO_FLOOR_MAX_DBM	(-85)
+int16_t radio_sm_rf_floor(const radio_sm_t *sm);
+void radio_sm_floor_track(radio_sm_t *sm, int16_t rssi_dbm, uint32_t now_ms);
 #endif
 
 #endif

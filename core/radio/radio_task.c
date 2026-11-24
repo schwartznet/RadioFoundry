@@ -160,7 +160,7 @@ static void noise_grab(void)
 		return;
 	radio_status_t st;
 	board.radio->status(&st);
-	bool quiet = st.rssi_dbm <= NOISE_QUIET_DBM;
+	int16_t rssi = st.rssi_dbm;
 	unsigned n = 0;
 	if (bb->rx_start()) {
 		for (int i = 0; i < NOISE_READS && n < NOISE_SAMPLES; i++) {
@@ -170,9 +170,9 @@ static void noise_grab(void)
 		bb->rx_stop();
 	}
 	board.radio->status(&st);
-	quiet = quiet && st.rssi_dbm <= NOISE_QUIET_DBM;
+	rssi = st.rssi_dbm > rssi ? st.rssi_dbm : rssi;
 	(void)radio_sm_noise_hold(&sm, false, hal_millis());
-	noise_post(buf, n, quiet);
+	noise_post(buf, n, rssi, radio_sm_rf_floor(&sm));
 	memset(buf, 0, sizeof buf);
 }
 #endif
