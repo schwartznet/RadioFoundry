@@ -70,6 +70,8 @@ press OK before the key goes: nothing leaves the sender without both users' word
 
 - UDP, source and destination port **4101**, over the data service's IP bearer ([dmr-data.md](dmr-data.md) 11). Port
   4101 is outside 4000-4099, so the UDP header is compressed on auto (SAP 3), as zone sharing's 4100.
+- In the clear on every channel, an AES channel's too ([dmr-data.md](dmr-data.md) 13.5): the radio getting a key, or
+  joining a net that has rekeyed, may not hold the channel's key, and the exchange below protects itself.
 - Individual packets to the other radio's DMR ID, confirmed ([dmr-data.md](dmr-data.md) 12): the link layer repeats a
   lost packet. Each message is one IP packet of at most 72 octets.
 - Through the TX queue ([dmr-data.md](dmr-data.md) 12.6), one message at a time. A message the data service doesn't

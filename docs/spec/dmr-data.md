@@ -880,8 +880,8 @@ computed over the ciphertext, so a receiver without the key still checks and ack
 ### 13.4 AES data
 
 On a DMR AES-256 channel ([channel-modes.md](channel-modes.md), [dmr-voice.md](dmr-voice.md) 5.1) the channel's
-traffic key covers its packet data as it covers its voice: text messages, positions, key fill
-([key-fill.md](key-fill.md)) and every other packet the radio builds there.
+traffic key covers its packet data as it covers its voice: text messages, positions and every other packet the radio
+builds there, except key fill's (13.5).
 
 | Item | Value |
 |---|---|
@@ -895,7 +895,20 @@ traffic key covers its packet data as it covers its voice: text messages, positi
 A packet is built only when it can be encrypted: without an MI or the key, `dmrDataBuild*` builds nothing
 (`txPrivacy` returns -1), so a failure never sends the data in the clear.
 
-### 13.5 Open
+### 13.5 Key fill in the clear
+
+A UDP datagram from and to port 4101 (key fill and joining an OTAR net, [key-fill.md](key-fill.md) 3;
+`dmrDataUdpClear`) goes without the privacy header on a channel whose scheme encrypts data, and isn't refused by
+13.3. Its job is to bring a key to a radio that may not hold the channel's: the radio joining a net that has rekeyed
+since its codeplug was loaded, or one being sent a key it lacks. Under the channel's key such a radio drops every packet
+(13.3), and the session fails with "the other radio didn't answer" (seen on air, [otar.md](otar.md) 22). Key fill's own
+exchange protects it instead: X25519, the six-digit code compared on both screens, and a payload encrypted and
+authenticated under the key both radios derive ([key-fill.md](key-fill.md) 2-4). A listener learns that two radios ran
+a key fill, and their IDs, which the data header shows anyway. The packet goes alone (no chained packets in its
+transmission), and its confirmed retries go clear too. Receiving needs nothing: a packet without a privacy header is
+taken on any channel.
+
+### 13.6 Open
 
 - AES data is checked only between our radios (host tests, and on air between two of our radios). Whether a commercial
   radio's AES data uses this keystream (its IV from the MI, from octet 0) is not known: a capture of a stock radio's

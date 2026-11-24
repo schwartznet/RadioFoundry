@@ -447,6 +447,7 @@ static struct
 	bool confirmed;
 	bool sms;							// our own text, ETSI IP or TMS (smsFinish at the end), not the gateway's
 	bool tmsAck;						// our TMS ACK: nothing to report at the end
+	bool clear;							// goes in the clear on a channel that encrypts data (dmrDataUdpClear)
 	bool firstTry;						// the next transmission is the packet's first (F set, every block)
 	uint8_t protocol;
 	uint8_t sap;
@@ -636,7 +637,17 @@ static void ipFinish(uint8_t result)
 	ipx.result = result;
 }
 
+static void ipBuildAndQueue(void);
+
+// The packet built and queued, in the clear when it is one that goes so (dmrDataUdpClear)
 static void ipTransmit(void)
+{
+	dmrDataSetTxClear(ipx.clear);
+	ipBuildAndQueue();
+	dmrDataSetTxClear(false);
+}
+
+static void ipBuildAndQueue(void)
 {
 	const uint8_t *pdu;
 	// Our own address follows the channel's ID (sent from the channel's ID, as the gateway's packets are)
@@ -784,6 +795,7 @@ static bool ipSend(bool group, uint32_t dst, uint32_t srcIp, uint32_t dstIp, uin
 			(!group && (delivery == DMR_IPS_CONFIRMED));
 
 	ipStart(group, dst, protocol, l4, length, (protocol == DMR_IP_PROTO_UDP) && dmrDataUdpCompress(srcPort, dstPort), confirmed);
+	ipx.clear = (protocol == DMR_IP_PROTO_UDP) && dmrDataUdpClear(srcPort, dstPort);
 	ipx.srcIp = srcIp;
 	ipx.dstIp = dstIp;
 	ipx.ttl = ttl;
@@ -819,9 +831,9 @@ int dmrDataServiceSendIPChain(bool group, uint32_t dst, uint32_t srcIp, uint32_t
 	{
 		return 0;
 	}
-	if (ipx.confirmed || !txChain)
+	if (ipx.confirmed || !txChain || ipx.clear)
 	{
-		return 1;// a confirmed packet waits for its response alone
+		return 1;// a confirmed packet waits for its response alone; a clear one goes alone too
 	}
 	int bursts = IP_PREAMBLES + ipPacketBursts(group, dst, srcIp, dstIp, ttl, ipx.protocol, ipx.l4, ipx.length,
 												ipx.compress, ipx.ipId);

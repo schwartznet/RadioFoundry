@@ -89,6 +89,9 @@ int key_fill_take(uint8_t out[KF_MSG_MAX], uint32_t *src)
 	return n;
 }
 
+// Key fill goes in the clear on an AES channel (dmrDataUdpClear): a radio without the channel's key must hear it
+_Static_assert(KF_PORT == DMR_UDP_PORT_KEY_FILL, "key fill's port is the data layer's clear one");
+
 bool key_fill_send(uint32_t dst, const uint8_t *msg, int len)
 {
 	if (dst == 0 || dst > 0xFFFFFFu || len < 1 || len > KF_MSG_MAX || send_state == KF_SEND_SENDING)

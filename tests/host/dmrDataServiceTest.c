@@ -2717,6 +2717,38 @@ static void testPrivacy(void)
 	CHECK(packetsHeard == heard);
 	CHECK(stats.rxPrivacyDropped == dropped + 1);
 
+	// Key fill's datagrams go in the clear on a channel that encrypts data (13.5): no privacy header, not blocked, and
+	// a radio without the channel's key takes them. Another port's still go encrypted
+	static uint8_t kf[8 + 12];
+	memset(kf, 0x5A, sizeof kf);
+	kf[0] = kf[2] = (uint8_t)(DMR_UDP_PORT_KEY_FILL >> 8);
+	kf[1] = kf[3] = (uint8_t)DMR_UDP_PORT_KEY_FILL;
+	kf[4] = 0;
+	kf[5] = sizeof kf;
+	kf[6] = kf[7] = 0;
+	reset();
+	ch.privacy = encrypt;
+	runMainTask(100);
+	uint32_t blocked = stats.txPrivacyBlocked;
+	before = stats.txPrivacy;
+	CHECK(dmrDataServiceSendIPDelivery(false, RADIO_A, DMR_IP_PROTO_UDP, kf, sizeof kf, DMR_IPS_UNCONFIRMED));
+	runMainTask(300);
+	h = txHeader();
+	CHECK(h != NULL && stats.txPrivacyBlocked == blocked && stats.txPrivacy == before);
+	CHECK(h != NULL && (h + 1 >= &lastTx[lastTxCount] || h[1].dataType != DMR_TYPE_DATA_HEADER ||
+			    (h[1].payload[0] & 0x0F) != 15));
+	heard = packetsHeard;
+	rxBursts(lastTx, lastTxCount);	// as a radio with this channel heard it: clear, so passed on
+	kf[1] = kf[3] = 0x07;		// port 4103 (OTAR): encrypted as before
+	runMainTask(2000);
+	before = stats.txPrivacy;
+	CHECK(dmrDataServiceSendIPDelivery(false, RADIO_A, DMR_IP_PROTO_UDP, kf, sizeof kf, DMR_IPS_UNCONFIRMED));
+	runMainTask(300);
+	CHECK(stats.txPrivacy == before + 1);
+	h = txHeader();
+	CHECK(h != NULL && h[1].dataType == DMR_TYPE_DATA_HEADER && (h[1].payload[0] & 0x0F) == 15);
+	(void)heard;
+
 	ch.privacy = clear;
 	reset();
 }

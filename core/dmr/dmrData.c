@@ -140,12 +140,27 @@ static void setBurst(dmrBurst_t *burst, uint8_t dataType, const uint8_t *payload
 
 #if CONFIG_DMR_PRIVACY
 static dmrDataPrivacy_t privacy;		// the channel's (radio task)
+static bool txClear;					// dmrDataSetTxClear
 #endif
+
+void dmrDataSetTxClear(bool clear)
+{
+#if CONFIG_DMR_PRIVACY
+	txClear = clear;
+#else
+	(void)clear;
+#endif
+}
+
+bool dmrDataUdpClear(uint16_t srcPort, uint16_t dstPort)
+{
+	return (srcPort == DMR_UDP_PORT_KEY_FILL) && (dstPort == DMR_UDP_PORT_KEY_FILL);
+}
 
 static bool txEncrypts(void)
 {
 #if CONFIG_DMR_PRIVACY
-	return (privacy.mode == DMR_DATA_PRIVACY_ENCRYPT) && (privacy.crypt != NULL);
+	return !txClear && (privacy.mode == DMR_DATA_PRIVACY_ENCRYPT) && (privacy.crypt != NULL);
 #else
 	return false;
 #endif
@@ -210,7 +225,7 @@ bool dmrDataPrivacyEncrypted(const dmrBurst_t *bursts, int count)
 bool dmrDataPrivacyAllows(const dmrBurst_t *bursts, int count)
 {
 #if CONFIG_DMR_PRIVACY
-	if (privacy.mode == DMR_DATA_PRIVACY_CLEAR)
+	if ((privacy.mode == DMR_DATA_PRIVACY_CLEAR) || txClear)
 	{
 		return true;
 	}
