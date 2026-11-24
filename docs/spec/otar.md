@@ -505,6 +505,10 @@ The review's lower findings, then fixed:
 | A replayed REKEY still got an ACK, a replayed HELLO a catch-up REKEY each time, and any forged source made the NC work out X25519 before the MAC check | A member drops a REKEY with an old message number without answering; the NC sends one member the active key at most every 2 minutes, and works on an ACK only from a member it waits for and on at most one HELLO every 2 s |
 | Key fill and OTAR went in the clear by port number alone, so a host could send its own traffic on those ports unencrypted through the gateway; and on an AES channel a clear packet reached every service, so anyone could inject a clear text | Clear only for the two services' own packets (`DMR_IPS_SELF_PROTECTED`); on a channel that encrypts data a clear packet is taken only on those ports ([dmr-data.md](dmr-data.md) 13.5) |
 
+On air the same evening, all four radios on this build: a rekey to key 82 "in 5 min" from NC 1, with the ACK counted
+only on the check value of the key sent: Net status "Key 82: 3 of 3 have it, change over at 21:00"; two members checked
+on their own screens showed "Next: key 82 at 21:00", then at 21:00 "Keyset 6: key 82", old key 81 heard.
+
 Left as they are, documented: CHANGEOVER has no message number (an old one is for another key and fails its MAC; a
 radio holding the next key can only bring the changeover forward, and every member holds that key); K_enc comes from
 K_mac as an HKDF PRK (sound, if less tidy than a third label from the pair's PRK); group keys don't name the net (each
