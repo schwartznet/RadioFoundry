@@ -432,6 +432,11 @@ validated module). The algorithms are the published ones above, each checked aga
 `otarCryptoTest`. The KMM text of TIA-102.AACA itself wasn't read for this; the comparison is with its public
 descriptions.
 
+Checked on air 2026-11-24, net 8B16: both radios flashed with this build; the member, joined after the rekey and
+still on key 77, restarted, said HELLO and got key 78 from the net control as a REKEY flagged now. 45 s after start its
+Net keys showed "Keyset 2: key 78", old key 77 heard; `data.privacy_rx_dropped` stayed 0 on both (nothing went under
+the channel's key).
+
 Tests: `otarCryptoTest` (a body's octets aren't in the message, the same body under the next message number encrypts
 differently, a changed ciphertext octet fails the MAC, opening leaves the message unchanged, version 1 refused);
 `dmrDataServiceTest` (port 4103 goes in the clear, mixed ports don't).
