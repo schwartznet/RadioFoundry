@@ -903,6 +903,15 @@ run: run-key-fill
 run-key-fill: keyFillTest
 	./keyFillTest
 .PHONY: run-key-fill
+# The OTAR engine (core/ui/ui_svc_otar.c, otar.md 7-10, 23): the real engine, roster and messages, the radio core,
+# codeplug, settings and transport faked; the test plays the other radio
+TESTS   += otarEngineTest
+otarEngineTest: otarEngineTest.c $(CORE)/ui/ui_svc_otar.c $(OTARCRYPTO) $(CORE)/otar/otar_net.c $(CORE)/otar/otar_keys.c $(CORE)/support/kcv.c
+	$(CC) $(CFLAGS) -Istubs/keyfill_rtos -I$(ROOT)/hal -I$(CORE)/ui -DCONFIG_OTAR=1 -DCONFIG_KEY_FILL=1 -o $@ 		otarEngineTest.c $(CORE)/ui/ui_svc_otar.c $(OTARCRYPTO) $(CORE)/otar/otar_net.c $(CORE)/otar/otar_keys.c $(CORE)/support/kcv.c
+run: run-otar-engine
+run-otar-engine: otarEngineTest
+	./otarEngineTest
+.PHONY: run-otar-engine
 # OTAR's cryptography (core/otar/otar_crypto.c, otar.md 5, 7): AES-256 decryption, key wrap and CMAC against the
 # published vectors, the pair keys
 TESTS   += otarCryptoTest

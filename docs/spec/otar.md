@@ -514,5 +514,11 @@ radio holding the next key can only bring the changeover forward, and every memb
 K_mac as an HKDF PRK (sound, if less tidy than a third label from the pair's PRK); group keys don't name the net (each
 comes from that net's own random TEK); X25519 uses a constant-time ladder and a fixed-exponent inversion, read but not
 measured. Open: the randomness credit per key press is generous and the pool starts empty at each power-on (the
-receiver's noise is the planned source, [key-fill.md](key-fill.md) 6). The engine's rules (keyset order, ranks,
-counters per sender, the ACK check) are checked on air, not by host tests: `ui_svc_otar.c` has no host harness yet.
+receiver's noise is the planned source, [key-fill.md](key-fill.md) 6). The engine's rules are host-tested in
+`otarEngineTest`: the real engine, roster, messages and crypto, with the radio core, codeplug, settings and transport
+faked, the test playing the other radio with real messages. It checks keyset order (an older keyset refused, a resend
+HELD only with the same key, a REKEY flagged now changing over at once), a replayed REKEY getting no answer, TIME taken
+under the pair's keys and a forged group TIME ignored (with the counter attack after it), HELLO to the best-ranked net
+control, each ROSTER rank rule on its own, counters per sender, the net control's catch-up and its 2-minute limit,
+an ACK counted only with the sent key's check value, and nothing sent before a message number reservation is saved.
+Each of those rules, disabled in turn, fails the test.
