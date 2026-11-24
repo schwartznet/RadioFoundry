@@ -279,7 +279,8 @@ typedef struct {
 	uint8_t kid;
 	uint8_t system;
 	uint32_t keyset;
-	uint32_t changeover;
+	uint32_t changeover;	// set when the key is made: mins from then (a run waits for key presses first)
+	uint16_t mins;
 	uint8_t n;
 	uint8_t cur;		// the member whose ACK is awaited, 0xFF none
 	uint32_t ack_by;
@@ -916,6 +917,9 @@ __attribute__((noinline)) static bool rk_step(const radio_view_t *v, const otar_
 			return true;	// the screen counts the presses down
 		entropy_take(rk->tek, OTAR_KEY_LEN);
 		rk->keyed = true;
+		// The changeover counts from now, not from Rekey now: the key presses may have taken longer than the choice,
+		// and a changeover already past would change this radio over before any member had the key (seen on air)
+		rk->changeover = rk->mins != 0 && v->otar.clock_ok && v->otar.now_min != 0 ? v->otar.now_min + rk->mins : 0;
 		rk->store_due = true;
 		memcpy(eng.tek, rk->tek, OTAR_KEY_LEN);
 		eng.tek_system = rk->system;
@@ -1401,7 +1405,7 @@ uint8_t ui_svc_net_rekey(const radio_view_t *v, uint16_t mins)
 	rk->kid = kid;
 	rk->system = v->otar.system;
 	rk->keyset = (uint32_t)v->otar.keyset + 1u;
-	rk->changeover = mins != 0 && v->otar.clock_ok ? v->otar.now_min + mins : 0;	// by the clocks, else by hand
+	rk->mins = v->otar.clock_ok ? mins : 0u;	// by the clocks, else by hand; counted from when the key is made
 	rk->cur = 0xFF;
 	uint16_t total = 0, first = 0;
 	otar_member_t page[2];
@@ -1416,7 +1420,7 @@ uint8_t ui_svc_net_rekey(const radio_view_t *v, uint16_t mins)
 	} while (first < total);
 	eng.rk = rk;
 	eng.co_hand = false;
-	if (rk->changeover != 0)
+	if (rk->mins != 0)
 		(void)ui_svc_net_send_time(v);	// the members without a clock get this one first (7.4)
 	return UI_NET_OK;
 }
