@@ -323,6 +323,7 @@ static void storing(uint32_t now)
 			st->otar_seen = 0;
 			memset(st->otar_seen_nc, 0, sizeof st->otar_seen_nc);
 			settings_end(now);
+			ui_svc_net_joined();
 		}
 #endif
 		kf_stored(&kf->s, kf->job_result, kf->job_result == KF_STORED ? kf->job_kcv : none, now);

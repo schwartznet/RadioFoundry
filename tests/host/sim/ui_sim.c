@@ -2895,6 +2895,10 @@ uint8_t ui_svc_net_inventory(const radio_view_t *v, uint32_t id)
 	net_sim.inv_id = id;
 	return UI_NET_OK;
 }
+void ui_svc_net_joined(void)
+{
+}
+
 void ui_svc_net_inventory_view(uint32_t id, ui_inv_view_t *r)
 {
 	memset(r, 0, sizeof *r);

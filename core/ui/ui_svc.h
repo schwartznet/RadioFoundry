@@ -224,6 +224,9 @@ typedef struct {
 	bool same[2];		// the member's key of that keyset is this radio's
 } ui_inv_view_t;
 void ui_svc_net_inventory_view(uint32_t id, ui_inv_view_t *r);
+// A join just stored (key fill): a radio not managing keys starts managing the AES channel's it is on, so its HELLO
+// gets the net's active key (otar.md 6, 9)
+void ui_svc_net_joined(void);
 #endif
 #if CONFIG_GROUP_KEY_FILL
 // Group key fill (ui_svc_groupkey.c, docs/spec/group-key-fill.md): one session while the Group key screen is open.

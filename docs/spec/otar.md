@@ -123,7 +123,9 @@ changes all its UKEKs (the professional "change UKEK"); NC sends the new public 
    fill's exchange ([key-fill.md](key-fill.md) 2-4, the six-digit code on both screens) with a new payload class 3:
    member to NC its public key; NC to member the net ID and its own rank and public key. The member's HELLO 20 s
    later gets the net's active key from the NC as a REKEY to change over to at once (9). A member that already holds
-   it (its codeplug was loaded with it) needs nothing more.
+   it (its codeplug was loaded with it) needs nothing more. A member that didn't manage keys starts managing the AES
+   channel it joined on, with that channel's key as its active one (as Net keys > Manage keys), so its HELLO goes out;
+   joined on another channel, it stays unmanaged until Manage keys.
 3. NC sends the new roster entry to every other member (ROSTER). NC 1 gives ranks 2-4 on the roster.
 
 The roster can also be built in the web editor and written with the codeplug (public keys only). A radio's private
@@ -414,6 +416,7 @@ HELLO under key 77 (`data.privacy_rx_dropped`). A member switched off through a 
 | In the clear at the data layer | Port 4103, like key fill's 4101 (`dmrDataUdpClear`, [dmr-data.md](dmr-data.md) 13.5): no privacy header, not refused on an AES channel, taken by any radio |
 | Catching up | A HELLO outside a rekey run whose active key isn't the net control's gets its active key as a REKEY flagged "now" (7.1, 9) |
 | Message numbers | Moved on by 1024 at each start (7.6) |
+| Joining unmanaged | A radio that joins without managing keys starts managing the AES channel it is on (6). Found on air: a fresh radio joined, answered Ask its keys with "Keys: none", and said no HELLO, so it never caught up |
 
 **Compared with P25 OTAR.** Public descriptions of TIA-102.AACA's KMM give it three protections: the TEKs inside wrapped
 under the radio's KEK, the KMM body encrypted again under a traffic key (the outer layer), and a MAC with message

@@ -352,6 +352,7 @@ static struct {
 		bool same[2];
 	} inv;
 	bool inv_next;		// a member: the next keyset's ACK of an INVENTORY still to send
+	bool manage_due;	// a member just joined: manage the channel's keys if it doesn't yet (ui_svc_net_joined)
 	bool co_hand;		// Change over the net by hand: the run's end sends no CHANGEOVER of its own
 	uint32_t sched_ms;	// the schedule last looked at
 } eng;
@@ -1062,6 +1063,22 @@ static __attribute__((noinline)) void cu_send(const radio_view_t *v, const otar_
 	crypto_wipe(kmac, sizeof kmac);
 }
 
+void ui_svc_net_joined(void)
+{
+	eng.manage_due = true;
+}
+
+// A member just joined that doesn't manage keys: it starts on the AES channel it is on, with that channel's key as
+// its active one, as Net keys > Manage keys does. Its HELLO then tells the net control which key it holds, and the net
+// control sends the net's active key if that isn't it (9). On another channel it stays unmanaged
+static void manage_joined(const radio_view_t *v)
+{
+	eng.manage_due = false;
+	if (!v->otar.on && v->ch.mode == RADIO_MODE_DMR && v->ch.kind == CODEPLUG_KIND_DMR_AES && v->ch.aes_ref != 0 &&
+	    ui_svc_aes_key_there(v->ch.system, (uint8_t)(v->ch.aes_ref - 1u)))
+		radio_req_otar(RADIO_OTAR_START, (uint8_t)(v->ch.aes_ref - 1u));
+}
+
 // A member back on says HELLO to its net control (warm start, 9)
 static __attribute__((noinline)) void say_hello(const radio_view_t *v, const otar_net_t *n, uint32_t now)
 {
@@ -1232,6 +1249,8 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 		if (eng.pair_ok && eng.pair_id == eng.ack_to)
 			inv_ack(v, true, now);
 	}
+	if (eng.manage_due && n.rank == 0)
+		manage_joined(v);
 	// A member back on says HELLO to its net control (warm start, 9); not once it is removed from the net
 	if (n.rank == 0 && !eng.hello_sent && v->otar.on && !(n.flags & OTAR_NET_REMOVED) &&
 	    (uint32_t)(now - eng.started_ms) >= HELLO_AFTER_MS && eng.out_len == 0 && !eng.sending)
