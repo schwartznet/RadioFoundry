@@ -119,9 +119,9 @@ int otar_hello_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTA
 {
 	header(out, OTAR_HELLO, m);
 	uint8_t *p = &out[OTAR_HDR];
-	p[0] = m->active_kid;
-	p[1] = m->next_kid;
-	p[2] = m->flags;
+	put32(p, m->keyset);
+	put32(&p[4], m->next_keyset);
+	p[8] = m->flags;
 	return seal(out, (int)(OTAR_HELLO_LEN - OTAR_MAC), a, k_mac);
 }
 
@@ -232,9 +232,9 @@ static bool parse(otar_msg_t *m, const uint8_t *p, const uint8_t *ukek)
 		memcpy(m->kcv, &p[6], 3);
 		return true;
 	case OTAR_HELLO:
-		m->active_kid = p[0];
-		m->next_kid = p[1];
-		m->flags = p[2];
+		m->keyset = get32(p);
+		m->next_keyset = get32(&p[4]);
+		m->flags = p[8];
 		return true;
 	case OTAR_CHANGEOVER:
 		m->keyset = get32(p);

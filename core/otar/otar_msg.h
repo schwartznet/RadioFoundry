@@ -5,7 +5,7 @@
 // Pure: no RTOS, no allocation. Every message: a 10-octet header in the clear, a body encrypted with AES-256-CTR under
 // a key from the MAC key, and the first 8 octets of an AES-256-CMAC over the sender's and receiver's DMR IDs (3 + 3)
 // and every octet before it (encrypt then MAC, otar.md 7). REKEY, ACK and HELLO go between two radios under their
-// pair's MAC key; CHANGEOVER and TIME go to the talkgroup under a key from a TEK (7.3). The messages protect
+// pair's MAC key, TIME too; CHANGEOVER goes to the talkgroup under a key from a TEK (7.3). The messages protect
 // themselves: they go in the clear at the data layer (dmr-data.md 13.5)
 #ifndef RFOUNDRY_OTAR_MSG_H
 #define RFOUNDRY_OTAR_MSG_H
@@ -15,7 +15,7 @@
 #include "otar/otar_crypto.h"
 
 #define OTAR_PORT		4103u	// UDP source and destination port
-#define OTAR_VERSION		2u	// 2: the body encrypted (1 had it only under the channel's key)
+#define OTAR_VERSION		3u	// 3: HELLO carries keyset numbers, TIME goes to each member; 2: the body encrypted
 #define OTAR_ENC_LABEL		"RFOTAR2 enc"	// HKDF info of the body's key
 #define OTAR_HDR		10u
 #define OTAR_MAC		8u
@@ -34,7 +34,7 @@ enum { OTAR_ACK_STORED = 0, OTAR_ACK_HELD = 1, OTAR_ACK_OLD = 2, OTAR_ACK_STORE_
 
 #define OTAR_REKEY_LEN		(OTAR_HDR + 4u + 1u + 1u + 4u + 1u + 40u + OTAR_MAC)	// 69
 #define OTAR_ACK_LEN		(OTAR_HDR + 4u + 1u + 1u + 3u + OTAR_MAC)		// 27
-#define OTAR_HELLO_LEN		(OTAR_HDR + 1u + 1u + 1u + OTAR_MAC)			// 21
+#define OTAR_HELLO_LEN		(OTAR_HDR + 4u + 4u + 1u + OTAR_MAC)			// 27
 #define OTAR_CHANGEOVER_LEN	(OTAR_HDR + 4u + 1u + OTAR_MAC)				// 23
 #define OTAR_ROSTER_REC		37u	// a roster record (otar_net.h OTAR_REC_LEN): DMR ID, rank, flags, public key
 #define OTAR_ROSTER_LEN		(OTAR_HDR + OTAR_ROSTER_REC + OTAR_MAC)			// 55
@@ -60,8 +60,8 @@ typedef struct {
 	// ACK (of a ROSTER: CKR 0, keyset 0, the check value the entry's fingerprint)
 	uint8_t result;
 	uint8_t kcv[3];
-	// HELLO
-	uint8_t active_kid, next_kid;
+	// HELLO: the active keyset's number in keyset, the next one's here (0 none)
+	uint32_t next_keyset;
 	// ZEROIZE: the DMR ID of the radio told to wipe its keys
 	uint32_t target;
 	// TIME: UTC seconds since 2026-01-01
@@ -84,7 +84,8 @@ int otar_roster_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OT
 int otar_zeroize_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m);
 // INVENTORY (otar.md 7, 9): a net control asks a member what it holds; no body. The member answers an ACK per keyset
 int otar_inventory_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m);
-// TIME (otar.md 7.4): a net control's UTC to the talkgroup, under the active TEK's group key "time"
+// TIME (otar.md 7.4): a net control's UTC to one member, under the pair's MAC key (a group key would let any radio
+// holding the traffic key forge it)
 int otar_time_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m);
 
 // The header of a message (no MAC checked yet): its type, net, message number and rank. False for one that isn't an
@@ -95,10 +96,8 @@ bool otar_peek(const uint8_t *msg, int len, otar_msg_t *m);
 bool otar_open(const uint8_t *msg, int len, const otar_addr_t *a, const uint8_t *ukek,
 	       const uint8_t k_mac[OTAR_KEY_LEN], otar_msg_t *m);
 
-// A group message's MAC key from a TEK (otar.md 7.3): label OTAR_GK_CO for CHANGEOVER (the TEK it makes active),
-// OTAR_GK_TIME for TIME (the active TEK)
+// A group message's MAC key from a TEK (otar.md 7.3): label OTAR_GK_CO for CHANGEOVER (the TEK it makes active)
 #define OTAR_GK_CO	"co"
-#define OTAR_GK_TIME	"time"
 void otar_group_mac_key(const uint8_t tek[OTAR_KEY_LEN], const char *label, uint8_t k_mac[OTAR_KEY_LEN]);
 
 #endif

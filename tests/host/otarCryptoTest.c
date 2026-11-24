@@ -201,7 +201,7 @@ static void test_msgs(void)
 	CHECK(!otar_open(buf, n, &a, NULL, kmac, &got));
 	// The body is encrypted (otar.md 7): the check value isn't in the message, the header is, and the same body under
 	// the next message number encrypts to other octets (the counter block holds it)
-	CHECK(buf[0] == 'O' && buf[1] == OTAR_VERSION && OTAR_VERSION == 2u && buf[2] == OTAR_ACK && buf[8] == 5);
+	CHECK(buf[0] == 'O' && buf[1] == OTAR_VERSION && OTAR_VERSION == 3u && buf[2] == OTAR_ACK && buf[8] == 5);
 	found = 0;
 	for (int i = 0; i + 3 <= n; i++)
 		found += buf[i] == 0x4B && buf[i + 1] == 0x02 && buf[i + 2] == 0x69;
@@ -222,12 +222,12 @@ static void test_msgs(void)
 	memset(&m, 0, sizeof m);
 	m.net_id = 0xE721;
 	m.msgnum = 6;
-	m.active_kid = 32;
-	m.next_kid = 34;
+	m.keyset = 6;
+	m.next_keyset = 7;
 	m.flags = 1;
 	n = otar_hello_build(buf, &swapped, kmac, &m);
 	CHECK(n == (int)OTAR_HELLO_LEN && otar_open(buf, n, &swapped, NULL, kmac, &got));
-	CHECK(got.type == OTAR_HELLO && got.active_kid == 32 && got.next_kid == 34 && got.flags == 1);
+	CHECK(got.type == OTAR_HELLO && got.keyset == 6 && got.next_keyset == 7 && got.flags == 1);
 
 	// ROSTER: one entry, from a net control to a member
 	memset(&m, 0, sizeof m);
@@ -273,7 +273,7 @@ static void test_msgs(void)
 
 	// TIME: to the talkgroup under the active TEK's "time" key, which isn't the changeover's
 	uint8_t tk[32];
-	otar_group_mac_key(tek, OTAR_GK_TIME, tk);
+	otar_group_mac_key(tek, "time", tk);	// any key: the message layer doesn't care which
 	CHECK(memcmp(tk, gk2, 32) != 0);
 	memset(&m, 0, sizeof m);
 	m.net_id = 0xE721;

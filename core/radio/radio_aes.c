@@ -207,6 +207,13 @@ bool radio_aes_otar_request(uint8_t op, uint32_t value, const channel_t *ch, uin
 	case RADIO_OTAR_CLEAR_NEXT:
 		otar_clear_next(&otar);
 		break;
+	case RADIO_OTAR_NEXT_KS:
+		// The net's keyset number for the next keyset (otar.md 7.1): only above the active one, so a radio never goes
+		// back to an older keyset
+		if (!(otar.flags & OTAR_F_NEXT) || value <= otar.ks_active || value > 0xFFFFu)
+			return false;
+		otar.ks_next = (uint16_t)value;
+		break;
 	case RADIO_OTAR_NOW:
 		if (!(otar.flags & OTAR_F_NEXT))
 			return false;
