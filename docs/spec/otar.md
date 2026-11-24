@@ -488,6 +488,14 @@ A reviewer given only the code and these specs found, among others, five issues 
 Also fixed: CHANGEOVER from a revoked NC is refused; a member works its pair keys out again after a ROSTER (a changed
 public key); key presses a host injects over the debug link aren't counted as randomness ([key-fill.md](key-fill.md) 6).
 
+On air the same day, all four radios on this build: a rekey "in 5 min" from NC 1 found every member waiting and the
+net control's new key already due. The changeover had been fixed when Rekey now was chosen, and the 32 key presses
+took longer than 5 minutes: the net control changed over by its own clock at once and no REKEY went out. It is now
+counted from when the key is made. The three members, left on key 79, each said HELLO from keyset 3 after a restart
+and took key 80 under the net's keyset number 4 ("keyset 4 OK"). The next rekey, to key 81, reached all three: Net
+status "Key 81: 3 of 3 have it, change over at 19:47", the members "Next: key 81 at 19:47". At 19:47 the net control and
+the member checked both showed "Keyset 5: key 81", old key 80 heard.
+
 Still open from the review: an ACK doesn't carry the REKEY's message number, so an old ACK of the same keyset can mark
 a member done; message numbers are saved within 2 s but not synchronously, so a power loss after more than 1024
 unsaved ones could repeat a counter block; a replayed REKEY or HELLO still makes a radio answer (an ACK, a catch-up
