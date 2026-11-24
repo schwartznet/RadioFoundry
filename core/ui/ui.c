@@ -156,10 +156,11 @@ static void ui_task(void *arg)
 		if (got) {
 #if CONFIG_KEY_FILL
 			// Every key event is randomness for key fill (key-fill.md 6): its time (entropy_stir adds the
-			// microsecond clock) and the key. A press is credited, its edges and the knob's steps are not
+			// microsecond clock) and the key. A press is credited, its edges and the knob's steps are not, nor
+			// a key a host injected (the debug link): a script's timing isn't a human's
 			bool press = ev.gesture == GESTURE_PRESS || ev.gesture == GESTURE_LONG ||
 				     (ev.gesture == GESTURE_DOWN && ev.action != ACT_ENC_STEP);
-			entropy_stir(&ev, sizeof ev, press ? ENTROPY_KEY_BITS : 0);
+			entropy_stir(&ev, sizeof ev, press && !ev.host ? ENTROPY_KEY_BITS : 0);
 #endif
 			bool was_off = backlight_now == 0;
 #if CONFIG_BACKLIGHT_TEST

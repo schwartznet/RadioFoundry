@@ -203,6 +203,7 @@ The radios have no hardware random number generator. `entropy.c` keeps a 32-octe
 | Source | Credited |
 |---|---|
 | Every key press anywhere in the UI since start-up: the microsecond clock (`hal_micros`) and the key | 4 bits |
+| A key a host injected over the debug link (`input_event_t.host`) | 0: mixed in, not counted. Found on the bench: scripted menu presses filled the pool and the screen never asked for presses |
 | Each UI tick on the Key fill screen: the microsecond clock, the RSSI and the battery voltage | 0 |
 | The radio's unique ID and DMR ID, at the start of a session | 0 |
 

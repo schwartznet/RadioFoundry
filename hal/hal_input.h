@@ -46,6 +46,7 @@ typedef struct {
 	uint8_t action;		// input_action_t
 	uint8_t gesture;	// input_gesture_t
 	int8_t value;		// encoder steps
+	uint8_t host;		// 1: from a host-injected key (the debug link), not the radio's own keys (set by the input task)
 } input_event_t;
 
 // One physical key: its bit in the scan mask and its short / long logical actions.

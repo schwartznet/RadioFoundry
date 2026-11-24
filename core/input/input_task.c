@@ -60,7 +60,10 @@ static void emit(const input_event_t *ev, void *ctx)
 		     (unsigned)raw_keys, ptt_blocked ? ", blocked" : "");
 	}
 	input_forward(ev, ptt_blocked);
-	if (xQueueSend(events, ev, 0) != pdTRUE && ev->action == ACT_ENC_STEP) {
+	// Where it came from, for the UI: a host's key isn't a human's randomness (key-fill.md 6)
+	input_event_t e = *ev;
+	e.host = last_source == INPUT_SRC_HOST ? 1u : 0u;
+	if (xQueueSend(events, &e, 0) != pdTRUE && ev->action == ACT_ENC_STEP) {
 		// The UI is behind: keep the detents for the next scan instead of losing them (a full queue drops key
 		// events, but a lost encoder step is a wrong channel or row)
 		enc_carry = (int16_t)(enc_carry + ev->value);
@@ -350,7 +353,7 @@ static input_inject_t post_direct(uint8_t action, uint8_t gesture, int8_t value)
 	}
 	taskEXIT_CRITICAL();
 	if (r == INPUT_INJ_OK) {
-		input_event_t ev = { .action = action, .gesture = gesture, .value = value };
+		input_event_t ev = { .action = action, .gesture = gesture, .value = value, .host = 1 };
 		last_source = INPUT_SRC_HOST;
 		xQueueSend(events, &ev, 0);
 	}
