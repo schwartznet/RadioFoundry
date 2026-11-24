@@ -143,7 +143,7 @@ Header, 10 octets:
 | Octets | Field |
 |---|---|
 | 0 | 0x4F ('O') |
-| 1 | Version 3 (2: HELLO with key IDs, TIME to the talkgroup; 1: the body in the clear, under the channel's key only) |
+| 1 | Version 4 (3: ACK without the echo; 2: HELLO with key IDs, TIME to the talkgroup; 1: the body in the clear, under the channel's key only) |
 | 2 | Type |
 | 3-4 | Net ID |
 | 5-8 | Message number: per sender, only goes up, saved across restarts |
@@ -156,7 +156,7 @@ every octet before the MAC, the encrypted body included (encrypt then MAC), trun
 | Type | Name | From, to | Carried | Body after the header | MAC key |
 |---|---|---|---|---|---|
 | 1 | REKEY | NC to a member | Individual, confirmed | keyset number (4), CKR (1), KID (1), changeover in UTC minutes (4), flags (1), TEK wrapped (40) | the pair's K_mac |
-| 2 | ACK | member to NC | Individual, confirmed | keyset number (4), CKR (1), result (1), check value (3) | the pair's K_mac |
+| 2 | ACK | member to NC | Individual, confirmed | keyset number (4), CKR (1), result (1), check value (3), the message number of the message it answers (4) | the pair's K_mac |
 | 3 | CHANGEOVER | NC to the talkgroup | Group, 4 copies | keyset number (4) | from the next keyset (7.3) |
 | 4 | HELLO | member to its best-ranked NC | Individual, confirmed | active keyset number (4), next keyset number (4, 0 none), flags (1) | the pair's K_mac |
 | 5 | INVENTORY | NC to a member | Individual, confirmed | none: the member answers an ACK for each TEK it holds | the pair's K_mac |
@@ -176,7 +176,10 @@ included. One TEK per message; a keyset of 4 TEKs is 4 messages. The member take
 its active one and not below its next one, stores the TEK in its next keyset under the net's keyset number (not a count
 of its own), then ACKs with the check value ([key-check.md](key-check.md)) of what it stored. A REKEY for a TEK it
 already holds, same keyset, key ID and check value, is ACKed again (NC's retry); the same keyset and key ID with
-another key is refused. So no NC can move a member back to an older keyset.
+another key is refused. So no NC can move a member back to an older keyset. A keyset more than 8 above the active
+one, above 65535, or a key ID the active or previous keyset uses is refused too: one sender can't park the net on a
+number the others never reach, or overwrite the key in use. A REKEY flagged now for the keyset the member holds as its
+next (it missed a changeover by hand) is HELD and changes it over.
 
 Changeover time: whole UTC minutes since 2026-01-01; 0 = on NC's CHANGEOVER only. Flags: bit 0 change over at the
 changeover time by the member's clock; bit 1 the net's active key, which the member changes over to as soon as it is
@@ -185,6 +188,11 @@ stored (a member that joined after the rekey or missed the changeover, 9).
 ### 7.2 ACK results
 
 0 stored, 1 already held, 2 older keyset refused, 3 couldn't store, 4 wrap check failed.
+
+Each ACK echoes the message number of the REKEY, ROSTER or INVENTORY it answers, and the NC counts it only for the
+message it sent last to that member (and a REKEY's only with the sent key's check value). A recorded ACK of an earlier
+message doesn't count. A radio never sends a message numbered 0 (no saved reservation yet, 7.6): its answer waits for
+the sender's retry.
 
 ### 7.3 Group message keys
 
@@ -211,7 +219,8 @@ ROSTER adds a member, changes a rank or a public key, or revokes. Revoking an NC
 the member's user first (10). A radio told it is revoked shows "Removed from the net".
 
 ZEROIZE is taken only when the member's Settings > Privacy > **Remote wipe** is "From net control" (default Off). The
-member wipes its keys only ([zeroize.md](zeroize.md) 3.2) and answers nothing.
+member wipes its keys only ([zeroize.md](zeroize.md) 3.2) and answers nothing. A net control is wiped only by one of
+a better rank: NC 4 can't wipe NC 1 (the sender's menu refuses it too).
 
 ### 7.6 Body encryption
 
@@ -261,8 +270,11 @@ Every NC on the roster can rekey and change the roster. Two rekeys at once: a me
 for the same number, the one it took first (the same key ID with another key is refused).
 
 Ranks: a ROSTER entry is refused when it ranks a radio above its sender, when it changes the sender's own entry, or
-when it gives or changes a rank and its sender isn't NC 1. So a backup NC can't make itself or another radio NC 1 and
-then revoke the real one without the question below.
+when it gives or changes a rank, adds a radio or changes a public key and its sender isn't the authority: the
+best-ranked NC not revoked on the receiving radio's roster (NC 1 until a take over). Any NC may revoke a member; nobody
+un-revokes over the air (a radio revoked joins again). So a backup NC can't make itself or another radio NC 1, revoke
+the real one without the question below, bring back a revoked radio, add radios of its own, or swap a member's key so
+the authority's REKEYs go to someone else.
 
 **Take over:** NC 2 (or 3, 4), Tools > Net keys > Take over, names the lost NC. It sends TAKEOVER, sends each member a
 ROSTER revoking that NC, then rekeys without it. A member asked to revoke an NC of higher rank than the sender shows
@@ -472,6 +484,28 @@ A call from the net control then reached both cabled members as AES-256 (PI head
 Tests: `otarCryptoTest` (a body's octets aren't in the message, the same body under the next message number encrypts
 differently, a changed ciphertext octet fails the MAC, opening leaves the message unchanged, version 1 refused);
 `dmrDataServiceTest` (port 4103 goes in the clear, mixed ports don't).
+
+### 23.2 Second review (2026-11-24)
+
+A second reviewer, given the code and specs after 23.1, found among others these, each confirmed against the code and
+fixed:
+
+| Finding | Fix |
+|---|---|
+| One passing noise grab credited the whole pool; the health tests catch a broken source, not a crafted one: a strong carrier modulated into a staircase could pass them | Credited only on a quiet channel (signal at -100 dBm or below before and after the grab); a saved seed ([key-fill.md](key-fill.md) 6.1) |
+| Any NC could un-revoke a radio, add radios or swap a member's public key on every radio, NC 1 included | Only the authority adds radios, changes keys or ranks; nobody un-revokes over the air (10) |
+| Keyset numbers had no upper bound: one REKEY of keyset 65535 flagged now left every later rekey "old"; a REKEY's key ID could be the active key's | At most 8 above the active keyset, never above 65535, no key ID in use (7.1); an NC at 65535 starts a new net |
+| A member holding the next keyset that missed a changeover by hand answered the catch-up HELD and stayed behind | HELD and changes over (7.1) |
+| ZEROIZE ignored rank: NC 4 could wipe NC 1 | Only from a better rank, on both sides (7.5) |
+| The NC took any ACK of the right keyset, roster ACKs with no check at all, so a recorded ACK could report a revocation as delivered; a member could send ACKs numbered 0, two sharing a counter block | ACK echoes the request's number (version 4, 7.2); nothing is sent numbered 0 |
+| A member's replay counter was saved after changes rested; a demoted NC's counter could be reused from 0 | Saved at the next poll (`settings_end_soon`); a counter is reused only for a radio gone from the roster or revoked |
+
+Left, documented: a roster change from a lower NC isn't held for NC 1's user (it is limited to revocations); a fifth
+NC (after demotions) finds no counter while four NCs are on the roster; a TIME delivered up to 48 h late can move a
+clockless member's clock back; replaying two members' HELLOs in turn still makes the NC answer once per 2 minutes each;
+the noise grab blocks the radio task for about 120 ms; a Leave cut off by a power loss leaves the old roster for the
+next join. `otarEngineTest` covers each new rule (56 checks, each rule disabled in turn fails it); the wipe's rank
+check and the noise gate's signal reading are checked by reading the code and on air, not by host tests.
 
 ### 23.1 Independent review (2026-11-24)
 

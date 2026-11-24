@@ -268,6 +268,7 @@ uint8_t ui_svc_net_member_flags(uint16_t i)
 #define HELLO_AFTER_MS	20000u		// a member says HELLO this long after start (and after joining)
 #define CO_COPIES	3u		// CHANGEOVER copies to the talkgroup
 #define CO_GAP_MS	2000u
+#define KEYSET_STEP_MAX	8u	// a REKEY's keyset at most this far above the active one (7.1)
 #define HELLO_GAP_MS	2000u	// a net control works on at most one HELLO this often
 #define CU_GAP_MS	120000u	// ... and sends one member the net's active key at most this often
 
@@ -276,6 +277,7 @@ typedef struct {
 	uint8_t state;		// UI_RK_*
 	uint8_t tries;
 	uint32_t due;		// when it is sent (again)
+	uint32_t sent;		// the message number of its last REKEY: its ACK echoes it
 } rk_member_t;
 
 typedef struct {
@@ -345,6 +347,7 @@ static struct {
 		uint8_t tries;
 		uint32_t ack_by;
 		uint16_t sent, failed, asked;
+		uint32_t sent_num;	// the message number of the ROSTER waiting for its ACK
 	} ros;
 	// A member: a take over to ask the user about (otar.md 10): the lost net control's entry, revoked, and who says so
 	struct {
@@ -364,6 +367,7 @@ static struct {
 	uint32_t inv_to;
 	struct {
 		uint32_t id, by;
+		uint32_t sent_num;	// the INVENTORY's message number: its ACKs echo it
 		uint8_t state, n;	// UI_INV_*
 		uint16_t keyset[2];
 		bool same[2];
@@ -426,9 +430,11 @@ static bool take_msgnum(uint32_t src, uint32_t msgnum, uint32_t now)
 	for (int i = 0; i < 4 && slot < 0; i++)
 		if (ids[i] == 0)
 			slot = i;
+	// Else one whose sender is gone from the roster or revoked (never un-revoked over the air, 10). Not one that was a
+	// net control and is now a member: promoted again, its old messages would pass a counter started from 0
 	for (int i = 0; i < 4 && slot < 0; i++) {
 		otar_member_t m;
-		if (!otar_roster_find(ids[i], &m) || m.rank == 0 || (m.flags & OTAR_M_REVOKED))
+		if (!otar_roster_find(ids[i], &m) || (m.flags & OTAR_M_REVOKED))
 			slot = i;
 	}
 	if (slot < 0)
@@ -442,7 +448,7 @@ static bool take_msgnum(uint32_t src, uint32_t msgnum, uint32_t now)
 	bool fresh = msgnum > *seen;
 	if (fresh)
 		*seen = msgnum;
-	settings_end(now);
+	settings_end_soon(now);	// saved at the next poll, not after changes rest: a power loss loses at most that much
 	return fresh;
 }
 
@@ -513,6 +519,12 @@ static void out_set(uint32_t dst, bool group, int len)
 {
 	if (len <= 0 || len > (int)OTAR_MSG_MAX)
 		return;
+	// Built with message number 0 (no saved reservation yet, 7.6): never sent. Two such messages would share a
+	// counter block; the request is answered when it comes again
+	if ((eng.out[5] | eng.out[6] | eng.out[7] | eng.out[8]) == 0) {
+		crypto_wipe(eng.out, sizeof eng.out);
+		return;
+	}
 	eng.out_len = (uint8_t)len;
 	eng.out_dst = dst;
 	eng.out_group = group;
@@ -565,6 +577,7 @@ __attribute__((noinline)) static void on_rekey(const radio_view_t *v, const uint
 	eng.ack.net_id = n->net_id;
 	eng.ack.keyset = m.keyset;
 	eng.ack.ckr = m.ckr;
+	eng.ack.echo = m.msgnum;
 	eng.ack_to = src;
 	(void)kcv_traffic(CODEPLUG_SYSTYPE_DMR_AES, DMR_AES_ALG_AES256, m.tek, OTAR_KEY_LEN, eng.ack.kcv);
 	// A resend of the keyset this radio holds: the same key ID and the same key (its check value), else refused
@@ -577,8 +590,17 @@ __attribute__((noinline)) static void on_rekey(const radio_view_t *v, const uint
 	} else if (is_next || is_active) {
 		eng.ack.result = key_kcv(v->otar.system, m.kid, have) && memcmp(have, eng.ack.kcv, KCV_LEN) == 0 ?
 				 OTAR_ACK_HELD : OTAR_ACK_REFUSED;
+		// The net's active key flagged now, and this radio holds it as its next: it missed the changeover by hand.
+		// Change over now (9)
+		if (eng.ack.result == OTAR_ACK_HELD && now_ks && is_next)
+			radio_req_otar(RADIO_OTAR_NOW, 0);
 	} else if (m.keyset <= v->otar.keyset || (v->otar.has_next && m.keyset < v->otar.next_keyset)) {
 		eng.ack.result = OTAR_ACK_OLD;	// keyset numbers only go up (7.1): never back to an older key
+	} else if (m.keyset > (uint32_t)v->otar.keyset + KEYSET_STEP_MAX || m.keyset > 0xFFFFu ||
+		   m.kid == v->otar.kid || (v->otar.has_prev && m.kid == v->otar.prev_kid)) {
+		// Too far ahead (one sender could park the net on a number nobody else reaches), or a key ID in use: the
+		// active key's record would be overwritten (7.1)
+		eng.ack.result = OTAR_ACK_REFUSED;
 	} else {
 		// Stored by the housekeeping task, then made the next keyset, then ACKed (engine_tick)
 		memcpy(eng.tek, m.tek, OTAR_KEY_LEN);
@@ -595,6 +617,21 @@ __attribute__((noinline)) static void on_rekey(const radio_view_t *v, const uint
 	eng.ack.msgnum = next_msgnum(now);
 	otar_addr_t back = { v->dmr.own_id, src };
 	out_set(src, false, otar_ack_build(eng.out, &back, eng.kmac, &eng.ack));
+}
+
+// The best-ranked net control not revoked on this radio's roster (0: none)
+static uint32_t authority(void)
+{
+	static otar_member_t c;
+	uint32_t id = 0;
+	uint8_t best = 0;
+	uint16_t total = 0;
+	for (uint16_t i = 0; otar_roster_window(i, &c, 1, &total) == 1; i++)
+		if (c.rank != 0 && !(c.flags & OTAR_M_REVOKED) && (best == 0 || c.rank < best)) {
+			best = c.rank;
+			id = c.id;
+		}
+	return id;
 }
 
 // A ROSTER (7.5) from a net control: one roster entry, stored (net.member, the housekeeping task), then ACKed. Refused:
@@ -621,6 +658,7 @@ static __attribute__((noinline)) void on_roster(const radio_view_t *v, const uin
 	memset(&eng.ack, 0, sizeof eng.ack);
 	eng.ack.net_id = n->net_id;
 	eng.ack.rank = n->rank;
+	eng.ack.echo = m->msgnum;
 	eng.ack_to = src;
 	otar_member_t *e = &eng.ros_e, *old = &eng.ros_d;
 	bool ok = otar_member_unpack(m->rec, OTAR_ROSTER_REC, e) && e->id != 0;
@@ -638,8 +676,15 @@ static __attribute__((noinline)) void on_roster(const radio_view_t *v, const uin
 	// then revoke the real one without the question a take over asks
 	bool above = ok && e->rank != 0 && e->rank < nc.rank;
 	bool own = ok && e->id == src && !same;
-	bool rank_set = ok && !same && nc.rank != 1u && ((found && old->rank != e->rank) || (!found && e->rank != 0));
-	if (!ok || (higher && !takeover) || above || own || rank_set || (self_out && n->rank != 0 && nc.rank >= n->rank)) {
+	// The authority is the best-ranked net control not revoked (net control 1 until a take over): only it gives or
+	// changes ranks, adds entries or changes a public key. And nobody un-revokes over the air: a radio revoked stays
+	// so until it joins again (otar.md 10, 23.2)
+	bool auth = src == authority();
+	bool rank_set = ok && !same && !auth && ((found && old->rank != e->rank) || (!found && e->rank != 0));
+	bool new_or_key = ok && !auth && (!found || memcmp(old->pub, e->pub, X25519_LEN) != 0);
+	bool unrevoke = found && (old->flags & OTAR_M_REVOKED) && !(e->flags & OTAR_M_REVOKED);
+	if (!ok || (higher && !takeover) || above || own || rank_set || new_or_key || unrevoke ||
+	    (self_out && n->rank != 0 && nc.rank >= n->rank)) {
 		eng.ack.result = OTAR_ACK_REFUSED;
 	} else if (takeover) {
 		if (!eng.pend.on || eng.pend.e.id == e->id) {
@@ -687,8 +732,9 @@ static __attribute__((noinline)) void on_zeroize(const radio_view_t *v, const ui
 						 const otar_net_t *n, uint32_t now)
 {
 	otar_member_t nc;
-	if (SETTINGS_FIELD(otar_wipe) != 1u || !otar_roster_find(src, &nc) || nc.rank == 0 || (nc.flags & OTAR_M_REVOKED))
-		return;
+	if (SETTINGS_FIELD(otar_wipe) != 1u || !otar_roster_find(src, &nc) || nc.rank == 0 || (nc.flags & OTAR_M_REVOKED) ||
+	    (n->rank != 0 && nc.rank >= n->rank))
+		return;		// a net control is wiped only by one above it (7.5)
 	if (!eng.pair_ok || eng.pair_id != src) {
 		eng.pair_ok = pair_keys(v->dmr.own_id, src, n->net_id, eng.ukek, eng.kmac);
 		eng.pair_id = src;
@@ -770,6 +816,7 @@ static __attribute__((noinline)) void on_inventory(const radio_view_t *v, const 
 	memset(&eng.ack, 0, sizeof eng.ack);
 	eng.ack.net_id = n->net_id;
 	eng.ack.rank = n->rank;
+	eng.ack.echo = m->msgnum;
 	eng.ack_to = src;
 	inv_ack(v, false, now);
 	eng.inv_next = v->otar.on && v->otar.has_next;
@@ -849,6 +896,7 @@ static __attribute__((noinline)) void inv_send(const radio_view_t *v, const otar
 	m->msgnum = next_msgnum(now);
 	otar_addr_t a = { v->dmr.own_id, to };
 	out_set(to, false, otar_inventory_build(eng.out, &a, eng.kmac, m));
+	eng.inv.sent_num = m->msgnum;
 	eng.inv.by = now + ACK_WAIT_MS;
 }
 
@@ -917,7 +965,7 @@ __attribute__((noinline)) static void on_member(const radio_view_t *v, const uin
 	if (!ok)
 		return;
 	if (m.type == OTAR_ACK && m.ckr == 0) {		// a roster entry's
-		if (eng.ros.on && eng.ros.waiting && src == eng.ros.dst) {
+		if (eng.ros.on && eng.ros.waiting && src == eng.ros.dst && m.echo == eng.ros.sent_num) {
 			eng.ros.waiting = false;
 			if (m.result == OTAR_ACK_STORED || m.result == OTAR_ACK_HELD)
 				eng.ros.sent++;
@@ -930,7 +978,7 @@ __attribute__((noinline)) static void on_member(const radio_view_t *v, const uin
 		}
 		return;
 	}
-	if (m.type == OTAR_ACK && src == eng.inv.id && eng.inv.state != UI_INV_NONE)
+	if (m.type == OTAR_ACK && src == eng.inv.id && eng.inv.state != UI_INV_NONE && m.echo == eng.inv.sent_num)
 		inv_got(v, &m);
 	// A member back on, or just joined, without the net's active key (it missed the changeover, or joined after the
 	// rekey): sent it, to change over to at once (otar.md 9). In a run, the run's REKEY comes first
@@ -946,7 +994,7 @@ __attribute__((noinline)) static void on_member(const radio_view_t *v, const uin
 		rk_member_t *mm = &rk->m[i];
 		if (mm->id != src)
 			continue;
-		if (m.type == OTAR_ACK && m.keyset == rk->keyset) {
+		if (m.type == OTAR_ACK && m.keyset == rk->keyset && m.echo == mm->sent) {
 			// OK only with the check value of the key this run sent: an old ACK of the same keyset (a run stopped
 			// and started again) or another net control's key under the same number doesn't count
 			bool same = memcmp(m.kcv, rk->kcv, sizeof rk->kcv) == 0;
@@ -1075,6 +1123,7 @@ __attribute__((noinline)) static bool rk_step(const radio_view_t *v, const otar_
 		crypto_wipe(ukek, sizeof ukek);
 		crypto_wipe(kmac, sizeof kmac);
 		out_set(mm->id, false, len);
+		mm->sent = (uint32_t)eng.out[5] << 24 | (uint32_t)eng.out[6] << 16 | (uint32_t)eng.out[7] << 8 | eng.out[8];
 		mm->state = UI_RK_SENT;
 		mm->tries++;
 		rk->cur = i;
@@ -1151,6 +1200,7 @@ static __attribute__((noinline)) bool ros_step(const radio_view_t *v, const otar
 		otar_addr_t a = { v->dmr.own_id, d->id };
 		out_set(d->id, false, otar_roster_build(eng.out, &a, eng.kmac, m));
 		eng.ros.dst = d->id;
+		eng.ros.sent_num = m->msgnum;
 		eng.ros.waiting = true;
 		eng.ros.ack_by = now + ACK_WAIT_MS;
 		return true;
@@ -1472,6 +1522,10 @@ uint8_t ui_svc_net_rekey(const radio_view_t *v, uint16_t mins)
 	rk->kid = kid;
 	rk->system = v->otar.system;
 	rk->keyset = (uint32_t)v->otar.keyset + 1u;
+	if (rk->keyset > 0xFFFFu) {
+		vPortFree(rk);
+		return UI_NET_BUSY;	// keyset numbers end at 65535: a new net from here
+	}
 	rk->mins = v->otar.clock_ok ? mins : 0u;	// by the clocks, else by hand; counted from when the key is made
 	rk->cur = 0xFF;
 	uint16_t total = 0, first = 0;
@@ -1701,8 +1755,9 @@ uint8_t ui_svc_net_wipe(const radio_view_t *v, uint32_t id)
 	if (own_rank() == 0)
 		return UI_NET_NOT_NC;
 	otar_member_t m;
-	if (id == v->dmr.own_id || !otar_roster_find(id, &m) || (m.flags & OTAR_M_REVOKED))
-		return UI_NET_NO_MEMBER;
+	if (id == v->dmr.own_id || !otar_roster_find(id, &m) || (m.flags & OTAR_M_REVOKED) ||
+	    (m.rank != 0 && m.rank <= own_rank()))
+		return UI_NET_NO_MEMBER;	// not a net control of this rank or above (7.5)
 	if (eng.zz_to != 0)
 		return UI_NET_BUSY;
 	eng.zz_to = id;

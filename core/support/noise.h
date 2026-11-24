@@ -21,13 +21,17 @@
 #define NOISE_APT_CUTOFF	177u	// the window's first symbol this many times in the window: failed
 #define NOISE_MIN_SPREAD	64	// counts between the lowest and highest sample: a receiver that isn't running fails
 #define NOISE_CREDIT_PER	4u	// one bit credited per this many samples (a quarter of the worst case measured)
+// Credited only when the channel is quiet (6.1): the signal strength at or below this, read before and after the grab.
+// A carrier strong enough to quiet the discriminator, which a sender could modulate to pass the health tests with
+// little entropy, is well above it; the radio's own floor is about -106 dBm
+#define NOISE_QUIET_DBM		(-100)
 
-enum { NOISE_OK, NOISE_SHORT, NOISE_RCT, NOISE_APT, NOISE_FLAT };
+enum { NOISE_OK, NOISE_SHORT, NOISE_RCT, NOISE_APT, NOISE_FLAT, NOISE_LOUD };
 
 typedef struct {
 	uint32_t grabs;		// noise_post calls
 	uint32_t passed;
-	uint32_t failed[5];	// by NOISE_* reason (failed[NOISE_OK] unused)
+	uint32_t failed[6];	// by NOISE_* reason (failed[NOISE_OK] unused; NOISE_LOUD: a signal on the channel)
 	uint32_t taken;		// digests the UI task stirred in
 } noise_stats_t;
 
@@ -36,8 +40,9 @@ typedef struct {
 uint8_t noise_health(const int16_t *x, unsigned n);
 // SHA-256 over a label and the samples, as little-endian octets
 void noise_digest(const int16_t *x, unsigned n, uint8_t out[SHA256_LEN]);
-// The radio task: checks and hashes a grab, and posts the digest with its credit (0 when it failed)
-void noise_post(const int16_t *x, unsigned n);
+// The radio task: checks and hashes a grab, and posts the digest with its credit (0 when it failed, or when the channel
+// wasn't quiet: quiet false)
+void noise_post(const int16_t *x, unsigned n, bool quiet);
 // The UI task: true when a digest was posted since the last call: it is in out, and *credit the bits to credit it
 // (0 for a grab that failed its health tests: stirred in all the same, counted for nothing)
 bool noise_take(uint8_t out[SHA256_LEN], unsigned *credit);

@@ -54,9 +54,11 @@ static uint16_t box_credit;
 static uint32_t taken_seq;
 static noise_stats_t stats;
 
-void noise_post(const int16_t *x, unsigned n)
+void noise_post(const int16_t *x, unsigned n, bool quiet)
 {
 	uint8_t why = noise_health(x, n);
+	if (why == NOISE_OK && !quiet)
+		why = NOISE_LOUD;	// mixed in, credited nothing: a signal may have shaped it
 	stats.grabs++;
 	if (why == NOISE_OK)
 		stats.passed++;

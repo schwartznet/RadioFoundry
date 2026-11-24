@@ -201,7 +201,7 @@ static void test_msgs(void)
 	CHECK(!otar_open(buf, n, &a, NULL, kmac, &got));
 	// The body is encrypted (otar.md 7): the check value isn't in the message, the header is, and the same body under
 	// the next message number encrypts to other octets (the counter block holds it)
-	CHECK(buf[0] == 'O' && buf[1] == OTAR_VERSION && OTAR_VERSION == 3u && buf[2] == OTAR_ACK && buf[8] == 5);
+	CHECK(buf[0] == 'O' && buf[1] == OTAR_VERSION && OTAR_VERSION == 4u && buf[2] == OTAR_ACK && buf[8] == 5);
 	found = 0;
 	for (int i = 0; i + 3 <= n; i++)
 		found += buf[i] == 0x4B && buf[i + 1] == 0x02 && buf[i + 2] == 0x69;

@@ -131,9 +131,10 @@ void debuglink_view_dmr_data(uint8_t part, dl_text_t *t)
 	// The receiver's noise for key fill's randomness (key-fill.md 6.1): grabs, passed, failed by reason, stirred in
 	noise_stats_t ns;
 	noise_get_stats(&ns);
-	dl_text(t, "noise.grabs=%u\nnoise.passed=%u\nnoise.short=%u\nnoise.rct=%u\nnoise.apt=%u\nnoise.flat=%u\nnoise.taken=%u\n",
-		(unsigned)ns.grabs, (unsigned)ns.passed, (unsigned)ns.failed[NOISE_SHORT], (unsigned)ns.failed[NOISE_RCT],
-		(unsigned)ns.failed[NOISE_APT], (unsigned)ns.failed[NOISE_FLAT], (unsigned)ns.taken);
+	dl_text(t, "noise.grabs=%u\nnoise.passed=%u\nnoise.short=%u\nnoise.rct=%u\nnoise.apt=%u\nnoise.flat=%u\nnoise.loud=%u\n"
+		"noise.taken=%u\n", (unsigned)ns.grabs, (unsigned)ns.passed, (unsigned)ns.failed[NOISE_SHORT],
+		(unsigned)ns.failed[NOISE_RCT], (unsigned)ns.failed[NOISE_APT], (unsigned)ns.failed[NOISE_FLAT],
+		(unsigned)ns.failed[NOISE_LOUD], (unsigned)ns.taken);
 #endif
 	return;
 counters:

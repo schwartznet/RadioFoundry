@@ -56,18 +56,21 @@ int main(void)
 	CHECK(!noise_take(d1, &credit));
 	noisy(5);
 	noise_digest(x, NOISE_SAMPLES, want);
-	noise_post(x, NOISE_SAMPLES);
+	noise_post(x, NOISE_SAMPLES, true);
 	CHECK(noise_take(d1, &credit) && credit == NOISE_SAMPLES / NOISE_CREDIT_PER && memcmp(d1, want, 32) == 0);
 	CHECK(!noise_take(d2, &credit));		// taken once
-	noise_post(x, 10);				// short: failed, still mixed in
+	noise_post(x, 10, true);			// short: failed, still mixed in
 	CHECK(noise_take(d2, &credit) && credit == 0 && memcmp(d1, d2, 32) != 0);
 	noisy(6);
 	uint8_t other[32];
 	noise_digest(x, NOISE_SAMPLES, other);
 	CHECK(memcmp(other, want, 32) != 0);	// another grab, another digest
+	// A good grab with a signal on the channel: mixed in, credited nothing (a carrier could have shaped it)
+	noise_post(x, NOISE_SAMPLES, false);
+	CHECK(noise_take(d2, &credit) && credit == 0);
 	noise_stats_t st;
 	noise_get_stats(&st);
-	CHECK(st.grabs == 2 && st.passed == 1 && st.failed[NOISE_SHORT] == 1 && st.taken == 2);
+	CHECK(st.grabs == 3 && st.passed == 1 && st.failed[NOISE_SHORT] == 1 && st.failed[NOISE_LOUD] == 1 && st.taken == 3);
 
 	printf("noiseTest: %d checks, %d failures\n", checks, failures);
 	return failures != 0;

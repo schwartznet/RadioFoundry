@@ -112,6 +112,7 @@ int otar_ack_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_
 	p[4] = m->ckr;
 	p[5] = m->result;
 	memcpy(&p[6], m->kcv, 3);
+	put32(&p[9], m->echo);
 	return seal(out, (int)(OTAR_ACK_LEN - OTAR_MAC), a, k_mac);
 }
 
@@ -230,6 +231,7 @@ static bool parse(otar_msg_t *m, const uint8_t *p, const uint8_t *ukek)
 		m->ckr = p[4];
 		m->result = p[5];
 		memcpy(m->kcv, &p[6], 3);
+		m->echo = get32(&p[9]);
 		return true;
 	case OTAR_HELLO:
 		m->keyset = get32(p);

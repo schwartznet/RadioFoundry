@@ -48,6 +48,12 @@ unsigned entropy_bits(void)
 	return credit;
 }
 
+void entropy_seed_out(uint8_t out[SHA256_LEN])
+{
+	hash_pool('D', NULL, 0, out);
+	hash_pool('N', NULL, 0, pool);	// the seed can't be worked back to the pool in use
+}
+
 void entropy_take(uint8_t *out, size_t n)
 {
 	uint8_t block[SHA256_LEN];

@@ -396,7 +396,25 @@ static void test_member(void)
 	rekey_msg(&m, 7, 81, 0x71, 0);
 	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
 	run(1000);
-	CHECK(last_out(&r) && r.result == OTAR_ACK_STORED);
+	CHECK(last_out(&r) && r.result == OTAR_ACK_STORED && r.echo == m.msgnum);
+
+	// The net changed over by hand while this radio was off: the catch-up names keyset 7, which it holds as next.
+	// HELD, and it changes over (9)
+	now_before = req_now;
+	rekey_msg(&m, 7, 81, 0x71, OTAR_RK_NOW);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(1000);
+	CHECK(last_out(&r) && r.result == OTAR_ACK_HELD && req_now == now_before + 1 && keys.ks_active == 7);
+
+	// Too far ahead (one sender parking the net on a number nobody reaches), or a key ID in use: refused (7.1)
+	rekey_msg(&m, 7 + 9, 90, 0x90, OTAR_RK_NOW);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(1000);
+	CHECK(last_out(&r) && r.result == OTAR_ACK_REFUSED && keys.ks_active == 7);
+	rekey_msg(&m, 8, 81, 0x82, 0);		// 81 is the active key's ID
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(1000);
+	CHECK(last_out(&r) && r.result == OTAR_ACK_REFUSED && tek[81].k[0] == 0x71);
 }
 
 // ===================== ranks in ROSTER (otar.md 10): the test is net control 2
@@ -410,6 +428,10 @@ static void test_ranks(void)
 	roster_add(OTHER_NC, 1, nc1_pub);
 	roster_add(PEER_ID, 2, peer_pub);
 	roster_add(ENGINE_ID, 0, eng_pub);
+	uint8_t xpub[32];
+	memset(xpub, 0x31, 32);
+	roster_add(4688888u, 0, xpub);
+	roster_add(4688889u, 0, xpub);
 	otar_start(&keys, 0, 77);
 	out_n = 0;
 	run(25000);
@@ -468,26 +490,67 @@ static void test_ranks(void)
 	run(1000);
 	CHECK(last_out(&r) && r.result == OTAR_ACK_REFUSED && otar_roster_find(ENGINE_ID, &e) && e.rank == 0);
 
-	// NC 2 adding a plain member: taken
+	// NC 2 adding a member, or changing a member's public key: refused, only the authority (NC 1) does (10)
 	memset(&e, 0, sizeof e);
-	e.id = 4688888u;
+	e.id = 4677777u;
 	memset(&m, 0, sizeof m);
 	m.rank = 2;
 	otar_member_pack(&e, m.rec);
 	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ROSTER, &m, buf));
 	run(1000);
-	CHECK(last_out(&r) && r.result == OTAR_ACK_STORED && otar_roster_find(4688888u, &e));
+	CHECK(last_out(&r) && r.result == OTAR_ACK_REFUSED && !otar_roster_find(4677777u, &e));
+	memset(&e, 0, sizeof e);
+	e.id = 4688888u;
+	memset(e.pub, 0x99, 32);
+	memset(&m, 0, sizeof m);
+	m.rank = 2;
+	otar_member_pack(&e, m.rec);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ROSTER, &m, buf));
+	run(1000);
+	CHECK(last_out(&r) && r.result == OTAR_ACK_REFUSED && otar_roster_find(4688888u, &e) && e.pub[0] == 0x31);
 
-	// Counters per sender: NC 1's high numbers don't lock NC 2 out. The engine takes NC 2's low ones still
+	// NC 2 revoking a member: taken. Un-revoking it again: refused, by anyone (10)
+	memset(&e, 0, sizeof e);
+	e.id = 4688888u;
+	e.flags = OTAR_M_REVOKED;
+	memcpy(e.pub, xpub, 32);
+	memset(&m, 0, sizeof m);
+	m.rank = 2;
+	otar_member_pack(&e, m.rec);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ROSTER, &m, buf));
+	run(1000);
+	CHECK(last_out(&r) && r.result == OTAR_ACK_STORED && r.echo == m.msgnum && otar_roster_find(4688888u, &e) &&
+	      (e.flags & OTAR_M_REVOKED));
+	e.flags = 0;
+	memset(&m, 0, sizeof m);
+	m.rank = 2;
+	otar_member_pack(&e, m.rec);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ROSTER, &m, buf));
+	run(1000);
+	CHECK(last_out(&r) && r.result == OTAR_ACK_REFUSED && otar_roster_find(4688888u, &e) && (e.flags & OTAR_M_REVOKED));
+
+	// NC 2's counter: a message with one of its old numbers gets no answer at all; a fresh one is taken
+	uint32_t keep = peer_msgnum;
 	peer_msgnum = 10;
 	memset(&e, 0, sizeof e);
 	e.id = 4688889u;
+	e.flags = OTAR_M_REVOKED;
+	memcpy(e.pub, xpub, 32);
+	memset(&m, 0, sizeof m);
+	m.rank = 2;
+	otar_member_pack(&e, m.rec);
+	int before = out_n;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ROSTER, &m, buf));
+	run(1000);
+	CHECK(out_n == before && otar_roster_find(4688889u, &e) && !(e.flags & OTAR_M_REVOKED));
+	peer_msgnum = keep;
+	e.flags = OTAR_M_REVOKED;
 	memset(&m, 0, sizeof m);
 	m.rank = 2;
 	otar_member_pack(&e, m.rec);
 	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ROSTER, &m, buf));
 	run(1000);
-	CHECK(last_out(&r) && r.result == OTAR_ACK_STORED);
+	CHECK(last_out(&r) && r.result == OTAR_ACK_STORED && r.echo == m.msgnum);
 }
 
 // ===================== the engine as net control 1, the test a member
@@ -530,6 +593,7 @@ static void test_nc(void)
 	m.keyset = 5;
 	m.ckr = 1;
 	m.result = OTAR_ACK_STORED;
+	m.echo = r.msgnum;		// answers that REKEY
 	memcpy(m.kcv, wrong, 3);
 	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &m, buf));
 	run(500);
@@ -541,10 +605,22 @@ static void test_nc(void)
 	for (int i = 0; i < 400 && out_n == sent; i++)
 		run(1000);
 	CHECK(out_n > sent && last_out(&r) && r.type == OTAR_REKEY && r.keyset == 5);
+	uint32_t first = r.msgnum;
+	// An ACK echoing an older REKEY (a recording of the first try's answer): doesn't count (7.2)
 	memset(&m, 0, sizeof m);
 	m.keyset = 5;
 	m.ckr = 1;
 	m.result = OTAR_ACK_STORED;
+	m.echo = first - 1u;
+	memcpy(m.kcv, right, 3);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &m, buf));
+	run(300);
+	CHECK(ui_svc_net_rekey_member(0, &id, &state, &tries) && state != UI_RK_OK);
+	memset(&m, 0, sizeof m);
+	m.keyset = 5;
+	m.ckr = 1;
+	m.result = OTAR_ACK_STORED;
+	m.echo = first;
 	memcpy(m.kcv, right, 3);
 	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &m, buf));
 	run(500);
@@ -565,6 +641,14 @@ static void test_msgnum(void)
 	out_n = 0;
 	run(25000);
 	CHECK(out_n == 0);		// no HELLO: the reservation isn't saved
+	// A REKEY now: stored, but its ACK would carry message number 0 (a counter block two messages could share). Not
+	// sent; the net control's retry gets it once a reservation is saved
+	otar_msg_t rq;
+	uint8_t rbuf[OTAR_MSG_MAX];
+	rekey_msg(&rq, 2, 50, 0x50, 0);
+	deliver(PEER_ID, ENGINE_ID, false, rbuf, build(OTAR_REKEY, &rq, rbuf));
+	run(1000);
+	CHECK(out_n == 0);
 	auto_save = true;
 	saved = live;
 	run(1000);

@@ -464,13 +464,26 @@ static void begin(uint32_t now)
 void ui_svc_noise_want(uint32_t now)
 {
 	static uint32_t asked;
-	static bool ever;
+	static bool ever, seeded;
 	uint8_t d[SHA256_LEN];
 	unsigned credit = 0;
+	settings_t *st;
+	if (!seeded) {
+		// The seed saved at the last start's grab: mixed in, credited nothing (6.1)
+		seeded = true;
+		st = settings_begin();
+		memcpy(d, st->entropy_seed, sizeof d);
+		settings_end(now);
+		entropy_stir(d, sizeof d, 0);
+	}
 	if (noise_take(d, &credit)) {
 		entropy_stir(d, sizeof d, credit);
-		crypto_wipe(d, sizeof d);
+		entropy_seed_out(d);
+		st = settings_begin();
+		memcpy(st->entropy_seed, d, sizeof d);
+		settings_end(now);
 	}
+	crypto_wipe(d, sizeof d);
 	if (entropy_bits() < ENTROPY_FULL && (!ever || (uint32_t)(now - asked) >= NOISE_ASK_MS)) {
 		ever = true;
 		asked = now;

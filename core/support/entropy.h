@@ -21,5 +21,7 @@ void entropy_take(uint8_t *out, size_t n);
 // The pool, its count and its credit zeroed, as at power on: the emergency wipe (zeroize_ram_hook), from the
 // housekeeping task with the scheduler suspended so the UI task can't stir in the middle of it
 void entropy_wipe(void);
+// A one-way hash of the pool for a saved seed (key-fill.md 6.1); the pool moves on, its credit stays
+void entropy_seed_out(uint8_t out[32]);
 
 #endif

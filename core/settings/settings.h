@@ -284,6 +284,9 @@ typedef struct {
 	// The DMR IDs the four counters above belong to (otar.md 7.6), appended: a counter is a sender's, not a rank's, so
 	// a change of ranks can't open a replay window. 0: free. An older record reads 0 (the counters start again)
 	uint32_t otar_seen_id[4];
+	// The randomness pool's seed (key-fill.md 6.1), appended: a one-way hash of the pool, saved when a noise digest is
+	// stirred in and stirred back (credited nothing) at the next start. Wiped with the keys. An older record reads 0
+	uint8_t entropy_seed[32];
 } settings_t;
 
 // Pages: settings_t is stored as records of SETTINGS_PAGE_BYTES each (settings-store.md 2.1). Only the pages its size

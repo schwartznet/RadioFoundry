@@ -15,7 +15,7 @@
 #include "otar/otar_crypto.h"
 
 #define OTAR_PORT		4103u	// UDP source and destination port
-#define OTAR_VERSION		3u	// 3: HELLO carries keyset numbers, TIME goes to each member; 2: the body encrypted
+#define OTAR_VERSION		4u	// 4: ACK echoes its request's number; 3: HELLO keysets, TIME per member; 2: body encrypted
 #define OTAR_ENC_LABEL		"RFOTAR2 enc"	// HKDF info of the body's key
 #define OTAR_HDR		10u
 #define OTAR_MAC		8u
@@ -33,7 +33,7 @@ enum { OTAR_ACK_STORED = 0, OTAR_ACK_HELD = 1, OTAR_ACK_OLD = 2, OTAR_ACK_STORE_
        OTAR_ACK_NOT_MANAGED = 5, OTAR_ACK_REFUSED = 6, OTAR_ACK_ASKED = 7 };
 
 #define OTAR_REKEY_LEN		(OTAR_HDR + 4u + 1u + 1u + 4u + 1u + 40u + OTAR_MAC)	// 69
-#define OTAR_ACK_LEN		(OTAR_HDR + 4u + 1u + 1u + 3u + OTAR_MAC)		// 27
+#define OTAR_ACK_LEN		(OTAR_HDR + 4u + 1u + 1u + 3u + 4u + OTAR_MAC)		// 31
 #define OTAR_HELLO_LEN		(OTAR_HDR + 4u + 4u + 1u + OTAR_MAC)			// 27
 #define OTAR_CHANGEOVER_LEN	(OTAR_HDR + 4u + 1u + OTAR_MAC)				// 23
 #define OTAR_ROSTER_REC		37u	// a roster record (otar_net.h OTAR_REC_LEN): DMR ID, rank, flags, public key
@@ -60,6 +60,7 @@ typedef struct {
 	// ACK (of a ROSTER: CKR 0, keyset 0, the check value the entry's fingerprint)
 	uint8_t result;
 	uint8_t kcv[3];
+	uint32_t echo;		// the message number of the message it answers (7.2)
 	// HELLO: the active keyset's number in keyset, the next one's here (0 none)
 	uint32_t next_keyset;
 	// ZEROIZE: the DMR ID of the radio told to wipe its keys

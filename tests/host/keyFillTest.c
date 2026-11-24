@@ -18,6 +18,7 @@
 #include "radio/radio.h"
 #include "ui/ui_svc.h"
 #include "zeroize/zeroize.h"
+#include "settings/settings.h"
 #include "board.h"
 #include "FreeRTOS.h"
 #include "task.h"
@@ -624,6 +625,10 @@ bool key_fill_send(uint32_t dst, const uint8_t *msg, int len)
 }
 kf_send_state_t key_fill_send_state(void) { return send_st; }
 void radio_req_noise(void) {}
+// The settings the key fill UI touches here (the randomness seed, key-fill.md 6.1): RAM only
+static settings_t kf_settings;
+settings_t *settings_begin(void) { return &kf_settings; }
+void settings_end(uint32_t now_ms) { (void)now_ms; }
 void radio_req_tx_low(bool on)
 {
 	locked_call |= suspended;	// posts to the radio task: the same

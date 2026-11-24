@@ -183,6 +183,7 @@ uint8_t zeroize_run(bool keys_only)
 		st->privacy_active = 0;
 #if CONFIG_OTAR
 		memset(&st->otar_net, 0, sizeof(st->otar_net));	// the radio's X25519 key pair and its net (otar.md 5)
+		memset(st->entropy_seed, 0, sizeof(st->entropy_seed));	// the randomness pool's seed (key-fill.md 6.1)
 		memset(&st->otar, 0, sizeof(st->otar));	// its keysets: the keys they name are gone (otar.md 21)
 #endif
 	} else {
