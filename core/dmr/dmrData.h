@@ -94,6 +94,7 @@ typedef struct
 #define DMR_UDP_PORT_ETSI_TEXT		5016		// ETSI IP text (TS 102 361-3 5.7.1; compressed port ID 1)
 #define DMR_UDP_PORT_NMEA			10110		// NMEA over UDP: the DMR APRS position some radios send (docs/spec/dmr-data.md 3)
 #define DMR_UDP_PORT_KEY_FILL		4101		// key fill and joining an OTAR net (key-fill.md 3): sent in the clear (13.5)
+#define DMR_UDP_PORT_OTAR		4103		// OTAR's key management messages (otar.md 7): sent in the clear (13.5)
 
 // The privacy header: a proprietary second header (TS 102 361-1 8.2.1.4, DPF 15) with the Motorola MFID after the
 // first data header, marking the packet's user data encrypted (docs/spec/dmr-data.md, privacy). Octet 0 SAP | DPF 15,
@@ -260,8 +261,8 @@ uint8_t dmrDataGetUdpCompression(void);
 // header, whatever the mode, all included (dmrDataEncodeIP)
 bool dmrDataUdpCompress(uint16_t srcPort, uint16_t dstPort);
 // Whether a UDP datagram between these ports goes in the clear on a channel whose privacy encrypts data (docs/spec/
-// dmr-data.md 13.5): key fill's, which its own exchange protects and which must reach a radio that doesn't hold the
-// channel's key yet (key-fill.md 3)
+// dmr-data.md 13.5): key fill's and OTAR's, which protect themselves and must reach a radio that doesn't hold the
+// channel's key yet (key-fill.md 3, otar.md 7)
 bool dmrDataUdpClear(uint16_t srcPort, uint16_t dstPort);
 // The packets built until it is set false again go without the privacy header and unencrypted, and pass
 // dmrDataPrivacyAllows (radio task: the data service sets it around one such packet's build)

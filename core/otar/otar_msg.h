@@ -2,9 +2,11 @@
 // Copyright (c) 2026 The RadioFoundry Authors
 // OTAR key management messages (docs/spec/otar.md 7): REKEY, ACK, HELLO, CHANGEOVER, INVENTORY, ROSTER, TIME and
 // ZEROIZE, built and checked.
-// Pure: no RTOS, no allocation. Every message: a 10-octet header, a body, and the first 8 octets of an AES-256-CMAC
-// over the sender's and receiver's DMR IDs (3 + 3) and every octet before it. REKEY, ACK and HELLO go between two
-// radios under their pair's MAC key; CHANGEOVER and TIME go to the talkgroup under a key from a TEK (7.3)
+// Pure: no RTOS, no allocation. Every message: a 10-octet header in the clear, a body encrypted with AES-256-CTR under
+// a key from the MAC key, and the first 8 octets of an AES-256-CMAC over the sender's and receiver's DMR IDs (3 + 3)
+// and every octet before it (encrypt then MAC, otar.md 7). REKEY, ACK and HELLO go between two radios under their
+// pair's MAC key; CHANGEOVER and TIME go to the talkgroup under a key from a TEK (7.3). The messages protect
+// themselves: they go in the clear at the data layer (dmr-data.md 13.5)
 #ifndef RFOUNDRY_OTAR_MSG_H
 #define RFOUNDRY_OTAR_MSG_H
 
@@ -13,13 +15,18 @@
 #include "otar/otar_crypto.h"
 
 #define OTAR_PORT		4103u	// UDP source and destination port
-#define OTAR_VERSION		1u
+#define OTAR_VERSION		2u	// 2: the body encrypted (1 had it only under the channel's key)
+#define OTAR_ENC_LABEL		"RFOTAR2 enc"	// HKDF info of the body's key
 #define OTAR_HDR		10u
 #define OTAR_MAC		8u
 #define OTAR_MSG_MAX		72u
 
 enum { OTAR_REKEY = 1, OTAR_ACK = 2, OTAR_CHANGEOVER = 3, OTAR_HELLO = 4, OTAR_INVENTORY = 5, OTAR_ROSTER = 6,
        OTAR_TIME = 7, OTAR_ZEROIZE = 8 };
+
+// REKEY flags (7.1)
+#define OTAR_RK_CLOCK	0x01u	// change over at the changeover time by the member's clock
+#define OTAR_RK_NOW	0x02u	// the net's active key: change over to it once stored (a member that missed it, 9)
 
 // ACK results (7.2)
 enum { OTAR_ACK_STORED = 0, OTAR_ACK_HELD = 1, OTAR_ACK_OLD = 2, OTAR_ACK_STORE_FAILED = 3, OTAR_ACK_WRAP = 4,
@@ -45,7 +52,7 @@ typedef struct {
 	uint8_t ckr;
 	uint8_t kid;
 	uint32_t changeover;	// REKEY: UTC minutes since 2026-01-01, 0 by hand
-	uint8_t flags;		// REKEY: bit 0 change over by the member's clock; HELLO: bit 0 a next key is held
+	uint8_t flags;		// REKEY: OTAR_RK_*; HELLO: bit 0 a next key is held
 	union {
 		uint8_t tek[OTAR_KEY_LEN];	// REKEY: unwrapped (wipe it)
 		uint8_t rec[OTAR_ROSTER_REC];	// ROSTER: the entry, as the roster stores it

@@ -199,6 +199,24 @@ static void test_msgs(void)
 	CHECK(n == (int)OTAR_ACK_LEN && otar_open(buf, n, &swapped, NULL, kmac, &got));
 	CHECK(got.type == OTAR_ACK && got.keyset == 3 && got.result == OTAR_ACK_STORED && got.kcv[2] == 0x69 && got.rank == 0);
 	CHECK(!otar_open(buf, n, &a, NULL, kmac, &got));
+	// The body is encrypted (otar.md 7): the check value isn't in the message, the header is, and the same body under
+	// the next message number encrypts to other octets (the counter block holds it)
+	CHECK(buf[0] == 'O' && buf[1] == OTAR_VERSION && OTAR_VERSION == 2u && buf[2] == OTAR_ACK && buf[8] == 5);
+	found = 0;
+	for (int i = 0; i + 3 <= n; i++)
+		found += buf[i] == 0x4B && buf[i + 1] == 0x02 && buf[i + 2] == 0x69;
+	CHECK(found == 0 && !(buf[OTAR_HDR] == 0 && buf[OTAR_HDR + 1] == 0 && buf[OTAR_HDR + 2] == 0 && buf[OTAR_HDR + 3] == 3));
+	uint8_t first[OTAR_MSG_MAX];
+	memcpy(first, buf, (size_t)n);
+	m.msgnum = 6;
+	CHECK(otar_ack_build(buf, &swapped, kmac, &m) == n && memcmp(&first[OTAR_HDR], &buf[OTAR_HDR], 9) != 0);
+	CHECK(otar_open(buf, n, &swapped, NULL, kmac, &got) && got.kcv[0] == 0x4B && got.keyset == 3);
+	// Opening leaves the message as it came, so a second open gives the same
+	memcpy(first, buf, (size_t)n);
+	CHECK(otar_open(buf, n, &swapped, NULL, kmac, &got) && memcmp(first, buf, (size_t)n) == 0);
+	// A body octet changed fails the MAC before anything is decrypted
+	buf[OTAR_HDR + 4] ^= 1;
+	CHECK(!otar_open(buf, n, &swapped, NULL, kmac, &got));
 
 	// HELLO
 	memset(&m, 0, sizeof m);
@@ -281,7 +299,7 @@ static void test_msgs(void)
 	// Headers: another version, magic, net 0, a rank past 4, an unknown type
 	uint8_t h[OTAR_MSG_MAX];
 	memcpy(h, buf, (size_t)n);
-	h[1] = 2;
+	h[1] = OTAR_VERSION + 1u;
 	CHECK(!otar_peek(h, n, &got));
 	memcpy(h, buf, (size_t)n);
 	h[0] = 'P';

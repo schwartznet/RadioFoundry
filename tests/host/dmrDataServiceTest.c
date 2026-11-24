@@ -2737,9 +2737,11 @@ static void testPrivacy(void)
 	CHECK(h != NULL && stats.txPrivacyBlocked == blocked && stats.txPrivacy == before);
 	CHECK(h != NULL && (h + 1 >= &lastTx[lastTxCount] || h[1].dataType != DMR_TYPE_DATA_HEADER ||
 			    (h[1].payload[0] & 0x0F) != 15));
+	CHECK(dmrDataUdpClear(DMR_UDP_PORT_OTAR, DMR_UDP_PORT_OTAR) && !dmrDataUdpClear(DMR_UDP_PORT_KEY_FILL, DMR_UDP_PORT_OTAR) &&
+	      !dmrDataUdpClear(4105, 4105));	// OTAR's go in the clear too; mixed ports don't
 	heard = packetsHeard;
 	rxBursts(lastTx, lastTxCount);	// as a radio with this channel heard it: clear, so passed on
-	kf[1] = kf[3] = 0x07;		// port 4103 (OTAR): encrypted as before
+	kf[1] = kf[3] = 0x09;		// port 4105 (no key fill, no OTAR): encrypted as before
 	runMainTask(2000);
 	before = stats.txPrivacy;
 	CHECK(dmrDataServiceSendIPDelivery(false, RADIO_A, DMR_IP_PROTO_UDP, kf, sizeof kf, DMR_IPS_UNCONFIRMED));

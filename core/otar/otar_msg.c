@@ -46,8 +46,45 @@ static void mac(const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const u
 	crypto_wipe(tag, sizeof tag);
 }
 
+// The body's encryption key: HKDF-Expand with the message's MAC key as the PRK (RFC 5869 2.3; it is 32 uniform octets)
+static __attribute__((noinline)) void enc_key(const uint8_t k_mac[OTAR_KEY_LEN], uint8_t k_enc[OTAR_KEY_LEN])
+{
+	(void)hkdf_expand(k_mac, OTAR_ENC_LABEL, sizeof OTAR_ENC_LABEL - 1u, k_enc, OTAR_KEY_LEN);
+}
+
+// AES-256-CTR (NIST SP 800-38A 6.5) over n octets of body, in place (otar.md 7): the counter block is the sender's and
+// receiver's DMR IDs (3 + 3), the type, the message number (4) and the rank from the header hdr, then a 32-bit block
+// counter from 0. A sender's message numbers never repeat (otar.md 7.6), so no counter block does under one key
+static __attribute__((noinline)) void crypt_body(const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN],
+						 const uint8_t *hdr, uint8_t *body, int n)
+{
+	static aes256_ctx_t ctx;	// off the stack (one caller at a time: the UI task's OTAR engine, docs/spec/otar.md 4)
+	uint8_t k[OTAR_KEY_LEN], ctr[16], ks[16];
+	enc_key(k_mac, k);
+	aes256Init(&ctx, k);
+	crypto_wipe(k, sizeof k);
+	ctr[0] = (uint8_t)(a->src >> 16);
+	ctr[1] = (uint8_t)(a->src >> 8);
+	ctr[2] = (uint8_t)a->src;
+	ctr[3] = (uint8_t)(a->dst >> 16);
+	ctr[4] = (uint8_t)(a->dst >> 8);
+	ctr[5] = (uint8_t)a->dst;
+	ctr[6] = hdr[2];
+	memcpy(&ctr[7], &hdr[5], 5);	// message number, rank
+	for (int i = 0; i < n; i += 16) {
+		put32(&ctr[12], (uint32_t)(i / 16));
+		aes256Encrypt(&ctx, ctr, ks);
+		for (int j = 0; j < 16 && i + j < n; j++)
+			body[i + j] ^= ks[j];
+	}
+	crypto_wipe(&ctx, sizeof ctx);
+	crypto_wipe(ks, sizeof ks);
+}
+
+// Encrypt then MAC: the body encrypted, then the MAC over the header and the encrypted body
 static int seal(uint8_t *out, int n, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN])
 {
+	crypt_body(a, k_mac, out, &out[OTAR_HDR], n - (int)OTAR_HDR);
 	mac(a, k_mac, out, n, &out[n]);
 	return n + (int)OTAR_MAC;
 }
@@ -153,6 +190,8 @@ bool otar_peek(const uint8_t *msg, int len, otar_msg_t *m)
 	return m->net_id != 0 && m->rank <= 4u;
 }
 
+static bool parse(otar_msg_t *m, const uint8_t *p, const uint8_t *ukek);
+
 bool otar_open(const uint8_t *msg, int len, const otar_addr_t *a, const uint8_t *ukek,
 	       const uint8_t k_mac[OTAR_KEY_LEN], otar_msg_t *m)
 {
@@ -164,7 +203,20 @@ bool otar_open(const uint8_t *msg, int len, const otar_addr_t *a, const uint8_t 
 	crypto_wipe(want, sizeof want);
 	if (!ok)
 		return false;
-	const uint8_t *p = &msg[OTAR_HDR];
+	// The MAC checked: the body decrypted into a copy (msg stays as it came)
+	uint8_t p[OTAR_MSG_MAX - OTAR_HDR - OTAR_MAC];
+	int bn = len - (int)OTAR_HDR - (int)OTAR_MAC;
+	memcpy(p, &msg[OTAR_HDR], (size_t)bn);
+	crypt_body(a, k_mac, msg, p, bn);
+	ok = parse(m, p, ukek);
+	crypto_wipe(p, sizeof p);
+	if (!ok)
+		crypto_wipe(m->tek, sizeof m->tek);
+	return ok;
+}
+
+static bool parse(otar_msg_t *m, const uint8_t *p, const uint8_t *ukek)
+{
 	switch (m->type) {
 	case OTAR_REKEY:
 		m->keyset = get32(p);
@@ -172,11 +224,7 @@ bool otar_open(const uint8_t *msg, int len, const otar_addr_t *a, const uint8_t 
 		m->kid = p[5];
 		m->changeover = get32(&p[6]);
 		m->flags = p[10];
-		if (ukek == NULL || !otar_kw_unwrap(ukek, &p[11], 40, m->tek) || m->ckr < 1 || m->ckr > 4) {
-			crypto_wipe(m->tek, sizeof m->tek);
-			return false;
-		}
-		return true;
+		return ukek != NULL && otar_kw_unwrap(ukek, &p[11], 40, m->tek) && m->ckr >= 1 && m->ckr <= 4;
 	case OTAR_ACK:
 		m->keyset = get32(p);
 		m->ckr = p[4];

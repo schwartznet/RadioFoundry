@@ -154,7 +154,7 @@ void dmrDataSetTxClear(bool clear)
 
 bool dmrDataUdpClear(uint16_t srcPort, uint16_t dstPort)
 {
-	return (srcPort == DMR_UDP_PORT_KEY_FILL) && (dstPort == DMR_UDP_PORT_KEY_FILL);
+	return (srcPort == dstPort) && ((srcPort == DMR_UDP_PORT_KEY_FILL) || (srcPort == DMR_UDP_PORT_OTAR));
 }
 
 static bool txEncrypts(void)

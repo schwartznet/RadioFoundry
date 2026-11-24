@@ -7,6 +7,10 @@
 #include "otar/otar_api.h"
 #include "dmr/dmrAirQueue.h"
 #include "dmr/dmrDataService.h"
+#include "dmr/dmrData.h"
+
+// OTAR goes in the clear on an AES channel (dmrDataUdpClear): its messages are encrypted and MACed themselves
+_Static_assert(OTAR_PORT == DMR_UDP_PORT_OTAR, "OTAR's port is the data layer's clear one");
 
 #define UDP_HEADER	8
 
