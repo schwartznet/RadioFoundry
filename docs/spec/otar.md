@@ -440,6 +440,10 @@ still on key 77, restarted, said HELLO and got key 78 from the net control as a 
 Net keys showed "Keyset 2: key 78", old key 77 heard; `data.privacy_rx_dropped` stayed 0 on both (nothing went under
 the channel's key).
 
+Then a fourth radio, fresh from stock firmware with only key 77 in its codeplug and no keys managed, joined net 8B16
+(code compared) on this section's last change. With no further step it started managing the channel's keys, said HELLO
+and took key 78: the net control's Ask its keys showed "Keys: keyset 2 OK". All four radios hold key 78.
+
 Tests: `otarCryptoTest` (a body's octets aren't in the message, the same body under the next message number encrypts
 differently, a changed ciphertext octet fails the MAC, opening leaves the message unchanged, version 1 refused);
 `dmrDataServiceTest` (port 4103 goes in the clear, mixed ports don't).
