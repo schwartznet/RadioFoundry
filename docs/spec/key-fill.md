@@ -227,6 +227,24 @@ private key guessable, a listener could work out the shared secret. The code (2)
 middle, not against weak randomness. A hardware noise source (the receiver's baseband samples) can replace the
 key presses; that is open.
 
+**The receiver's noise, measured (2026-11-24).** On one DM-32UV, the FM receive copy (the discriminator's output,
+`modem-hrc7000.md` 10.1, 8000 samples a second, through the debug link's air tap in a `CONFIG_AIR_RAW` bench build),
+with first estimates after NIST SP 800-90B 6.3 (most common value, collision, Markov, t-tuple; `RadioFoundry-drafts`
+`noise/estimate.py`, not the NIST tool and not a certification), in bits of min-entropy per sample:
+
+| Case | Spread (sd, counts) | Low 4 bits | Low 2 bits | Low bit |
+|---|---|---|---|---|
+| Quiet channel | 8457 | 3.68 | 1.87 | 0.87 |
+| A DMR over from a radio 1 m away | 9219 | 3.78 | 1.83 | 0.80 |
+| An unmodulated FM carrier from 1 m (the worst case: the carrier quiets the discriminator) | 773 (down to 258) | 3.71 | 1.84 | 0.76 |
+
+The low bits barely correlate from one sample to the next (under 0.01) in every case, and even the quieted noise spans
+hundreds of counts, against 16 for the low 4 bits. Crediting one bit per sample, a key's 128 bits take 16 ms. Still to
+do before it replaces the key presses: a way to read a few hundred samples at the start of a session without the bench
+build (the tap halts the slot engine), the health tests SP 800-90B 4.4 asks for at run time (repetition count,
+adaptive proportion), a longer capture on more radios with the NIST estimators, and keeping the presses as a second
+source rather than dropping them.
+
 ## 7. Security
 
 | Threat | What stops it |
