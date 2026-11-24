@@ -448,6 +448,7 @@ Missed changeover, on air the same day: with 4675810 switched off, the net contr
 status "Key 79: 2 of 3 have it", the off radio "no answer") and changed the net over. Switched back on, 4675810 said
 HELLO from key 78 and took key 79 as a REKEY flagged now: 45 s after start its Net keys showed "Keyset 3: key 79", old
 key 78 heard, `data.privacy_rx_dropped` 0.
+A call from the net control then reached both cabled members as AES-256 (PI header algorithm 0x25) under key ID 79.
 
 Tests: `otarCryptoTest` (a body's octets aren't in the message, the same body under the next message number encrypts
 differently, a changed ciphertext octet fails the MAC, opening leaves the message unchanged, version 1 refused);
