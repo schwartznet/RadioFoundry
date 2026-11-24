@@ -107,7 +107,7 @@ bool key_fill_send(uint32_t dst, const uint8_t *msg, int len)
 	udp[6] = 0;	// computed with the IPv4 header
 	udp[7] = 0;
 	airqItem_t it = { .kind = AIRQ_IP, .owner = AIRQ_OWNER_KEY_FILL, .protocol = DMR_IP_PROTO_UDP,
-			  .delivery = DMR_IPS_CONFIRMED, .dst = dst, .waitMs = KF_SEND_WAIT_MS, .data = udp,
+			  .delivery = DMR_IPS_CONFIRMED | DMR_IPS_SELF_PROTECTED, .dst = dst, .waitMs = KF_SEND_WAIT_MS, .data = udp,
 			  .length = UDP_HEADER, .tail = msg, .tailLength = (uint16_t)len };
 	send_state = KF_SEND_SENDING;
 	if (!airqPut(&it)) {

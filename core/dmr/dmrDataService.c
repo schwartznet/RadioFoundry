@@ -789,13 +789,15 @@ static bool ipSend(bool group, uint32_t dst, uint32_t srcIp, uint32_t dstIp, uin
 	{
 		return false;
 	}
+	bool self = (delivery & DMR_IPS_SELF_PROTECTED) != 0;
+	delivery = (uint8_t)(delivery & ~DMR_IPS_SELF_PROTECTED);
 	uint16_t srcPort = (protocol == DMR_IP_PROTO_UDP) ? udpPort(l4, length, 0) : 0;
 	uint16_t dstPort = (protocol == DMR_IP_PROTO_UDP) ? udpPort(l4, length, 2) : 0;
 	bool confirmed = (delivery == DMR_IPS_SETTINGS) ? dmrDataServiceIpWantConfirmed(&settings, group, dst, protocol, srcPort, dstPort) :
 			(!group && (delivery == DMR_IPS_CONFIRMED));
 
 	ipStart(group, dst, protocol, l4, length, (protocol == DMR_IP_PROTO_UDP) && dmrDataUdpCompress(srcPort, dstPort), confirmed);
-	ipx.clear = (protocol == DMR_IP_PROTO_UDP) && dmrDataUdpClear(srcPort, dstPort);
+	ipx.clear = self && (protocol == DMR_IP_PROTO_UDP) && dmrDataUdpClear(srcPort, dstPort);	// both: the service and its port
 	ipx.srcIp = srcIp;
 	ipx.dstIp = dstIp;
 	ipx.ttl = ttl;
@@ -2442,6 +2444,17 @@ static void handlePacket(const dmrDataPacket_t *packet)
 	if (packet->privacy.encrypted && !packet->decrypted)
 	{
 		stats.rxPrivacyDropped++;
+		if (forUs && (reply.response != 0))
+		{
+			queueReplyEntry(&reply);
+		}
+		return;
+	}
+	// A clear packet on a channel that encrypts data: only key fill's and OTAR's are taken (13.5). Anything else in the
+	// clear there (a text, a position) could come from anyone, so it is dropped. Confirmed data is still acknowledged
+	if (!packet->privacy.encrypted && (dmrDataPrivacyBursts() != 0) && !(isUDP && dmrDataUdpClear(udp.srcPort, udp.dstPort)))
+	{
+		stats.rxClearDropped++;
 		if (forUs && (reply.response != 0))
 		{
 			queueReplyEntry(&reply);

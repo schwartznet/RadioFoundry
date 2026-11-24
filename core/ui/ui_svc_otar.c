@@ -6,6 +6,7 @@
 
 #if CONFIG_OTAR
 #include <string.h>
+#include <stddef.h>
 #include "ui_svc.h"
 #include "codeplug/codeplug.h"
 #include "codeplug/codeplug_kv.h"
@@ -262,6 +263,8 @@ uint8_t ui_svc_net_member_flags(uint16_t i)
 #define HELLO_AFTER_MS	20000u		// a member says HELLO this long after start (and after joining)
 #define CO_COPIES	3u		// CHANGEOVER copies to the talkgroup
 #define CO_GAP_MS	2000u
+#define HELLO_GAP_MS	2000u	// a net control works on at most one HELLO this often
+#define CU_GAP_MS	120000u	// ... and sends one member the net's active key at most this often
 
 typedef struct {
 	uint32_t id;
@@ -280,6 +283,7 @@ typedef struct {
 	uint8_t system;
 	uint32_t keyset;
 	uint32_t changeover;	// set when the key is made: mins from then (a run waits for key presses first)
+	uint8_t kcv[3];		// the key's check value: an ACK counts only with it
 	uint16_t mins;
 	uint8_t n;
 	uint8_t cur;		// the member whose ACK is awaited, 0xFF none
@@ -309,6 +313,8 @@ static struct {
 	uint32_t tek_ks;	// its keyset number, the net's
 	uint32_t tek_at;	// the changeover
 	uint32_t cu_to;		// a net control: the net's active key to send this member, which said HELLO without it
+	uint32_t cu_last, cu_last_at;	// ... the last member sent it, and when
+	uint32_t hello_at;	// a net control: when the last HELLO was worked on
 	otar_msg_t ack;		// the ACK to send once stored
 	uint32_t ack_to;
 	// HELLO
@@ -429,23 +435,49 @@ static bool take_msgnum(uint32_t src, uint32_t msgnum, uint32_t now)
 	return fresh;
 }
 
-// At start: this radio's message number moved on past any it may have sent but not saved before it lost power (the
-// settings save waits SETTINGS_SAVE_DELAY_MS), so a message number, and with it a body's counter block, never repeats
-// (otar.md 7.6)
-#define MSGNUM_SKIP	1024u
-static void msgnum_skip(uint32_t now)
+// This radio's message numbers (otar.md 7.6): settings_t.otar_msgnum holds the end of a reservation, and a number is
+// used only once the reservation holding it is in the flash (settings_u32_is_saved), as the voice MI's (dmr-voice.md
+// 5.1). After a restart numbering goes on past the saved end, so a number, and with it a body's counter block, never
+// repeats, whatever was unsaved when the power went
+#define MSGNUM_BLOCK	64u
+static struct {
+	uint32_t next, end, pending;	// next to use; the last usable (saved); a reservation waiting to be saved
+} mn;
+
+static void msgnum_tick(uint32_t now)
 {
-	settings_t *st = settings_begin();
-	st->otar_msgnum += MSGNUM_SKIP;
-	settings_end(now);
+	uint32_t stored = SETTINGS_FIELD(otar_msgnum);
+	if (mn.next == 0) {
+		mn.next = stored + 1u;		// what was reserved before the restart may have been used
+		mn.end = stored;
+	}
+	if (mn.pending != 0) {
+		if (stored != mn.pending)
+			mn.pending = 0;		// overwritten (a restore): asked again
+		else if (settings_u32_is_saved(offsetof(settings_t, otar_msgnum), stored)) {
+			mn.end = stored;
+			mn.pending = 0;
+		}
+		return;
+	}
+	if (mn.end < mn.next + MSGNUM_BLOCK / 2u) {
+		mn.pending = mn.next + MSGNUM_BLOCK;
+		settings_t *st = settings_begin();
+		st->otar_msgnum = mn.pending;
+		settings_end_soon(now);
+	}
 }
 
+static bool msgnum_ready(void)
+{
+	return mn.next != 0 && mn.next <= mn.end;
+}
+
+// 0 when no saved reservation holds the next number yet: a receiver refuses 0 as a replay, and the sender tries again
 static uint32_t next_msgnum(uint32_t now)
 {
-	settings_t *st = settings_begin();
-	uint32_t n = ++st->otar_msgnum;
-	settings_end(now);
-	return n;
+	(void)now;
+	return msgnum_ready() ? mn.next++ : 0u;
 }
 
 // The pair keys with radio id (whose public key is in the roster): false when it isn't, or X25519 refuses
@@ -512,7 +544,12 @@ __attribute__((noinline)) static void on_rekey(const radio_view_t *v, const uint
 		crypto_wipe(&m, sizeof m);
 		return;
 	}
-	bool fresh = take_msgnum(src, m.msgnum, now);
+	// An old message number: a replay (a net control's retry always has a new one). No answer, so a recording can't
+	// make this radio transmit
+	if (!take_msgnum(src, m.msgnum, now)) {
+		crypto_wipe(&m, sizeof m);
+		return;
+	}
 	memset(&eng.ack, 0, sizeof eng.ack);
 	eng.ack.net_id = n->net_id;
 	eng.ack.keyset = m.keyset;
@@ -529,7 +566,7 @@ __attribute__((noinline)) static void on_rekey(const radio_view_t *v, const uint
 	} else if (is_next || is_active) {
 		eng.ack.result = key_kcv(v->otar.system, m.kid, have) && memcmp(have, eng.ack.kcv, KCV_LEN) == 0 ?
 				 OTAR_ACK_HELD : OTAR_ACK_REFUSED;
-	} else if (!fresh || m.keyset <= v->otar.keyset || (v->otar.has_next && m.keyset < v->otar.next_keyset)) {
+	} else if (m.keyset <= v->otar.keyset || (v->otar.has_next && m.keyset < v->otar.next_keyset)) {
 		eng.ack.result = OTAR_ACK_OLD;	// keyset numbers only go up (7.1): never back to an older key
 	} else {
 		// Stored by the housekeeping task, then made the next keyset, then ACKed (engine_tick)
@@ -847,6 +884,17 @@ __attribute__((noinline)) static void on_changeover(const radio_view_t *v, const
 __attribute__((noinline)) static void on_member(const radio_view_t *v, const uint8_t *msg, int len, uint32_t src, const otar_net_t *n, uint32_t now)
 {
 	rekey_t *rk = eng.rk;
+	// Only an ACK this radio waits for, or a HELLO at most every HELLO_GAP_MS, is worked on: each costs an X25519
+	// before its MAC can be checked, so a stream of forged ones (any member's ID as the source) can't tie up this radio
+	bool want = msg[2] == OTAR_ACK &&
+		    ((rk != NULL && rk->cur != 0xFF && rk->m[rk->cur].id == src) || (eng.ros.waiting && eng.ros.dst == src) ||
+		     (eng.inv.state != UI_INV_NONE && eng.inv.id == src));
+	if (msg[2] == OTAR_HELLO && (uint32_t)(now - eng.hello_at) >= HELLO_GAP_MS) {
+		eng.hello_at = now;
+		want = true;
+	}
+	if (!want)
+		return;
 	uint8_t ukek[OTAR_KEY_LEN], kmac[OTAR_KEY_LEN];
 	if (!pair_keys(v->dmr.own_id, src, n->net_id, ukek, kmac))
 		return;
@@ -875,8 +923,12 @@ __attribute__((noinline)) static void on_member(const radio_view_t *v, const uin
 		inv_got(v, &m);
 	// A member back on, or just joined, without the net's active key (it missed the changeover, or joined after the
 	// rekey): sent it, to change over to at once (otar.md 9). In a run, the run's REKEY comes first
-	if (m.type == OTAR_HELLO && rk == NULL && v->otar.on && m.keyset < v->otar.keyset)
-		eng.cu_to = src;
+	if (m.type == OTAR_HELLO && rk == NULL && v->otar.on && m.keyset < v->otar.keyset &&
+	    (src != eng.cu_last || (uint32_t)(now - eng.cu_last_at) >= CU_GAP_MS)) {
+		eng.cu_to = src;	// at most once every CU_GAP_MS to one member: a replayed HELLO can't make it transmit at will
+		eng.cu_last = src;
+		eng.cu_last_at = now;
+	}
 	if (rk == NULL)
 		return;
 	for (uint8_t i = 0; i < rk->n; i++) {
@@ -884,7 +936,10 @@ __attribute__((noinline)) static void on_member(const radio_view_t *v, const uin
 		if (mm->id != src)
 			continue;
 		if (m.type == OTAR_ACK && m.keyset == rk->keyset) {
-			mm->state = m.result == OTAR_ACK_STORED || m.result == OTAR_ACK_HELD ? UI_RK_OK : UI_RK_FAIL;
+			// OK only with the check value of the key this run sent: an old ACK of the same keyset (a run stopped
+			// and started again) or another net control's key under the same number doesn't count
+			bool same = memcmp(m.kcv, rk->kcv, sizeof rk->kcv) == 0;
+			mm->state = (m.result == OTAR_ACK_STORED || m.result == OTAR_ACK_HELD) && same ? UI_RK_OK : UI_RK_FAIL;
 			if (rk->cur == i)
 				rk->cur = 0xFF;
 			if (mm->state == UI_RK_FAIL)
@@ -916,6 +971,7 @@ __attribute__((noinline)) static bool rk_step(const radio_view_t *v, const otar_
 		if (entropy_bits() < ENTROPY_FULL)
 			return true;	// the screen counts the presses down
 		entropy_take(rk->tek, OTAR_KEY_LEN);
+		(void)kcv_traffic(CODEPLUG_SYSTYPE_DMR_AES, DMR_AES_ALG_AES256, rk->tek, OTAR_KEY_LEN, rk->kcv);
 		rk->keyed = true;
 		// The changeover counts from now, not from Rekey now: the key presses may have taken longer than the choice,
 		// and a changeover already past would change this radio over before any member had the key (seen on air)
@@ -1245,8 +1301,6 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 		eng.cu_to = 0;
 		eng.inv_next = false;
 		eng.tm_left = 0;
-		if (in)
-			msgnum_skip(now);
 		memset(&eng.inv, 0, sizeof eng.inv);
 		if (!in)
 			rk_free();
@@ -1255,6 +1309,8 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 		crypto_wipe(&n, sizeof n);
 		return false;
 	}
+	msgnum_tick(now);
+	bool mn_ok = msgnum_ready();
 	// The transport
 	if (eng.sending) {
 		otar_send_state_t st = otar_send_state();
@@ -1329,19 +1385,19 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 	if (eng.manage_due && n.rank == 0)
 		manage_joined(v);
 	// A member back on says HELLO to its net control (warm start, 9); not once it is removed from the net
-	if (n.rank == 0 && !eng.hello_sent && v->otar.on && !(n.flags & OTAR_NET_REMOVED) &&
+	if (n.rank == 0 && !eng.hello_sent && v->otar.on && !(n.flags & OTAR_NET_REMOVED) && mn_ok &&
 	    (uint32_t)(now - eng.started_ms) >= HELLO_AFTER_MS && eng.out_len == 0 && !eng.sending)
 		say_hello(v, &n, now);
 	// A net control: TIME copies, an INVENTORY and its answer's wait, the rekey schedule
-	if (eng.tm_left > 0 && eng.out_len == 0 && !eng.sending && !eng.ros.waiting && (int32_t)(now - eng.tm_next) >= 0) {
+	if (eng.tm_left > 0 && mn_ok && eng.out_len == 0 && !eng.sending && !eng.ros.waiting && (int32_t)(now - eng.tm_next) >= 0) {
 		tm_send(v, &n, now);
 		changed = true;
 	}
-	if (eng.cu_to != 0 && n.rank != 0 && eng.out_len == 0 && !eng.sending && eng.rk == NULL && !eng.ros.waiting && !eng.ros_due) {
+	if (eng.cu_to != 0 && n.rank != 0 && mn_ok && eng.out_len == 0 && !eng.sending && eng.rk == NULL && !eng.ros.waiting && !eng.ros_due) {
 		cu_send(v, &n, now);
 		changed = true;
 	}
-	if (eng.inv_to != 0 && n.rank != 0 && eng.out_len == 0 && !eng.sending && !eng.ros.waiting && eng.rk == NULL) {
+	if (eng.inv_to != 0 && n.rank != 0 && mn_ok && eng.out_len == 0 && !eng.sending && !eng.ros.waiting && eng.rk == NULL) {
 		inv_send(v, &n, now);
 		changed = true;
 	}
@@ -1354,7 +1410,7 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 		changed = sched_tick(v, now) || changed;
 	}
 	// A ZEROIZE asked for
-	if (eng.zz_to != 0 && n.rank != 0 && eng.out_len == 0 && !eng.sending && !eng.ros.waiting && eng.rk == NULL) {
+	if (eng.zz_to != 0 && n.rank != 0 && mn_ok && eng.out_len == 0 && !eng.sending && !eng.ros.waiting && eng.rk == NULL) {
 		zz_send(v, &n, now);
 		changed = true;
 	}
@@ -1369,7 +1425,7 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 		}
 		changed = true;
 	}
-	if (n.rank != 0) {
+	if (n.rank != 0 && mn_ok) {
 		changed = rk_step(v, &n, now) || changed;
 		changed = ros_step(v, &n, now) || changed;
 	}

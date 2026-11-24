@@ -156,6 +156,7 @@ typedef struct
 	uint32_t rxConfirmed;					// ... confirmed data to us
 	uint32_t rxPrivacy;						// packets decrypted with the channel's privacy key
 	uint32_t rxPrivacyDropped;				// encrypted packets dropped: another scheme, or no key
+	uint32_t rxClearDropped;				// clear packets dropped on a channel that encrypts data (13.5)
 	uint32_t txPrivacy;						// lists sent with the privacy header (encrypted data)
 	uint32_t txPrivacyBlocked;				// lists not sent: data the channel's privacy can't protect
 	uint32_t smsReceived;					// text messages kept
@@ -286,6 +287,10 @@ bool dmrDataServiceSendIP(bool group, uint32_t dst, uint32_t srcIp, uint32_t dst
 #define DMR_IPS_SETTINGS			0
 #define DMR_IPS_CONFIRMED			1
 #define DMR_IPS_UNCONFIRMED			2
+// ORed into the delivery by key fill and OTAR only (dmr-data.md 13.5): their datagrams protect themselves and go in the
+// clear on a channel that encrypts data. A datagram between those ports without it (a host's, through the gateway) is
+// encrypted as any other
+#define DMR_IPS_SELF_PROTECTED		0x80
 bool dmrDataServiceSendIPDelivery(bool group, uint32_t dst, uint8_t protocol, const uint8_t *l4, int length, uint8_t delivery);
 // Several IP packets to one destination, with the same addresses and TTL (srcIp, dstIp, ttl as for
 // dmrDataServiceSendIP): the first goes as dmrDataServiceSendIP would with its own delivery; when it goes unconfirmed,

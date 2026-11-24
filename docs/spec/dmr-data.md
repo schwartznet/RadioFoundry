@@ -875,7 +875,8 @@ computed over the ciphertext, so a receiver without the key still checks and ack
   goes, in the clear or otherwise. The radio core also refuses data there as it refuses PTT (`TXDENY_AES_KEY`,
   `TXDENY_AES_WAIT`).
 - Counters (debug link section 8): `data.privacy_rx` (decrypted), `data.privacy_rx_dropped`, `data.privacy_tx` (lists
-  sent encrypted), `data.privacy_blocked` (lists refused).
+  sent encrypted), `data.privacy_blocked` (lists refused), `data.clear_rx_dropped` (clear packets dropped on a channel
+  that encrypts data, 13.5).
 
 ### 13.4 AES data
 
@@ -907,8 +908,16 @@ authenticated under the key both radios derive ([key-fill.md](key-fill.md) 2-4).
 a key fill, and their IDs, which the data header shows anyway. OTAR's messages are encrypted and authenticated
 themselves under keys only their sender and receivers hold ([otar.md](otar.md) 7.6), so a member still on an older
 key can be rekeyed (otar.md 23). The packet goes alone (no chained packets in its
-transmission), and its confirmed retries go clear too. Receiving needs nothing: a packet without a privacy header is
-taken on any channel.
+transmission), and its confirmed retries go clear too.
+
+Only those two services' own packets go clear: they queue with `DMR_IPS_SELF_PROTECTED` ORed into the delivery, and the
+data service sends a packet clear only when it has the flag and both ports are 4101, or both 4103. A host's datagram
+through the gateway between the same ports has no flag and is encrypted as any other.
+
+Receiving: on a channel that encrypts data, a packet without a privacy header is taken only when it is UDP between
+those ports. Any other clear packet there (a text, a position, an ARS) could have come from anyone, so it is dropped and
+counted (`data.clear_rx_dropped`); confirmed data is still acknowledged, as for an encrypted packet without the key.
+On a channel that doesn't encrypt data, clear packets are taken as always.
 
 ### 13.6 Open
 

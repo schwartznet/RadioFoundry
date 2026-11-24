@@ -544,6 +544,9 @@ bool settings_u32_is_saved(size_t offset, uint32_t value);
 // Change: begin returns the live copy (under a short lock), end releases it and notes the time if anything changed
 settings_t *settings_begin(void);
 void settings_end(uint32_t now_ms);
+// The same, and the change is saved at the next settings_poll rather than once changes rest: for a reservation that
+// must reach the flash before it is used (OTAR's message numbers), whatever else keeps changing
+void settings_end_soon(uint32_t now_ms);
 
 // Save once the changes have rested SETTINGS_SAVE_DELAY_MS (call it every 100 ms or so)
 void settings_poll(uint32_t now_ms);

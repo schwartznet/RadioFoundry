@@ -222,7 +222,7 @@ header and the ciphertext; a receiver checks the MAC first and decrypts only a m
 |---|---|
 | Key | K_enc = HKDF-Expand(the message's MAC key as the PRK, "RFOTAR2 enc", 32) (RFC 5869 2.3). Between two radios: from the pair's K_mac (5). A group message: from its group MAC key (7.3), so CHANGEOVER's comes from the next TEK and TIME's from the active one |
 | Counter block | The sender's DMR ID (3), the receiver's (3; the talkgroup for a group message), the type (1), the message number (4), the sender's rank (1), then a 32-bit block counter from 0 |
-| Uniqueness | A sender's message numbers only go up (saved with the settings), so no counter block repeats under one key. The save waits 2 s after a change; a radio that loses power in that time could send a number again after it starts, so each start moves the number on by 1024 first, saved before the first HELLO 20 s later |
+| Uniqueness | A sender's message numbers only go up, so no counter block repeats under one key. They are reserved 64 at a time: `settings_t.otar_msgnum` holds the end of the reservation, saved at once (`settings_end_soon`), and a number is used only once the flash holds a reservation above it (`settings_u32_is_saved`), as the voice MI's. After a restart numbering goes on past the saved end, whatever was unsaved when the power went. Until a reservation is saved nothing is sent; a reply built meanwhile carries number 0, which every receiver refuses, and is tried again |
 | Length | Unchanged: counter mode adds nothing, and the header carries the counter block's parts |
 | In the clear | The header: type, net ID, message number, the sender's rank. The data header shows the DMR IDs anyway |
 
@@ -434,7 +434,7 @@ HELLO under key 77 (`data.privacy_rx_dropped`). A member switched off through a 
 | Version 2 | The body encrypted under K_enc (7.6), encrypt then MAC. Version 1 messages are refused (all radios of a net run the same build) |
 | In the clear at the data layer | Port 4103, like key fill's 4101 (`dmrDataUdpClear`, [dmr-data.md](dmr-data.md) 13.5): no privacy header, not refused on an AES channel, taken by any radio |
 | Catching up | A HELLO outside a rekey run whose active key isn't the net control's gets its active key as a REKEY flagged "now" (7.1, 9) |
-| Message numbers | Moved on by 1024 at each start (7.6) |
+| Message numbers | Reserved 64 at a time and used only once the reservation is in the flash (7.6) |
 | Joining unmanaged | A radio that joins without managing keys starts managing the AES channel it is on (6). Found on air: a fresh radio joined, answered Ask its keys with "Keys: none", and said no HELLO, so it never caught up |
 
 **Compared with P25 OTAR.** Public descriptions of TIA-102.AACA's KMM give it three protections: the TEKs inside wrapped
@@ -496,10 +496,19 @@ and took key 80 under the net's keyset number 4 ("keyset 4 OK"). The next rekey,
 status "Key 81: 3 of 3 have it, change over at 19:47", the members "Next: key 81 at 19:47". At 19:47 the net control and
 the member checked both showed "Keyset 5: key 81", old key 80 heard.
 
-Still open from the review: an ACK doesn't carry the REKEY's message number, so an old ACK of the same keyset can mark
-a member done; message numbers are saved within 2 s but not synchronously, so a power loss after more than 1024
-unsaved ones could repeat a counter block; a replayed REKEY or HELLO still makes a radio answer (an ACK, a catch-up
-REKEY), and a forged source makes the NC work out X25519 before the MAC check; key fill and OTAR go in the clear by
-port number alone, so a host could send other traffic on those ports unencrypted; the randomness credit per key press
-is generous and the pool starts empty at each power-on. The engine's new rules (keyset order, ranks, counters per
-sender) are checked on air, not by host tests: `ui_svc_otar.c` has no host harness yet.
+The review's lower findings, then fixed:
+
+| Finding | Fix |
+|---|---|
+| An ACK counted for the keyset number alone: an old ACK of the same keyset (a run stopped and started again) or another NC's key under that number marked a member done | The NC counts an ACK only with the check value of the key its run sent |
+| Message numbers were saved within 2 s but not before use: a power loss with more than 1024 unsaved could repeat a counter block | Reserved 64 at a time, used only once the reservation is in the flash (7.6) |
+| A replayed REKEY still got an ACK, a replayed HELLO a catch-up REKEY each time, and any forged source made the NC work out X25519 before the MAC check | A member drops a REKEY with an old message number without answering; the NC sends one member the active key at most every 2 minutes, and works on an ACK only from a member it waits for and on at most one HELLO every 2 s |
+| Key fill and OTAR went in the clear by port number alone, so a host could send its own traffic on those ports unencrypted through the gateway; and on an AES channel a clear packet reached every service, so anyone could inject a clear text | Clear only for the two services' own packets (`DMR_IPS_SELF_PROTECTED`); on a channel that encrypts data a clear packet is taken only on those ports ([dmr-data.md](dmr-data.md) 13.5) |
+
+Left as they are, documented: CHANGEOVER has no message number (an old one is for another key and fails its MAC; a
+radio holding the next key can only bring the changeover forward, and every member holds that key); K_enc comes from
+K_mac as an HKDF PRK (sound, if less tidy than a third label from the pair's PRK); group keys don't name the net (each
+comes from that net's own random TEK); X25519 uses a constant-time ladder and a fixed-exponent inversion, read but not
+measured. Open: the randomness credit per key press is generous and the pool starts empty at each power-on (the
+receiver's noise is the planned source, [key-fill.md](key-fill.md) 6). The engine's rules (keyset order, ranks,
+counters per sender, the ACK check) are checked on air, not by host tests: `ui_svc_otar.c` has no host harness yet.

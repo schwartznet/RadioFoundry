@@ -119,7 +119,7 @@ bool otar_send(uint32_t dst, bool group, const uint8_t *msg, int len)
 	udp[6] = 0;
 	udp[7] = 0;
 	airqItem_t it = { .kind = AIRQ_IP, .owner = AIRQ_OWNER_OTAR, .protocol = DMR_IP_PROTO_UDP,
-			  .delivery = group ? DMR_IPS_UNCONFIRMED : DMR_IPS_CONFIRMED, .dst = dst, .group = group,
+			  .delivery = (group ? DMR_IPS_UNCONFIRMED : DMR_IPS_CONFIRMED) | DMR_IPS_SELF_PROTECTED, .dst = dst, .group = group,
 			  .waitMs = OTAR_SEND_WAIT_MS, .data = udp, .length = UDP_HEADER, .tail = msg,
 			  .tailLength = (uint16_t)len };
 	send_state = OTAR_SEND_SENDING;

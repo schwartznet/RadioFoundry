@@ -2731,7 +2731,8 @@ static void testPrivacy(void)
 	runMainTask(100);
 	uint32_t blocked = stats.txPrivacyBlocked;
 	before = stats.txPrivacy;
-	CHECK(dmrDataServiceSendIPDelivery(false, RADIO_A, DMR_IP_PROTO_UDP, kf, sizeof kf, DMR_IPS_UNCONFIRMED));
+	CHECK(dmrDataServiceSendIPDelivery(false, RADIO_A, DMR_IP_PROTO_UDP, kf, sizeof kf,
+					   DMR_IPS_UNCONFIRMED | DMR_IPS_SELF_PROTECTED));
 	runMainTask(300);
 	h = txHeader();
 	CHECK(h != NULL && stats.txPrivacyBlocked == blocked && stats.txPrivacy == before);
@@ -2741,6 +2742,12 @@ static void testPrivacy(void)
 	      !dmrDataUdpClear(4105, 4105));	// OTAR's go in the clear too; mixed ports don't
 	heard = packetsHeard;
 	rxBursts(lastTx, lastTxCount);	// as a radio with this channel heard it: clear, so passed on
+	// The same port from anyone else (a host through the gateway: no DMR_IPS_SELF_PROTECTED): encrypted
+	runMainTask(2000);
+	before = stats.txPrivacy;
+	CHECK(dmrDataServiceSendIPDelivery(false, RADIO_A, DMR_IP_PROTO_UDP, kf, sizeof kf, DMR_IPS_UNCONFIRMED));
+	runMainTask(300);
+	CHECK(stats.txPrivacy == before + 1);
 	kf[1] = kf[3] = 0x09;		// port 4105 (no key fill, no OTAR): encrypted as before
 	runMainTask(2000);
 	before = stats.txPrivacy;
@@ -2749,7 +2756,14 @@ static void testPrivacy(void)
 	CHECK(stats.txPrivacy == before + 1);
 	h = txHeader();
 	CHECK(h != NULL && h[1].dataType == DMR_TYPE_DATA_HEADER && (h[1].payload[0] & 0x0F) == 15);
-	(void)heard;
+	// A clear text on a channel that encrypts data: anyone could have sent it, so it is dropped (13.5)
+	heard = packetsHeard;
+	uint32_t clear_dropped = stats.rxClearDropped;
+	dmrDataSetPrivacy(&clear);
+	count = dmrDataBuildTMS(false, OUR_ID, RADIO_B, "forged", 3, true, DMR_TYPE_RATE_1_2, 1, bursts, DMR_DATA_MAX_BURSTS);
+	dmrDataSetPrivacy(&encrypt);
+	rxBursts(bursts, count);
+	CHECK(packetsHeard == heard && stats.rxClearDropped == clear_dropped + 1);
 
 	ch.privacy = clear;
 	reset();

@@ -309,6 +309,14 @@ void settings_end(uint32_t now_ms)
 	storage_quick_unlock();
 }
 
+void settings_end_soon(uint32_t now_ms)
+{
+	bool changed = memcmp(&live, &before, sizeof(live)) != 0;
+	settings_end(now_ms);
+	if (changed)
+		changed_ms = now_ms - SETTINGS_SAVE_DELAY_MS;	// the next settings_poll saves, not after changes rest
+}
+
 // Where the next record goes: the first free slot after the newest one in its sector, else slot 0 of the next sector
 // that holds no page of the set in force or of this save (erased first). False when every sector does
 static bool next_slot(uint16_t *sector, uint16_t *slot, bool *erase)
