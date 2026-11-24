@@ -259,6 +259,11 @@ waits for the pool:
 Tests: `noiseTest` (each health test at its cutoff and one below, a flat receiver, a short read, the mailbox once per
 grab and credited only when it passed).
 
+On air 2026-11-24, two radios on this build, no key pressed: Receive a key opened on a radio just restarted showed
+"Ready" within 3 s (`noise.grabs=1 passed=1 taken=1`; presses over the debug link count nothing, 6); on the net
+control, Rekey now made its key from one grab and the run reached all three members ("Key 83: 3 of 3 have it"), so the
+radio receives and sends DMR as before after the grab.
+
 ## 7. Security
 
 | Threat | What stops it |
