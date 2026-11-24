@@ -894,7 +894,7 @@ run-group-key: groupKeyTest
 # emergency wipe of a running session (the UI glue's zeroize_ram_hook; stubs/keyfill_rtos holds the stand-in FreeRTOS
 # headers)
 TESTS   += keyFillTest
-KEYFILL := $(CORE)/keyfill/keyfill.c $(CORE)/support/entropy.c $(KEYCRYPTO) $(CORE)/ui/ui_svc_keyfill.c $(KCV_AES)
+KEYFILL := $(CORE)/keyfill/keyfill.c $(CORE)/support/entropy.c $(CORE)/support/noise.c $(KEYCRYPTO) $(CORE)/ui/ui_svc_keyfill.c $(KCV_AES)
 keyFillTest: keyFillTest.c $(KEYFILL) $(wildcard $(CORE)/keyfill/*.h $(CORE)/support/*.h stubs/keyfill_rtos/*.h) \
              $(CORE)/ui/ui_svc.h $(CORE)/zeroize/zeroize.h fuzz.h
 	$(CC) $(CFLAGS) -Istubs/keyfill_rtos -I$(ROOT)/hal -Wshadow -DCONFIG_KEY_FILL=1 -DCONFIG_GROUP_KEY_FILL=0 -DCONFIG_OTAR=0 -DCONFIG_ZEROIZE=1 -o $@ \
@@ -903,6 +903,14 @@ run: run-key-fill
 run-key-fill: keyFillTest
 	./keyFillTest
 .PHONY: run-key-fill
+# The receiver's noise as randomness (core/support/noise.c, key-fill.md 6.1): the health tests and the mailbox
+TESTS   += noiseTest
+noiseTest: noiseTest.c $(CORE)/support/noise.c $(CORE)/support/noise.h
+	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_KEY_FILL=1 -o $@ noiseTest.c $(CORE)/support/noise.c 		$(CORE)/support/sha256.c $(CORE)/support/hkdf.c
+run: run-noise
+run-noise: noiseTest
+	./noiseTest
+.PHONY: run-noise
 # The OTAR engine (core/ui/ui_svc_otar.c, otar.md 7-10, 23): the real engine, roster and messages, the radio core,
 # codeplug, settings and transport faked; the test plays the other radio
 TESTS   += otarEngineTest
@@ -1249,7 +1257,7 @@ run-debuglinkChipReg: debuglinkChipRegTest
 .PHONY: run-debuglinkChipReg
 
 # DL_CMD_DMR_DATA's IP operations (core/debuglink/debuglink_dmr_data.c): the settings' gateway ID and IP_SEND's parsing
-DLDATA  := debuglinkDmrDataTest.c $(CORE)/debuglink/debuglink_dmr_data.c $(CORE)/codeplug/codeplug_keys.c $(CORE)/debuglink/dl_fmt.c $(DATA)
+DLDATA  := debuglinkDmrDataTest.c $(CORE)/debuglink/debuglink_dmr_data.c $(CORE)/codeplug/codeplug_keys.c $(CORE)/debuglink/dl_fmt.c $(DATA) $(CORE)/support/noise.c $(CORE)/support/sha256.c $(CORE)/support/hkdf.c
 TESTS   += debuglinkDmrDataTest
 debuglinkDmrDataTest: $(DLDATA) $(CORE)/debuglink/debuglink.h $(CORE)/debuglink/debuglink_proto.h $(CORE)/dmr/ipGateway.h
 	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_DMR_IP_GATEWAY=1 -DCONFIG_DMR_EMERGENCY=0 -o $@ $(DLDATA)

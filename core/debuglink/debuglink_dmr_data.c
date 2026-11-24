@@ -11,6 +11,9 @@
 #include "dmr/dmr_data_api.h"
 #include "dmr/dmr_emergency.h"
 #include "radio/radio_keys.h"
+#if CONFIG_KEY_FILL
+#include "support/noise.h"
+#endif
 #endif
 #if CONFIG_DMR_IP_GATEWAY
 #include "dmr/ipGateway.h"
@@ -124,6 +127,14 @@ void debuglink_view_dmr_data(uint8_t part, dl_text_t *t)
 	dl_text(t, "data.privacy_rx=%u\ndata.privacy_rx_dropped=%u\ndata.privacy_tx=%u\ndata.privacy_blocked=%u\n",
 		(unsigned)s.rxPrivacy, (unsigned)s.rxPrivacyDropped, (unsigned)s.txPrivacy, (unsigned)s.txPrivacyBlocked);
 	dl_text(t, "data.clear_rx_dropped=%u\n", (unsigned)s.rxClearDropped);
+#if CONFIG_KEY_FILL
+	// The receiver's noise for key fill's randomness (key-fill.md 6.1): grabs, passed, failed by reason, stirred in
+	noise_stats_t ns;
+	noise_get_stats(&ns);
+	dl_text(t, "noise.grabs=%u\nnoise.passed=%u\nnoise.short=%u\nnoise.rct=%u\nnoise.apt=%u\nnoise.flat=%u\nnoise.taken=%u\n",
+		(unsigned)ns.grabs, (unsigned)ns.passed, (unsigned)ns.failed[NOISE_SHORT], (unsigned)ns.failed[NOISE_RCT],
+		(unsigned)ns.failed[NOISE_APT], (unsigned)ns.failed[NOISE_FLAT], (unsigned)ns.taken);
+#endif
 	return;
 counters:
 	dl_text(t, "data.rx_bursts=%u\ndata.rx_csbk=%u\ndata.rx_headers=%u\ndata.rx_blocks=%u\n", (unsigned)s.rxBursts,

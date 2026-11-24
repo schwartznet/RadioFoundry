@@ -145,6 +145,7 @@ bool codeplug_traffic_key_set(uint8_t system, uint8_t alg, uint16_t id, const ui
 	return true;
 }
 bool ui_svc_clear_keys_start(void) { return true; }
+void ui_svc_noise_want(uint32_t ms) { (void)ms; }
 
 // --- randomness: deterministic, always full (the engine's own key presses aren't what is tested here)
 static uint8_t rnd_ctr;

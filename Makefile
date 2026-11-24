@@ -218,7 +218,7 @@ endif
 # Key fill between radios: the protocol engine and its transport, the randomness pool and X25519
 ifeq ($(CONFIG_KEY_FILL),y)
 CORE_DIRS += core/keyfill
-APP_SRC += $(filter-out $(APP_SRC),core/keyfill/keyfill.c core/keyfill/keyfill_svc.c core/support/entropy.c core/support/x25519.c)
+APP_SRC += $(filter-out $(APP_SRC),core/keyfill/keyfill.c core/keyfill/keyfill_svc.c core/support/entropy.c core/support/x25519.c core/support/noise.c)
 endif
 # Group key fill: its message and transport (core/keyfill is in CORE_DIRS with key fill)
 ifeq ($(CONFIG_GROUP_KEY_FILL),y)

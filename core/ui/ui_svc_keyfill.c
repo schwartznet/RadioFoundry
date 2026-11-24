@@ -17,6 +17,7 @@
 #include "keyfill/groupkey_api.h"
 #endif
 #include "support/entropy.h"
+#include "support/noise.h"
 #include "support/hkdf.h"
 #include "codeplug/codeplug.h"
 #include "codeplug/key_store.h"
@@ -456,6 +457,27 @@ static void begin(uint32_t now)
 	crypto_wipe(rnd, sizeof rnd);
 }
 
+// While a key fill or an OTAR run waits for randomness: a digest of the receiver's noise stirred in when one has come
+// (credited what its grab earned, nothing when it failed its health tests), and a grab asked for every NOISE_ASK_MS.
+// Key presses go on counting as before (key-fill.md 6.1)
+#define NOISE_ASK_MS	2000u
+void ui_svc_noise_want(uint32_t now)
+{
+	static uint32_t asked;
+	static bool ever;
+	uint8_t d[SHA256_LEN];
+	unsigned credit = 0;
+	if (noise_take(d, &credit)) {
+		entropy_stir(d, sizeof d, credit);
+		crypto_wipe(d, sizeof d);
+	}
+	if (entropy_bits() < ENTROPY_FULL && (!ever || (uint32_t)(now - asked) >= NOISE_ASK_MS)) {
+		ever = true;
+		asked = now;
+		radio_req_noise();
+	}
+}
+
 bool ui_svc_kf_tick(const radio_view_t *v, uint32_t now)
 {
 	if (kf == NULL)
@@ -473,6 +495,8 @@ bool ui_svc_kf_tick(const radio_view_t *v, uint32_t now)
 		uint8_t noise;
 	} mix = { v->rssi_dbm, v->battery_mv, v->noise };
 	entropy_stir(&mix, sizeof mix, 0);
+	if (!kf->started)
+		ui_svc_noise_want(now);
 	if (!kf->started && entropy_bits() >= ENTROPY_FULL)
 		begin(now);
 	if (kf->started) {

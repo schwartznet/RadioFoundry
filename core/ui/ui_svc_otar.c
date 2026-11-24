@@ -185,8 +185,13 @@ static void start_now(uint32_t now)
 
 static bool engine_tick(const radio_view_t *v, uint32_t now);
 
+static bool pool_wanted(void);
+
 bool ui_svc_net_tick(const radio_view_t *v, uint32_t now)
 {
+	// A rekey's key or a new net's key pair waits for randomness: the receiver's noise (here, not deep in the run)
+	if (pool_wanted())
+		ui_svc_noise_want(now);
 	bool changed = engine_tick(v, now);
 	if (net.starting && entropy_bits() >= ENTROPY_FULL) {
 		start_now(now);
@@ -368,6 +373,12 @@ static struct {
 	bool co_hand;		// Change over the net by hand: the run's end sends no CHANGEOVER of its own
 	uint32_t sched_ms;	// the schedule last looked at
 } eng;
+
+// A rekey's key or a new net's key pair still waits for randomness
+static bool pool_wanted(void)
+{
+	return (eng.rk != NULL && !eng.rk->keyed) || net.starting;
+}
 
 #define ROS_TRIES	3u	// a roster entry no ACK came for is sent this many times, then counted as failed
 #define ROS_SCAN	4u	// roster pairs looked at per tick

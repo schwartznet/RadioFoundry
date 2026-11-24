@@ -229,6 +229,8 @@ void ui_svc_net_inventory_view(uint32_t id, ui_inv_view_t *r);
 void ui_svc_net_joined(void);
 // The net controls' message number counters cleared (otar.md 7.6): a new key pair, so nothing recorded checks again
 void ui_svc_net_seen_clear(uint32_t now);
+// While something waits for randomness: the receiver's noise asked for and stirred in (ui_svc_keyfill.c)
+void ui_svc_noise_want(uint32_t now);
 #endif
 #if CONFIG_GROUP_KEY_FILL
 // Group key fill (ui_svc_groupkey.c, docs/spec/group-key-fill.md): one session while the Group key screen is open.

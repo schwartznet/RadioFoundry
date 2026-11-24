@@ -623,6 +623,7 @@ bool key_fill_send(uint32_t dst, const uint8_t *msg, int len)
 	return true;
 }
 kf_send_state_t key_fill_send_state(void) { return send_st; }
+void radio_req_noise(void) {}
 void radio_req_tx_low(bool on)
 {
 	locked_call |= suspended;	// posts to the radio task: the same

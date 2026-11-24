@@ -142,8 +142,8 @@ static inline bool air_mode(uint8_t mode)
 }
 // What a scan stop hears of an air mode's call (air_heard)
 enum { AIR_HEARD_NONE, AIR_HEARD_PENDING, AIR_HEARD_PLAYED, AIR_HEARD_OTHER };
-#if CONFIG_AIR_RAW
-#define BENCH_HELD(sm)		((sm)->air_bench)	// the debug link's air interface bench has the modem
+#if RADIO_BENCH
+#define BENCH_HELD(sm)		((sm)->air_bench)	// the air interface bench or the noise grab has the modem
 #else
 #define BENCH_HELD(sm)		false
 #endif
@@ -6948,7 +6948,7 @@ static void ptt_down(radio_sm_t *sm, uint32_t now_ms)
 		deny(sm, TXDENY_HOTSPOT);	// the host link transmits for the hotspot; PTT does nothing until it ends
 		return;
 	}
-#if CONFIG_AIR_RAW
+#if RADIO_BENCH
 	if (sm->air_bench) {
 		deny(sm, TXDENY_BENCH);	// the air interface bench transmits; PTT does nothing until it ends
 		return;
@@ -7408,9 +7408,9 @@ static void hotspot_enter(radio_sm_t *sm, uint32_t rx_hz, uint32_t now_ms)
 	    radio_silent()) {
 		return;		// refused for now: the hotspot asks again (radio silence: until it ends)
 	}
-#if CONFIG_AIR_RAW
+#if RADIO_BENCH
 	if (sm->air_bench) {
-		return;		// the air interface bench has the modem
+		return;		// the air interface bench (or the noise grab) has the modem
 	}
 #endif
 #if CONFIG_SFR_CWID
@@ -7480,10 +7480,11 @@ static void hotspot_leave(radio_sm_t *sm, uint32_t now_ms)
 }
 #endif
 
-#if CONFIG_AIR_RAW
-// --- The debug link's air interface bench (debuglink_air.h): it takes the modem as a hotspot does, and keys only
-// through here ---
+#if RADIO_BENCH
+// --- The debug link's air interface bench (debuglink_air.h), and key fill's noise grab: they take the modem as a
+// hotspot does; the bench alone keys, through here ---
 
+#if CONFIG_AIR_RAW
 static void bench_unkey(radio_sm_t *sm)
 {
 	if (!sm->bench_keyed) {
@@ -7495,6 +7496,7 @@ static void bench_unkey(radio_sm_t *sm)
 	outputs(sm);
 	changed(sm);
 }
+#endif
 
 // The DMR stack and P25 stopped, the board receiving in its digital mode on the channel's frequency. Refused while
 // transmitting or a hotspot (the bench asks again)
@@ -7538,11 +7540,28 @@ static void bench_leave(radio_sm_t *sm, uint32_t now_ms)
 	if (!sm->air_bench) {
 		return;
 	}
+#if CONFIG_AIR_RAW
 	bench_unkey(sm);
+#endif
 	sm->air_bench = false;
 	tune(sm, now_ms);	// the channel again: DMR or P25 take the modem back
 }
 
+#if CONFIG_KEY_FILL && CONFIG_AIR
+bool radio_sm_noise_hold(radio_sm_t *sm, bool on, uint32_t now_ms)
+{
+	if (!on) {
+		bench_leave(sm, now_ms);
+		return false;
+	}
+	if (sm->air_bench)
+		return false;	// the air interface bench has it: no grab
+	bench_enter(sm, now_ms);
+	return sm->air_bench;
+}
+#endif
+
+#if CONFIG_AIR_RAW
 // The core's transmit checks, the transmitter on the channel's TX frequency at the lowest power, then the provider's
 // tx_begin (the bench queued its first chunk). Off again after max_ms at most, or at the channel's time-out
 static void bench_key(radio_sm_t *sm, uint16_t max_ms, uint32_t now_ms)
@@ -7584,6 +7603,7 @@ static void bench_tick(radio_sm_t *sm, uint32_t now_ms)
 	}
 }
 #endif
+#endif	// RADIO_BENCH
 
 // --- Settings: what the radio was set to, back at power-on (core/settings), and saved when it changes ---
 
@@ -9111,7 +9131,7 @@ void radio_sm_request(radio_sm_t *sm, const radio_req_t *req, uint32_t now_ms)
 		aprs_rf_abort(sm, now_ms);	// the user does something: an APRS transmission gives way
 	}
 	bool busy = sm->view.state == RS_TX || sm->hotspot;	// no retuning while transmitting or a hotspot
-#if CONFIG_AIR_RAW
+#if RADIO_BENCH
 	busy = busy || sm->air_bench;				// ... or while the air interface bench has the modem
 #endif
 	if ((flags & RQ_ALERT) == 0) {
@@ -9740,7 +9760,7 @@ void radio_sm_poll(radio_sm_t *sm, uint32_t now_ms)
 	own_rx = sm->aprs_phase == APRS_RF_OFF;
 #endif
 	(void)own_rx;
-#if CONFIG_AIR_RAW
+#if RADIO_BENCH
 	if (sm->air_bench) {
 		outputs(sm);
 		return;		// the bench has the modem: no squelch, scan or time-out here (bench_tick caps a keying)

@@ -38,6 +38,10 @@
 #if CONFIG_AIR_RAW
 #include "debuglink/debuglink_air.h"
 #endif
+#if CONFIG_KEY_FILL && CONFIG_AIR
+#include "board.h"
+#include "support/noise.h"
+#endif
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
@@ -140,6 +144,31 @@ static void hs_post(const radio_req_t *req, bool must)
 	if (requests != NULL) {
 		send(req, must ? pdMS_TO_TICKS(50) : 0);
 	}
+}
+#endif
+
+#if CONFIG_KEY_FILL && CONFIG_AIR
+// Key fill's grab of the receiver's noise (support/noise.h, key-fill.md 6.1): the modem held as the bench holds it,
+// NOISE_SAMPLES of the FM receive copy read in about 70 ms, the channel given back, the samples checked, hashed and
+// posted for the UI task. Nothing when the radio can't let go of the modem now (transmitting, a hotspot, the bench)
+#define NOISE_READS	12	// polls, 10 ms apart; the tap buffers 60 ms or more
+static void noise_grab(void)
+{
+	static int16_t buf[NOISE_SAMPLES];
+	const hal_baseband_t *bb = board.baseband;
+	if (bb == NULL || bb->rx_start == NULL || !radio_sm_noise_hold(&sm, true, hal_millis()))
+		return;
+	unsigned n = 0;
+	if (bb->rx_start()) {
+		for (int i = 0; i < NOISE_READS && n < NOISE_SAMPLES; i++) {
+			vTaskDelay(pdMS_TO_TICKS(10));
+			n += bb->rx_read(&buf[n], (uint16_t)(NOISE_SAMPLES - n));
+		}
+		bb->rx_stop();
+	}
+	(void)radio_sm_noise_hold(&sm, false, hal_millis());
+	noise_post(buf, n);
+	memset(buf, 0, sizeof buf);
 }
 #endif
 
@@ -308,6 +337,11 @@ static void radio_task(void *arg)
 				} else if (req.type == RREQ_SETTINGS) {
 					apply_pending_settings();
 				}
+#if CONFIG_KEY_FILL && CONFIG_AIR
+				else if (req.type == RREQ_NOISE) {
+					noise_grab();
+				}
+#endif
 #if CONFIG_SATELLITE_TLE
 				else if (req.type == RREQ_SATELLITE_TRACK) {
 					satellite_request(req.arg != 0, (uint8_t)req.arg2, hal_millis());
@@ -666,6 +700,9 @@ void radio_req_monitor_held_up(void) { post(RREQ_MONITOR, 2, pdMS_TO_TICKS(50));
 void radio_req_power(int8_t dir) { post(RREQ_POWER, dir, 0); }
 // Must not be lost: a forced low level that never ends, or never starts, is the whole point
 void radio_req_tx_low(bool on) { post(RREQ_TX_LOW, on, pdMS_TO_TICKS(50)); }
+#if CONFIG_KEY_FILL
+void radio_req_noise(void) { post(RREQ_NOISE, 0, 0); }
+#endif
 #if CONFIG_OTAR
 void radio_req_otar(uint8_t op, uint32_t value)
 {

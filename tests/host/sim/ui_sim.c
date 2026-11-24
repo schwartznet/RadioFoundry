@@ -2904,6 +2904,11 @@ void ui_svc_net_seen_clear(uint32_t now)
 	(void)now;
 }
 
+void ui_svc_noise_want(uint32_t now)
+{
+	(void)now;
+}
+
 void ui_svc_net_inventory_view(uint32_t id, ui_inv_view_t *r)
 {
 	memset(r, 0, sizeof *r);

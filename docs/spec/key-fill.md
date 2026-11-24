@@ -227,7 +227,7 @@ private key guessable, a listener could work out the shared secret. The code (2)
 middle, not against weak randomness. A hardware noise source (the receiver's baseband samples) can replace the
 key presses; that is open.
 
-**The receiver's noise, measured (2026-11-24).** On one DM-32UV, the FM receive copy (the discriminator's output,
+**The receiver's noise, measured (2026-11-24).** On one radio with the FM receive copy ([feature-matrix.md](../feature-matrix.md)), that copy (the discriminator's output,
 `modem-hrc7000.md` 10.1, 8000 samples a second, through the debug link's air tap in a `CONFIG_AIR_RAW` bench build),
 with first estimates after NIST SP 800-90B 6.3 (most common value, collision, Markov, t-tuple; `RadioFoundry-drafts`
 `noise/estimate.py`, not the NIST tool and not a certification), in bits of min-entropy per sample:
@@ -239,11 +239,25 @@ with first estimates after NIST SP 800-90B 6.3 (most common value, collision, Ma
 | An unmodulated FM carrier from 1 m (the worst case: the carrier quiets the discriminator) | 773 (down to 258) | 3.71 | 1.84 | 0.76 |
 
 The low bits barely correlate from one sample to the next (under 0.01) in every case, and even the quieted noise spans
-hundreds of counts, against 16 for the low 4 bits. Crediting one bit per sample, a key's 128 bits take 16 ms. Still to
-do before it replaces the key presses: a way to read a few hundred samples at the start of a session without the bench
-build (the tap halts the slot engine), the health tests SP 800-90B 4.4 asks for at run time (repetition count,
-adaptive proportion), a longer capture on more radios with the NIST estimators, and keeping the presses as a second
-source rather than dropping them.
+hundreds of counts, against 16 for the low 4 bits. Crediting one bit per sample, a key's 128 bits take 16 ms. Still open: a longer capture on more radios
+with NIST's own estimators.
+
+### 6.1 The receiver's noise in the pool (as built)
+
+On a board with the FM receive copy (`board.baseband`, `CONFIG_AIR`), while a session or an OTAR rekey or Start a net
+waits for the pool:
+
+| Part | What it does |
+|---|---|
+| Asking | The UI task asks the radio task for a grab (`radio_req_noise`, `RREQ_NOISE`) at once and then every 2 s while the pool is short (`ui_svc_noise_want`) |
+| The grab | The radio task takes the modem as the debug link's air bench does (`radio_sm_noise_hold`: the DMR stack stopped, receiving in DMR on the channel's frequency; not while transmitting, a hotspot or the bench), reads 512 samples of the receive copy (64 ms, polled every 10 ms), and gives the channel back. Reception stops for about 70 ms |
+| Health tests | SP 800-90B 4.4 on each sample's low 4 bits, for a claimed 2 bits of min-entropy per sample (3.7 measured) at a false alarm rate of 2^-20: the repetition count fails at 11 equal symbols in a row, the adaptive proportion at 177 of the window's first symbol in its 512; and a spread of 64 counts at least (a receiver that isn't running). A short read fails too |
+| Into the pool | SHA-256 over a label and the samples, posted to the UI task (`noise_post`, `noise_take`: the pool is the UI task's alone). Stirred in always; credited 128 bits (one per 4 samples, a quarter of the worst case measured) when the grab passed, nothing when it failed |
+| Key presses | Counted as before (6): a radio whose grabs fail, or a board without the copy, still fills the pool from the presses |
+| Counters | Debug link `noise.grabs`, `noise.passed`, `noise.short`, `noise.rct`, `noise.apt`, `noise.flat`, `noise.taken` |
+
+Tests: `noiseTest` (each health test at its cutoff and one below, a flat receiver, a short read, the mailbox once per
+grab and credited only when it passed).
 
 ## 7. Security
 

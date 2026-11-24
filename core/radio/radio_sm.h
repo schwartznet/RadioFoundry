@@ -136,6 +136,10 @@
 #define RADIO_SAVE_SETTLE_MS	50
 #define RADIO_SAVE_SLEEP_MS	200
 
+// The bench handover (radio_sm.c): the debug link's air interface bench, and key fill's grab of the receiver's noise
+// (support/noise.h), take the modem through it. Transmitting through it is the air bench's alone
+#define RADIO_BENCH	(CONFIG_AIR_RAW || (CONFIG_KEY_FILL && CONFIG_AIR))
+
 typedef enum {
 	RREQ_CH_STEP,		// arg: direction
 	RREQ_ZONE_POS,		// arg: position in the zone
@@ -202,6 +206,7 @@ typedef enum {
 	RREQ_TX_LOW,		// arg 1: every transmission at the board's lowest power level (key fill), 0: as set
 	RREQ_ZEROIZE,		// the emergency wipe (CONFIG_ZEROIZE): every key the radio core holds zeroed, privacy off
 	RREQ_OTAR,		// OTAR keysets (CONFIG_OTAR): arg the operation (RADIO_OTAR_*), arg2 its value
+	RREQ_NOISE,		// radio_task.c: a grab of the receiver's noise for the randomness pool (support/noise.h)
 	// New request types go above
 
 	RREQ_COUNT		// KEEP LAST: sizes req_flags[] (radio_sm.c)
@@ -352,8 +357,10 @@ typedef struct {
 	bool p25_talk;			// the transmission runs on the voice channel granted to us
 #endif
 #endif
+#if RADIO_BENCH
+	bool air_bench;			// the air interface bench, or key fill's noise grab, has the modem (RREQ_AIR_BENCH)
+#endif
 #if CONFIG_AIR_RAW
-	bool air_bench;			// the debug link's air interface bench has the modem (RREQ_AIR_BENCH)
 	bool bench_keyed;		// ... and the transmitter keyed for it (RREQ_AIR_TX)
 	uint16_t bench_max_ms;		// its cap
 	uint32_t bench_key_ms;		// when it keyed
@@ -637,5 +644,12 @@ void radio_sm_shown_view(const radio_sm_t *sm, radio_view_t *v);
 
 // Squelch thresholds for a level (exposed for the tests)
 uint8_t radio_sm_squelch_open_below(uint8_t level);
+
+#if RADIO_BENCH
+// Key fill's noise grab (radio_task.c): on, the modem taken as the bench takes it (the DMR stack stopped, receiving in
+// DMR on the channel's frequency): true when held, false when it can't be now (transmitting, a hotspot, the bench). Off
+// gives the channel back
+bool radio_sm_noise_hold(radio_sm_t *sm, bool on, uint32_t now_ms);
+#endif
 
 #endif
