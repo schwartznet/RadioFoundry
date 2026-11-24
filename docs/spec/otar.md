@@ -444,6 +444,11 @@ Then a fourth radio, fresh from stock firmware with only key 77 in its codeplug 
 (code compared) on this section's last change. With no further step it started managing the channel's keys, said HELLO
 and took key 78: the net control's Ask its keys showed "Keys: keyset 2 OK". All four radios hold key 78.
 
+Missed changeover, on air the same day: with 4675810 switched off, the net control rekeyed by hand to key 79 (Net
+status "Key 79: 2 of 3 have it", the off radio "no answer") and changed the net over. Switched back on, 4675810 said
+HELLO from key 78 and took key 79 as a REKEY flagged now: 45 s after start its Net keys showed "Keyset 3: key 79", old
+key 78 heard, `data.privacy_rx_dropped` 0.
+
 Tests: `otarCryptoTest` (a body's octets aren't in the message, the same body under the next message number encrypts
 differently, a changed ciphertext octet fails the MAC, opening leaves the message unchanged, version 1 refused);
 `dmrDataServiceTest` (port 4103 goes in the clear, mixed ports don't).
