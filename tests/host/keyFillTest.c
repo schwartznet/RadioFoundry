@@ -227,6 +227,35 @@ static void test_middle(void)
 	CHECK(same == 0);
 }
 
+// Long-lived key pairs (joining an OTAR net uses each radio's own, otar.md 6): the same private keys and session ID
+// in every session, only the sender's nonce fresh. The code still changes with the nonce, so a radio in the middle
+// that knows both public keys can't work out the code before it has to answer COMMIT (key-fill.md 4)
+static void test_static_keys(void)
+{
+	uint8_t rs[KF_RANDOM_LEN], rr[KF_RANDOM_LEN];
+	rnd(rs);
+	rnd(rr);
+	uint32_t codes[8];
+	int differ = 0;
+	for (int round = 0; round < 8; round++) {
+		uint8_t r[KF_RANDOM_LEN];
+		memcpy(r, rr, sizeof r);
+		kf_listen(&R, R_ID, r, now);
+		memcpy(r, rs, sizeof r);
+		for (int i = 0; i < KF_NONCE_LEN; i++)
+			r[X25519_LEN + 4 + i] = (uint8_t)(round * 37 + i);	// only the nonce changes
+		CHECK(kf_send(&S, S_ID, R_ID, payload_class2, NULL, r, now));
+		pump(&S, &R);
+		CHECK(S.state == KF_ST_COMPARE && R.state == KF_ST_COMPARE && S.code == R.code);
+		codes[round] = S.code;
+		for (int j = 0; j < round; j++)
+			differ += codes[j] != codes[round];
+		kf_cancel(&S, now);
+		pump(&S, &R);
+	}
+	CHECK(differ == 8 * 7 / 2);
+}
+
 // Each message changed on the way: the session fails before any key is stored, or the codes differ
 static void flip_last(uint8_t *m, int *len) { m[*len - 1] ^= 0x01; }
 static void flip_body(uint8_t *m, int *len) { (void)len; m[KF_HEADER + 1] ^= 0x80; }
@@ -749,6 +778,7 @@ int main(void)
 	test_fill_class2();
 	test_fill_class1_sender_first();
 	test_middle();
+	test_static_keys();
 	test_tamper();
 	test_replay();
 	test_timeouts();

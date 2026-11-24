@@ -8,13 +8,14 @@
 #include "support/hkdf.h"
 
 // The labels of 4 and 4.1, ASCII without a terminator
-static const char L_COMMIT[] = "RFKF1 commit";
-static const char L_TRANSCRIPT[] = "RFKF1 transcript";
+static const char L_COMMIT[] = "RFKF2 commit";
+static const char L_TRANSCRIPT[] = "RFKF2 transcript";
 static const char L_KEYS[] = "RFKF1 keys";
 static const char L_PAYLOAD[] = "RFKF1 payload";
 #define LABEL(l)	(l), (sizeof(l) - 1u)
 
-#define PUB_MSG		(KF_HEADER + X25519_LEN)	// COMMIT, RPUB, SPUB: 38
+#define PUB_MSG		(KF_HEADER + X25519_LEN)	// COMMIT, RPUB: 38
+#define SPUB_MSG	(PUB_MSG + KF_NONCE_LEN)	// SPUB: the public key and the nonce, 54
 #define READY_LEN	(KF_HEADER + KF_TAG_LEN)	// 22
 #define DONE_LEN	(KF_HEADER + 4 + KF_TAG_LEN)	// 26
 #define ABORT_LEN	(KF_HEADER + 1)			// 7
@@ -58,6 +59,7 @@ static void wipe_secrets(kf_session_t *s)
 {
 	crypto_wipe(s->priv, sizeof s->priv);
 	crypto_wipe(s->commit, sizeof s->commit);
+	crypto_wipe(s->nonce, sizeof s->nonce);
 	crypto_wipe(s->t, sizeof s->t);
 	crypto_wipe(s->k_mac, sizeof s->k_mac);
 	crypto_wipe(s->k_enc, sizeof s->k_enc);
@@ -87,12 +89,16 @@ static void fail(kf_session_t *s, uint8_t why, bool tell, uint32_t now)
 	enter(s, KF_ST_FAILED, now);
 }
 
-static void commit_hash(const uint8_t pub[X25519_LEN], uint8_t out[SHA256_LEN])
+// The sender's commitment: its public key and its fresh nonce. The nonce makes the code unpredictable to a radio in
+// the middle even when the public keys are long-lived and known (joining a net, otar.md 6): it must answer COMMIT
+// before it learns the nonce, so it can't search for a key that makes both sides' codes match (key-fill.md 4)
+static void commit_hash(const uint8_t pub[X25519_LEN], const uint8_t nonce[KF_NONCE_LEN], uint8_t out[SHA256_LEN])
 {
 	sha256_t h;
 	sha256_init(&h);
 	sha256_update(&h, LABEL(L_COMMIT));
 	sha256_update(&h, pub, X25519_LEN);
+	sha256_update(&h, nonce, KF_NONCE_LEN);
 	sha256_final(&h, out);
 }
 
@@ -123,6 +129,7 @@ static bool derive(kf_session_t *s)
 	sha256_update(&h, ids, sizeof ids);
 	sha256_update(&h, sender ? s->own_pub : s->peer_pub, X25519_LEN);
 	sha256_update(&h, sender ? s->peer_pub : s->own_pub, X25519_LEN);
+	sha256_update(&h, s->nonce, KF_NONCE_LEN);
 	sha256_final(&h, s->t);
 	hkdf_extract(s->t, sizeof s->t, shared, sizeof shared, prk);
 	(void)hkdf_expand(prk, LABEL(L_KEYS), okm, sizeof okm);
@@ -210,9 +217,10 @@ bool kf_send(kf_session_t *s, uint32_t own_id, uint32_t peer_id, kf_payload_fn f
 	s->payload_ctx = ctx;
 	memcpy(s->priv, rnd, X25519_LEN);
 	s->sid = get32(rnd + X25519_LEN);
+	memcpy(s->nonce, rnd + X25519_LEN + 4, KF_NONCE_LEN);
 	x25519_public(s->own_pub, s->priv, &s->ws);
 	int n = header(s->sid, KF_COMMIT, s->tx);
-	commit_hash(s->own_pub, &s->tx[n]);
+	commit_hash(s->own_pub, s->nonce, &s->tx[n]);
 	queue(s, PUB_MSG, peer_id);
 	enter(s, KF_ST_SENT_COMMIT, now);
 	return true;
@@ -281,18 +289,21 @@ void kf_rx(kf_session_t *s, uint32_t src, const uint8_t *m, int len, uint32_t no
 			fail(s, KF_WHY_CHECK, true, now);
 			return;
 		}
-		memcpy(&s->tx[header(s->sid, KF_SPUB, s->tx)], s->own_pub, X25519_LEN);
-		queue(s, PUB_MSG, s->peer_id);
+		int hl = header(s->sid, KF_SPUB, s->tx);
+		memcpy(&s->tx[hl], s->own_pub, X25519_LEN);
+		memcpy(&s->tx[hl + X25519_LEN], s->nonce, KF_NONCE_LEN);
+		queue(s, SPUB_MSG, s->peer_id);
 		s->compare_at = now;
 		enter(s, KF_ST_COMPARE, now);
 		return;
 	case KF_ST_SENT_RPUB: {	// R
-		if (type != KF_SPUB || len != PUB_MSG)
+		if (type != KF_SPUB || len != SPUB_MSG)
 			break;
 		uint8_t h[SHA256_LEN];
-		commit_hash(&m[KF_HEADER], h);
+		commit_hash(&m[KF_HEADER], &m[KF_HEADER + X25519_LEN], h);
 		bool kept = crypto_equal(h, s->commit, SHA256_LEN);
 		memcpy(s->peer_pub, &m[KF_HEADER], X25519_LEN);
+		memcpy(s->nonce, &m[KF_HEADER + X25519_LEN], KF_NONCE_LEN);
 		if (!kept || !derive(s)) {
 			fail(s, KF_WHY_CHECK, true, now);
 			return;

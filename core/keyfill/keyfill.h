@@ -17,13 +17,15 @@
 #include "support/x25519.h"
 #include "support/sha256.h"
 
-#define KF_VERSION		1
+#define KF_VERSION		2	// 2: the sender commits to a fresh nonce with its public key (key-fill.md 4)
 #define KF_PORT			4101	// UDP source and destination port (key-fill.md 3)
 #define KF_HEADER		6	// version, type, session ID
 #define KF_TAG_LEN		16
 #define KF_PAYLOAD_MAX		48	// class 2 with an 8-octet identity and a 32-octet key
 #define KF_MSG_MAX		(KF_HEADER + 1 + KF_PAYLOAD_MAX + KF_TAG_LEN)	// KEY, the longest: 71
-#define KF_RANDOM_LEN		36	// a session's randomness: the private key (32) and, for a sender, the session ID (4)
+#define KF_NONCE_LEN		16	// the sender's fresh nonce, committed in COMMIT and shown in SPUB
+#define KF_RANDOM_LEN		52	// a session's randomness: the private key (32) and, for a sender, the session ID (4) and
+				// the nonce (16)
 #define KF_CODE_MOD		1000000u
 
 // Message types (4)
@@ -106,6 +108,7 @@ typedef struct {
 	uint8_t own_pub[X25519_LEN];
 	uint8_t peer_pub[X25519_LEN];
 	uint8_t commit[SHA256_LEN];	// R: the commitment COMMIT carried
+	uint8_t nonce[KF_NONCE_LEN];	// S: its own; R: the sender's, from SPUB
 	uint8_t t[SHA256_LEN];		// the transcript hash
 	uint8_t k_mac[SHA256_LEN];
 	uint8_t k_enc[SHA256_LEN];

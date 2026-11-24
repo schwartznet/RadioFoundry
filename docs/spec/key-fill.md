@@ -82,14 +82,14 @@ press OK before the key goes: nothing leaves the sender without both users' word
 
 ## 4. Messages
 
-Every message starts with the version (1), the type and the session ID (4 octets, chosen by the sender). Multi-octet
+Every message starts with the version (2), the type and the session ID (4 octets, chosen by the sender). Multi-octet
 fields are big-endian unless a field says otherwise.
 
 | Type | Name | From | Octets | After the header |
 |---|---|---|---|---|
-| 1 | COMMIT | S | 38 | H = SHA-256("RFKF1 commit" \| S's public key) |
+| 1 | COMMIT | S | 38 | H = SHA-256("RFKF2 commit" \| S's public key \| S's nonce (16)) |
 | 2 | RPUB | R | 38 | R's public key (32) |
-| 3 | SPUB | S | 38 | S's public key (32) |
+| 3 | SPUB | S | 54 | S's public key (32), S's nonce (16) |
 | 4 | READY | R | 22 | tag (16) |
 | 5 | KEY | S | 23 + n | length n (1), the encrypted payload (n), tag (16) |
 | 6 | DONE | R | 26 | result (1), check value (3), tag (16) |
@@ -100,9 +100,18 @@ for is dropped and counted; it doesn't end the session. The one exception is ABO
 
 ### 4.1 Key schedule
 
+**Why the nonce (version 2).** A commitment to the public key alone keeps a radio in the middle from steering the code
+only while that key is new: it has to answer COMMIT before it sees the key. Joining an OTAR net uses each radio's
+long-lived key pair ([otar.md](otar.md) 6), already heard in earlier fills and on the roster, so a radio in the middle
+knew S's key in advance and could search about a million keys of its own, offline, for one whose code toward S matched
+its code toward R. The sender's fresh nonce is committed in COMMIT and only shown in SPUB, after R (or the radio in the
+middle) has answered with its key, and it goes into T: the code toward S stays unpredictable until then, so the radio
+in the middle matches by chance only, 1 in a million. Found by an independent review, 2026-11-24.
+
 ```
 shared = X25519(own private key, other's public key)       all zeros: refused (RFC 7748 6.1)
-T      = SHA-256("RFKF1 transcript" | session ID | S's DMR ID (3) | R's DMR ID (3) | S's public key | R's public key)
+T      = SHA-256("RFKF2 transcript" | session ID | S's DMR ID (3) | R's DMR ID (3) | S's public key | R's public key |
+                 S's nonce)
 PRK    = HKDF-Extract(salt = T, IKM = shared)
 OKM    = HKDF-Expand(PRK, "RFKF1 keys", 68) = k_mac (32) | k_enc (32) | c (4)
 code   = (c as a big-endian 32-bit number) mod 1,000,000, shown as two groups of three digits
@@ -213,7 +222,7 @@ when the pool holds 128 credited bits; until then the screen asks for random key
 32 octets (`entropy_take`) hashes the pool with a counter and a different label, then replaces the pool by a hash of
 itself, so a later read of RAM doesn't give back an earlier private key, and clears the credit.
 
-The private key is 32 octets from the pool, the session ID 4 more. Both radios need good randomness: with either
+The private key is 32 octets from the pool, the session ID 4 more and the sender's nonce 16. Both radios need good randomness: with either
 private key guessable, a listener could work out the shared secret. The code (2) protects against a radio in the
 middle, not against weak randomness. A hardware noise source (the receiver's baseband samples) can replace the
 key presses; that is open.
