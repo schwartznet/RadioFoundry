@@ -1673,6 +1673,13 @@ void radio_req_otar(uint8_t op, uint32_t value)
 		o->changeover = 0;
 		o->by_clock = false;
 		break;
+	case RADIO_OTAR_TIME:
+		if (o->clock_ok && o->clock_src != UTC_SRC_NET)
+			return;
+		o->clock_ok = true;
+		o->clock_src = UTC_SRC_NET;
+		o->now_min = otar_minutes((int64_t)value);
+		break;
 	case RADIO_OTAR_CLOCK:
 		o->clock_ok = true;
 		o->clock_src = UTC_SRC_HAND;
@@ -2753,6 +2760,9 @@ static struct {
 	uint8_t ranks[8];
 	uint8_t flags[8];
 	bool wipe;
+	uint8_t sched;
+	uint32_t sched_at;
+	uint32_t inv_id;
 } net_sim;
 
 static void net_sim_add(uint32_t id, uint8_t rank)
@@ -2779,6 +2789,8 @@ void ui_svc_net_view(ui_net_view_t *v)
 	v->starting = net_sim.starting;
 	v->presses = net_sim.starting ? net_sim.left : 0;
 	v->remote_wipe = net_sim.wipe;
+	v->sched_days = net_sim.sched;
+	v->sched_at = net_sim.sched_at;
 }
 void ui_svc_net_start(uint32_t own)
 {
@@ -2854,6 +2866,45 @@ uint8_t ui_svc_net_wipe(const radio_view_t *v, uint32_t id)
 }
 void ui_svc_net_accept(bool yes) { (void)yes; }
 void ui_svc_net_set_remote_wipe(bool on) { net_sim.wipe = on; }
+// TIME, the schedule, INVENTORY: the time goes out at once; a member asked holds keyset 1, the same key
+uint8_t ui_svc_net_send_time(const radio_view_t *v)
+{
+	if (!net_sim.in || net_sim.rank == 0)
+		return UI_NET_NOT_NC;
+	if (v->dmr.target_private || v->dmr.target_id == 0)
+		return UI_NET_NO_TG;
+	return v->otar.clock_ok && v->otar.clock_src != UTC_SRC_NET ? UI_NET_OK : UI_NET_NO_CLOCK;
+}
+uint8_t ui_svc_net_set_schedule(const radio_view_t *v, uint8_t days)
+{
+	if (!net_sim.in || net_sim.rank == 0)
+		return UI_NET_NOT_NC;
+	if (days != 0 && !v->otar.clock_ok)
+		return UI_NET_NO_CLOCK;
+	net_sim.sched = days;
+	net_sim.sched_at = days != 0 ? v->otar.now_min + days * 1440u : 0;
+	return UI_NET_OK;
+}
+uint8_t ui_svc_net_inventory(const radio_view_t *v, uint32_t id)
+{
+	int i = sim_member(id);
+	if (!net_sim.in || net_sim.rank == 0)
+		return UI_NET_NOT_NC;
+	if (i < 0 || id == v->dmr.own_id || net_sim.flags[i])
+		return UI_NET_NO_MEMBER;
+	net_sim.inv_id = id;
+	return UI_NET_OK;
+}
+void ui_svc_net_inventory_view(uint32_t id, ui_inv_view_t *r)
+{
+	memset(r, 0, sizeof *r);
+	if (id == 0 || id != net_sim.inv_id)
+		return;
+	r->state = UI_INV_GOT;
+	r->n = 1;
+	r->keyset[0] = 1;
+	r->same[0] = true;
+}
 
 // Rekeying: Rekey now runs at once with key 2 to every member but this radio; tokens rk:ack (the next member ACKs) and
 // rk:fail (it doesn't). Change over the net makes this radio's next key active

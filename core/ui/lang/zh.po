@@ -5265,6 +5265,16 @@ msgid "Leave the net"
 msgstr "退出网络"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_SCHED"
+msgid "Rekey every"
+msgstr "定期更换密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_TIME"
+msgid "Send the time"
+msgstr "发送时间"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_ON"
 msgid "On"
 msgstr "开"
@@ -5273,6 +5283,16 @@ msgstr "开"
 msgctxt "NET_OFF"
 msgid "Off"
 msgstr "关"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_DAY"
+msgid " day"
+msgstr " 天"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_DAYS"
+msgid " days"
+msgstr " 天"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_TYPE_ID"
@@ -5310,6 +5330,11 @@ msgid ": member"
 msgstr ": 电台"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_REMOVED"
+msgid "Removed from the net"
+msgstr "已移出网络"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_NOT_IN"
 msgid "Not in a net"
 msgstr "未加入网络"
@@ -5323,6 +5348,11 @@ msgstr "本机: "
 msgctxt "NET_NO_KEY"
 msgid "No key pair yet"
 msgstr "尚无密钥对"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_SCHED_NEXT"
+msgid "Next rekey: "
+msgstr "下次更换: "
 
 #: core/ui/ui_menus.c
 msgctxt "NET_ROSTER_ON"
@@ -5390,6 +5420,26 @@ msgid "Take over refused"
 msgstr "已拒绝接任"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_TIME_SENT"
+msgid "Sending the time"
+msgstr "正在发送时间"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_WHY_TG"
+msgid "Needs a talkgroup as the target"
+msgstr "目标须为群组"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_TIME_BUSY"
+msgid "The time is being sent"
+msgstr "时间正在发送"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_WHY_TIME"
+msgid "No clock of its own to send"
+msgstr "无本机时间可发送"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_ROSTER_SENDING"
 msgid "Sending the roster"
 msgstr "正在发送名单"
@@ -5398,11 +5448,6 @@ msgstr "正在发送名单"
 msgctxt "NET_CHANGING"
 msgid "Changing the net over"
 msgstr "正在全网更换"
-
-#: core/ui/ui_menus.c
-msgctxt "NET_WHY_TG"
-msgid "Needs a talkgroup as the target"
-msgstr "目标须为群组"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_WHY_NO_NEXT"
@@ -5445,6 +5490,11 @@ msgid "Wipe its keys"
 msgstr "擦除其密钥"
 
 #: core/ui/ui_menus.c
+msgctxt "NM_INV"
+msgid "Ask its keys"
+msgstr "查询其密钥"
+
+#: core/ui/ui_menus.c
 msgctxt "NM_MEMBER"
 msgid "member"
 msgstr "普通台"
@@ -5458,6 +5508,41 @@ msgstr "主台 "
 msgctxt "NM_REVOKED"
 msgid "revoked"
 msgstr "已撤销"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_KEYS"
+msgid "Keys: "
+msgstr "密钥: "
+
+#: core/ui/ui_menus.c
+msgctxt "NM_KEYS_ASKING"
+msgid "asking"
+msgstr "查询中"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_KEYS_NO_ANSWER"
+msgid "no answer"
+msgstr "无回应"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_KEYS_NONE"
+msgid "none"
+msgstr "无"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_KEYSET"
+msgid "keyset "
+msgstr "密钥组 "
+
+#: core/ui/ui_menus.c
+msgctxt "NM_KEY_SAME"
+msgid " OK"
+msgstr " 一致"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_KEY_OTHER"
+msgid " differs"
+msgstr " 不同"
 
 #: core/ui/ui_menus.c
 msgctxt "NM_RANK_SENT"
@@ -5483,6 +5568,11 @@ msgstr "已撤销: 请更换密钥"
 msgctxt "NM_WHY_HIGHER"
 msgid "A higher net control: use Take over"
 msgstr "更高的主台: 请用接任主台"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_INV_BUSY"
+msgid "Still asking"
+msgstr "仍在查询"
 
 #: core/ui/ui_menus.c
 msgctxt "NM_WIPE_SENT"

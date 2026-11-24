@@ -448,7 +448,7 @@ typedef struct {
 } radio_otar_view_t;
 // radio_req_otar's operations
 enum { RADIO_OTAR_START, RADIO_OTAR_STOP, RADIO_OTAR_NEXT, RADIO_OTAR_CLEAR_NEXT, RADIO_OTAR_NOW, RADIO_OTAR_CLOCK,
-       RADIO_OTAR_NEXT_AT };
+       RADIO_OTAR_NEXT_AT, RADIO_OTAR_TIME };	// TIME: a net control's UTC (unix seconds), kept only without a better clock
 #endif
 
 typedef struct {

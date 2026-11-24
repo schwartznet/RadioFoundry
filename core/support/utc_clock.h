@@ -8,7 +8,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-enum { UTC_SRC_NONE, UTC_SRC_GPS, UTC_SRC_HAND, UTC_SRC_RTC };
+enum { UTC_SRC_NONE, UTC_SRC_GPS, UTC_SRC_HAND, UTC_SRC_RTC, UTC_SRC_NET };	// NET: a net control's TIME (otar.md 7.4)
 
 // The time is unix_s at millisecond now_ms, from src
 void utc_clock_set(int64_t unix_s, uint32_t now_ms, uint8_t src);

@@ -5263,6 +5263,16 @@ msgid "Leave the net"
 msgstr "Quitter le réseau"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_SCHED"
+msgid "Rekey every"
+msgstr "Changer la clé tous les"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_TIME"
+msgid "Send the time"
+msgstr "Envoyer l'heure"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_ON"
 msgid "On"
 msgstr "Oui"
@@ -5271,6 +5281,16 @@ msgstr "Oui"
 msgctxt "NET_OFF"
 msgid "Off"
 msgstr "Non"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_DAY"
+msgid " day"
+msgstr " jour"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_DAYS"
+msgid " days"
+msgstr " jours"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_TYPE_ID"
@@ -5308,6 +5328,11 @@ msgid ": member"
 msgstr ": membre"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_REMOVED"
+msgid "Removed from the net"
+msgstr "Retiré du réseau"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_NOT_IN"
 msgid "Not in a net"
 msgstr "Hors réseau"
@@ -5321,6 +5346,11 @@ msgstr "Cette radio : "
 msgctxt "NET_NO_KEY"
 msgid "No key pair yet"
 msgstr "Pas encore de paire de clés"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_SCHED_NEXT"
+msgid "Next rekey: "
+msgstr "Prochain changement : "
 
 #: core/ui/ui_menus.c
 msgctxt "NET_ROSTER_ON"
@@ -5388,6 +5418,26 @@ msgid "Take over refused"
 msgstr "Prise refusée"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_TIME_SENT"
+msgid "Sending the time"
+msgstr "Envoi de l'heure"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_WHY_TG"
+msgid "Needs a talkgroup as the target"
+msgstr "Il faut un groupe comme cible"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_TIME_BUSY"
+msgid "The time is being sent"
+msgstr "L'heure est en cours d'envoi"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_WHY_TIME"
+msgid "No clock of its own to send"
+msgstr "Pas d'heure propre à envoyer"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_ROSTER_SENDING"
 msgid "Sending the roster"
 msgstr "Envoi de la liste"
@@ -5396,11 +5446,6 @@ msgstr "Envoi de la liste"
 msgctxt "NET_CHANGING"
 msgid "Changing the net over"
 msgstr "Bascule du réseau"
-
-#: core/ui/ui_menus.c
-msgctxt "NET_WHY_TG"
-msgid "Needs a talkgroup as the target"
-msgstr "Il faut un groupe comme cible"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_WHY_NO_NEXT"
@@ -5443,6 +5488,11 @@ msgid "Wipe its keys"
 msgstr "Effacer ses clés"
 
 #: core/ui/ui_menus.c
+msgctxt "NM_INV"
+msgid "Ask its keys"
+msgstr "Demander ses clés"
+
+#: core/ui/ui_menus.c
 msgctxt "NM_MEMBER"
 msgid "member"
 msgstr "membre"
@@ -5456,6 +5506,41 @@ msgstr "CR "
 msgctxt "NM_REVOKED"
 msgid "revoked"
 msgstr "révoquée"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_KEYS"
+msgid "Keys: "
+msgstr "Clés : "
+
+#: core/ui/ui_menus.c
+msgctxt "NM_KEYS_ASKING"
+msgid "asking"
+msgstr "demande en cours"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_KEYS_NO_ANSWER"
+msgid "no answer"
+msgstr "pas de réponse"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_KEYS_NONE"
+msgid "none"
+msgstr "aucune"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_KEYSET"
+msgid "keyset "
+msgstr "jeu "
+
+#: core/ui/ui_menus.c
+msgctxt "NM_KEY_SAME"
+msgid " OK"
+msgstr " OK"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_KEY_OTHER"
+msgid " differs"
+msgstr " différente"
 
 #: core/ui/ui_menus.c
 msgctxt "NM_RANK_SENT"
@@ -5481,6 +5566,11 @@ msgstr "Révoquée : changez la clé"
 msgctxt "NM_WHY_HIGHER"
 msgid "A higher net control: use Take over"
 msgstr "Contrôle supérieur : Prendre le contrôle"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_INV_BUSY"
+msgid "Still asking"
+msgstr "Demande toujours en cours"
 
 #: core/ui/ui_menus.c
 msgctxt "NM_WIPE_SENT"

@@ -39,6 +39,7 @@ static uint32_t rtc_set_ms;		// when this radio last set it from GPS (0: not sin
 
 #define RTC_KEEP_MS	(6u * 3600u * 1000u)	// GPS sets the board's clock again after this
 #define RTC_CHECK_MS	3000u	// the board's clock is read twice this far apart: it must have counted that time
+#define OTAR_TIME_MOVE_S	(48 * 3600)	// a net control's TIME moves a clock it set at most this far (otar.md 7.4)
 
 // The board's real-time clock (hal_rtc.h): set from a GPS or hand-set time, and marked as holding UTC
 static void rtc_keep(int64_t unix_s, uint32_t now_ms)
@@ -215,6 +216,17 @@ bool radio_aes_otar_request(uint8_t op, uint32_t value, const channel_t *ch, uin
 		utc_clock_set((int64_t)value, now_ms, UTC_SRC_HAND);
 		rtc_keep((int64_t)value, now_ms);
 		return false;
+	case RADIO_OTAR_TIME: {
+		// otar.md 7.4: only a radio with no clock but the net's takes it, and moves that one at most 48 hours. Not
+		// kept in the board's clock: GPS, the board's clock or a time set by hand stays first
+		int64_t had = 0;
+		uint8_t src = UTC_SRC_NONE;
+		bool clock = utc_clock_now(now_ms, &had, &src);
+		int64_t d = (int64_t)value - had;
+		if (!clock || (src == UTC_SRC_NET && d <= OTAR_TIME_MOVE_S && d >= -OTAR_TIME_MOVE_S))
+			utc_clock_set((int64_t)value, now_ms, UTC_SRC_NET);
+		return false;
+	}
 	default:
 		return false;
 	}

@@ -238,9 +238,9 @@ static void test_msgs(void)
 
 	// CHANGEOVER: to the talkgroup, under the key from the TEK it makes active
 	uint8_t gk[32], gk2[32];
-	otar_group_mac_key(tek, gk);
+	otar_group_mac_key(tek, OTAR_GK_CO, gk);
 	tek[5] ^= 1;
-	otar_group_mac_key(tek, gk2);
+	otar_group_mac_key(tek, OTAR_GK_CO, gk2);
 	CHECK(memcmp(gk, gk2, 32) != 0 && memcmp(gk, tek, 32) != 0);
 	otar_addr_t tg = { 4674131, 42001 };
 	memset(&m, 0, sizeof m);
@@ -252,6 +252,31 @@ static void test_msgs(void)
 	n = otar_changeover_build(buf, &tg, gk, &m);
 	CHECK(n == (int)OTAR_CHANGEOVER_LEN && otar_open(buf, n, &tg, NULL, gk, &got) && got.kid == 34 && got.keyset == 3);
 	CHECK(!otar_open(buf, n, &tg, NULL, gk2, &got));	// a radio without the next TEK can't make or check one
+
+	// TIME: to the talkgroup under the active TEK's "time" key, which isn't the changeover's
+	uint8_t tk[32];
+	otar_group_mac_key(tek, OTAR_GK_TIME, tk);
+	CHECK(memcmp(tk, gk2, 32) != 0);
+	memset(&m, 0, sizeof m);
+	m.net_id = 0xE721;
+	m.msgnum = 79;
+	m.rank = 2;
+	m.time_s = 28252800u;	// 2026-11-24 00:00 UTC
+	n = otar_time_build(buf, &tg, tk, &m);
+	CHECK(n == (int)OTAR_TIME_LEN && otar_open(buf, n, &tg, NULL, tk, &got) && got.type == OTAR_TIME &&
+	      got.time_s == 28252800u && got.rank == 2);
+	CHECK(!otar_open(buf, n, &tg, NULL, gk2, &got));
+	buf[11] ^= 1;
+	CHECK(!otar_open(buf, n, &tg, NULL, tk, &got));
+
+	// INVENTORY: no body, under the pair's MAC key
+	memset(&m, 0, sizeof m);
+	m.net_id = 0xE721;
+	m.msgnum = 80;
+	m.rank = 1;
+	n = otar_inventory_build(buf, &a, kmac, &m);
+	CHECK(n == (int)OTAR_INVENTORY_LEN && otar_open(buf, n, &a, NULL, kmac, &got) && got.type == OTAR_INVENTORY);
+	CHECK(!otar_open(buf, n, &swapped, NULL, kmac, &got));
 
 	// Headers: another version, magic, net 0, a rank past 4, an unknown type
 	uint8_t h[OTAR_MSG_MAX];

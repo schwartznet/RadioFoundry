@@ -9157,7 +9157,8 @@ static void nk_enter(void)
 // Net status and Change over the net; a member's are Members and Leave the net
 // The fingerprint is the radio's public key's, which another radio's Members list shows for it
 enum { NET_START, NET_JOIN, NET_MEMBERS, NET_ADD, NET_REKEY, NET_RK_WHEN, NET_STATUS, NET_CHANGE_OVER, NET_ROSTER,
-       NET_TAKE_OVER, NET_WIPE_OK, NET_ACCEPT, NET_REFUSE, NET_LEAVE, NET_ROWS };
+       NET_TAKE_OVER, NET_WIPE_OK, NET_ACCEPT, NET_REFUSE, NET_LEAVE, NET_SCHED, NET_TIME, NET_ROWS };
+static const uint8_t net_sched_days[] = { 0, 1, 7, 30 };	// Rekey every (otar.md 9)
 static uint8_t net_rk_when = 1;	// Key change: index into nk_mins, 5 min each time Net opens
 static uint32_t net_typed;	// Add a member: the ID typed
 static uint8_t net_typed_n;	// its digits; 0 and not typing: no entry
@@ -9187,6 +9188,8 @@ static uint8_t net_rows(uint8_t out[NET_ROWS])
 			out[k++] = nc[j];
 		if (n.rank > 1u)
 			out[k++] = NET_TAKE_OVER;
+		out[k++] = NET_SCHED;
+		out[k++] = NET_TIME;
 	}
 	out[k++] = NET_WIPE_OK;
 	out[k++] = NET_LEAVE;
@@ -9212,7 +9215,8 @@ static void net_item(uint16_t i, ui_item_t *it)
 					 TRN(NET_STATUS, "Net status"), TRN(NET_CHANGE_OVER, "Change over the net"),
 					 TRN(NET_ROSTER, "Send the roster"), TRN(NET_TAKE_OVER, "Take over"),
 					 TRN(NET_REMOTE_WIPE, "Remote wipe"), TRN(NET_ACCEPT, "Accept the take over"),
-					 TRN(NET_REFUSE, "Refuse the take over"), TRN(NET_LEAVE, "Leave the net") };
+					 TRN(NET_REFUSE, "Refuse the take over"), TRN(NET_LEAVE, "Leave the net"),
+					 TRN(NET_SCHED, "Rekey every"), TRN(NET_TIME, "Send the time") };
 	uint8_t row = net_row(i);
 	str_copy(it->label, sizeof it->label, tr(names[row]));
 	if (row == NET_RK_WHEN) {
@@ -9223,6 +9227,17 @@ static void net_item(uint16_t i, ui_item_t *it)
 		ui_net_view_t n;
 		net_view_now(&n);
 		str_copy(it->value, sizeof it->value, n.remote_wipe ? TR(NET_ON, "On") : TR(NET_OFF, "Off"));
+	} else if (row == NET_SCHED) {
+		ui_net_view_t n;
+		net_view_now(&n);
+		sbuf_t b;
+		sb_init(&b, it->value, sizeof it->value);
+		if (n.sched_days == 0) {
+			sb_str(&b, TR(NET_OFF, "Off"));
+		} else {
+			sb_u32(&b, n.sched_days, 1);
+			sb_str(&b, n.sched_days == 1u ? TR(NET_DAY, " day") : TR(NET_DAYS, " days"));
+		}
 	}
 	item_num(it, (uint16_t)(i + 1u));
 }
@@ -9269,6 +9284,10 @@ static const char *net_body(void)
 		} else {
 			sb_str(&b, TR(NET_AS_MEMBER, ": member"));
 		}
+		if (n.removed) {	// a net control revoked this radio (otar.md 7.5)
+			sb_chr(&b, '\n');
+			sb_str(&b, TR(NET_REMOVED, "Removed from the net"));
+		}
 	} else {
 		sb_str(&b, TR(NET_NOT_IN, "Not in a net"));
 	}
@@ -9278,6 +9297,11 @@ static const char *net_body(void)
 		net_fp(&b, n.fp);
 	} else {
 		sb_str(&b, TR(NET_NO_KEY, "No key pair yet"));
+	}
+	if (n.in_net && n.rank != 0 && n.sched_days != 0 && n.sched_at != 0) {
+		sb_chr(&b, '\n');
+		sb_str(&b, TR(NET_SCHED_NEXT, "Next rekey: "));
+		nk_time(&b, n.sched_at, true);
 	}
 	ui_roster_view_t r;
 	ui_svc_net_roster_view(&r);
@@ -9364,6 +9388,27 @@ static void net_select(uint16_t i, bool hold)
 	case NET_REFUSE:
 		ui_svc_net_accept(false);
 		ui_toast(TR(NET_REFUSED, "Take over refused"));
+		break;
+	case NET_SCHED: {
+		ui_net_view_t n;
+		net_view_now(&n);
+		unsigned j = 0;
+		while (j < sizeof net_sched_days && net_sched_days[j] != n.sched_days)
+			j++;
+		uint8_t days = net_sched_days[(j + 1u) % sizeof net_sched_days];
+		if (ui_svc_net_set_schedule(v, days) == UI_NET_NO_CLOCK) {
+			(void)ui_svc_net_set_schedule(v, 0);
+			ui_toast(TR(NK_WHY_CLOCK, "No clock: set it, or wait for GPS"));
+		}
+		break;
+	}
+	case NET_TIME:
+		switch (ui_svc_net_send_time(v)) {
+		case UI_NET_OK: ui_toast(TR(NET_TIME_SENT, "Sending the time")); break;
+		case UI_NET_NO_TG: ui_toast(TR(NET_WHY_TG, "Needs a talkgroup as the target")); break;
+		case UI_NET_BUSY: ui_toast(TR(NET_TIME_BUSY, "The time is being sent")); break;
+		default: ui_toast(TR(NET_WHY_TIME, "No clock of its own to send")); break;
+		}
 		break;
 	case NET_ROSTER:
 		if (ui_svc_net_roster_send(0) == UI_NET_OK)
@@ -9464,8 +9509,9 @@ static void members_select(uint16_t i, bool hold)
 		ui_push(SCR_NET_MEMBER, i);
 }
 
-// A member's actions (otar.md 10, 7.5; the net control): its rank (net control 1 only), revoke it, wipe its keys
-enum { NM_RANK, NM_REVOKE, NM_WIPE };
+// A member's actions (otar.md 9, 10, 7.5; the net control): its rank (net control 1 only), revoke it, wipe its keys,
+// ask which keys it holds (INVENTORY: the body shows the answer)
+enum { NM_RANK, NM_REVOKE, NM_WIPE, NM_INV, NM_ROWS };
 #define OTAR_RANK_MAX_UI	4u	// net controls 1-4 (otar_net.h OTAR_RANK_MAX)
 
 static bool nm_member(uint32_t *id, uint8_t *rank, uint8_t *flags, uint8_t fp[3])
@@ -9481,16 +9527,17 @@ static uint16_t nm_count(void)
 {
 	uint32_t id;
 	uint8_t r, f, fp[3];
-	return nm_member(&id, &r, &f, fp) && id != ui_view()->dmr.own_id ? 3 : 0;
+	return nm_member(&id, &r, &f, fp) && id != ui_view()->dmr.own_id ? NM_ROWS : 0;
 }
 
 static void nm_item(uint16_t i, ui_item_t *it)
 {
-	static const tr_id_t names[] = { TRN(NM_RANK, "Rank"), TRN(NM_REVOKE, "Revoke"), TRN(NM_WIPE, "Wipe its keys") };
+	static const tr_id_t names[] = { TRN(NM_RANK, "Rank"), TRN(NM_REVOKE, "Revoke"), TRN(NM_WIPE, "Wipe its keys"),
+					 TRN(NM_INV, "Ask its keys") };
 	uint32_t id;
 	uint8_t r = 0, f = 0, fp[3];
 	(void)nm_member(&id, &r, &f, fp);
-	str_copy(it->label, sizeof it->label, tr(names[i < 3u ? i : 0]));
+	str_copy(it->label, sizeof it->label, tr(names[i < NM_ROWS ? i : 0]));
 	sbuf_t b;
 	sb_init(&b, it->value, sizeof it->value);
 	if (i == NM_RANK) {
@@ -9517,6 +9564,27 @@ static const char *nm_body(void)
 	sb_u32(&b, id, 1);
 	sb_str(&b, "  ");
 	net_fp(&b, fp);
+	ui_inv_view_t q;
+	ui_svc_net_inventory_view(id, &q);
+	if (q.state == UI_INV_NONE)
+		return id_body;
+	sb_chr(&b, '\n');
+	sb_str(&b, TR(NM_KEYS, "Keys: "));
+	if (q.state == UI_INV_ASKING) {
+		sb_str(&b, TR(NM_KEYS_ASKING, "asking"));
+	} else if (q.state == UI_INV_NO_ANSWER) {
+		sb_str(&b, TR(NM_KEYS_NO_ANSWER, "no answer"));
+	} else if (q.n == 0) {
+		sb_str(&b, TR(NM_KEYS_NONE, "none"));
+	} else {
+		for (uint8_t k = 0; k < q.n && k < 2u; k++) {
+			if (k != 0)
+				sb_str(&b, ", ");
+			sb_str(&b, TR(NM_KEYSET, "keyset "));
+			sb_u32(&b, q.keyset[k], 1);
+			sb_str(&b, q.same[k] ? TR(NM_KEY_SAME, " OK") : TR(NM_KEY_OTHER, " differs"));
+		}
+	}
 	return id_body;
 }
 
@@ -9541,6 +9609,11 @@ static void nm_select(uint16_t i, bool hold)
 		ui_toast(res == UI_NET_OK ? TR(NM_REVOKED_T, "Revoked: rekey now to lock it out") :
 			 res == UI_NET_HIGHER ? TR(NM_WHY_HIGHER, "A higher net control: use Take over") :
 			 res == UI_NET_BUSY ? TR(NET_WHY_BUSY, "A rekey is running") : TR(NM_WHY_MEMBER, "Not for this radio"));
+		break;
+	case NM_INV:
+		res = ui_svc_net_inventory(v, id);
+		if (res != UI_NET_OK)
+			ui_toast(res == UI_NET_BUSY ? TR(NM_INV_BUSY, "Still asking") : TR(NM_WHY_MEMBER, "Not for this radio"));
 		break;
 	default:
 		res = ui_svc_net_wipe(v, id);

@@ -3,9 +3,9 @@
 
 # Over-the-air rekeying (OTAR)
 
-Status: **phases 1-3 built** (keysets and the changeover; key pairs, the roster, joining; rekeying over the air: 14),
+Status: **phases 1-4 built** (keysets and the changeover; key pairs, the roster, joining; rekeying over the air: 14),
 host-tested (`otarKeysTest`, `otarCryptoTest`, `keyStoreTest`, `radioCoreTest`, `settingsTest`, `uiFlowTest` flows
-`O ...`). Phases 1 and 2 checked on air on three radios (17, 18); phase 3 and the work before phase 4 too (19, 20). Phase 4 is built (21), not yet checked on air.
+`O ...`). Phases 1 and 2 checked on air on three radios (17, 18); phase 3 and the work before phase 4 too (19, 20). Phase 4 is built and checked on air (21); the rest of 7 and 9 too (22).
 
 A net of handhelds changes its AES-256 traffic keys over the air on a schedule, the way professional systems do, but
 with no server: the key management facility is a handheld. One radio is **net control (NC)**. It makes new traffic
@@ -267,6 +267,7 @@ on voice.
 | 2 | Radio key pair, roster, joining in person (key fill class 3), UKEKs; AES-256 decryption, AES-KW and AES-CMAC with their test vectors | 6 KB | #950 |
 | 3 | REKEY, ACK, HELLO, INVENTORY, CHANGEOVER, TIME; NC's rekey run, schedule and net status | 5-6 KB | phases 1, 2 |
 | 4 | ROSTER changes, revocation, succession and TAKEOVER, remote zeroize | 3 KB | phase 3, #951 |
+| Rest | The rekey schedule, TIME, INVENTORY, a revoked radio told (22) | 3.6 KB flash, 48 B RAM measured on DM-32 | phase 4 |
 
 Each phase is its own PR with host tests and UI flows, and useful alone: phase 1 already gives scheduled changeovers
 with keys loaded by key fill or group key fill.
@@ -353,4 +354,21 @@ What succession needs before it can work, built on phase 3:
 | Backup net controls | A net control takes REKEY and CHANGEOVER from another net control like any member, so a backup holds the net's keys; it doesn't while its own rekey run is going |
 | Remote wipe | Net > Remote wipe: Off (default) or On, per radio (`settings_t.otar_wipe`). ZEROIZE (type 8, 21 octets: the target's DMR ID, under the pair's MAC key) from a net control on the roster, not revoked, with a fresh message number and this radio's ID wipes its keys as Clear all keys does ([zeroize.md](zeroize.md)) and restarts; no answer. With Remote wipe off it is dropped. A net control sends it with 3 Wipe its keys on a member |
 | Member screen | Net > Members > OK on a radio (a net control only): 1 Rank, 2 Revoke, 3 Wipe its keys, and the radio's ID and fingerprint. Members shows "revoked" after a revoked radio's ID |
-| Not yet | Changing the active key by INVENTORY, TIME, a scheduled rekey, a revoked radio told it is removed |
+
+Checked on air 2026-11-23/24 with three radios: net control 1 made 4678512 net control 2, which wiped net control 1's
+keys remotely, took over (the member asked first: "NC 2 says NC 1 is lost", then Accept), rekeyed to key 38 leaving
+the revoked radio out ("Key 38: 1 of 1 have it"), and changed the net over: both calls AES-256 under key ID 0x26.
+
+## 22. The rest of 7 and 9 (as built)
+
+| Part | What it does |
+|---|---|
+| Rekey schedule | Net > Rekey every: Off (default), 1 day, 7 days, 30 days, on each net control (`settings_t.otar_sched` and `otar_sched_at`, [settings-store.md](settings-store.md)); it needs a clock. The Net screen shows "Next rekey: 2026-11-30 14:05". When it is due and no rekey, roster run or next key is under way, the net control starts a rekey whose changeover is 60 minutes later by the clocks, and sets the next one. Its key is made when the pool is full: the radio's own key presses fill it, as for Rekey now |
+| CHANGEOVER at the changeover | A rekey run that changes over by the clocks ends with the net control's own changeover; it then sends CHANGEOVER (3 copies) for members without a clock. Not after Change over the net, which sent its own |
+| TIME | Type 7 (22 octets: UTC seconds since 2026-01-01) to the talkgroup, 2 copies, under the active TEK's group key "time" (7.3). Net > Send the time, and at the start of every rekey that changes over by the clocks. Sent only from a clock that isn't the net's (GPS, the board's clock, or set by hand). A member takes it from a net control on its roster, not revoked, with a fresh message number, and the radio task keeps it only when the radio has no clock or only the net's (clock source "net"), moving that one at most 48 hours (7.4). It isn't written to the board's clock |
+| INVENTORY | Type 5 (18 octets, no body) from a net control: Net > Members > OK on a radio > 4 Ask its keys. The member answers an ACK (result 1, CKR 1) for its active keyset and one for its next, each with that key's check value; never a key. The member screen shows "Keys: keyset 7 OK, keyset 8 OK" (the key matches this radio's of that keyset), "differs", "asking" or "no answer" |
+| Removed from the net | Revoke now tells the revoked radio too: its own entry, revoked. It takes it from a net control above its own rank (any net control, for a member), stores it, ACKs, and its Net screen shows "Removed from the net"; it says no HELLO after that. Leave the net clears it. A take over still doesn't tell the lost net control |
+| TAKEOVER | Not built: the ROSTER each member gets (21) carries it and is answered member by member, which a group message wouldn't be. Type 9 stays reserved |
+| Net control's menu | 1 Members, 2 Add a member, 3 Rekey now, 4 Key change, 5 Net status, 6 Change over the net, 7 Send the roster, (8 Take over on net control 2-4), Rekey every, Send the time, Remote wipe, Leave the net |
+
+Checked on air 2026-11-24 (net control 2 and one member): Ask its keys showed "Keys: keyset 7 OK"; Rekey every 1 day showed the next rekey a day on; Send the time went out (the member, with GPS, kept its own clock, as 7.4 says; the rule for a radio without a clock is host-tested in `radioCoreTest`); revoking the member made it show "Removed from the net". A scheduled rekey firing and the CHANGEOVER at a clocked changeover are not yet seen on air.

@@ -113,6 +113,19 @@ int otar_zeroize_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[O
 	return seal(out, (int)(OTAR_ZEROIZE_LEN - OTAR_MAC), a, k_mac);
 }
 
+int otar_inventory_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m)
+{
+	header(out, OTAR_INVENTORY, m);
+	return seal(out, (int)OTAR_HDR, a, k_mac);
+}
+
+int otar_time_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m)
+{
+	header(out, OTAR_TIME, m);
+	put32(&out[OTAR_HDR], m->time_s);
+	return seal(out, (int)(OTAR_TIME_LEN - OTAR_MAC), a, k_mac);
+}
+
 static int len_of(uint8_t type)
 {
 	switch (type) {
@@ -122,6 +135,8 @@ static int len_of(uint8_t type)
 	case OTAR_CHANGEOVER: return (int)OTAR_CHANGEOVER_LEN;
 	case OTAR_ROSTER: return (int)OTAR_ROSTER_LEN;
 	case OTAR_ZEROIZE: return (int)OTAR_ZEROIZE_LEN;
+	case OTAR_INVENTORY: return (int)OTAR_INVENTORY_LEN;
+	case OTAR_TIME: return (int)OTAR_TIME_LEN;
 	default: return -1;
 	}
 }
@@ -183,15 +198,20 @@ bool otar_open(const uint8_t *msg, int len, const otar_addr_t *a, const uint8_t 
 	case OTAR_ZEROIZE:
 		m->target = ((uint32_t)p[0] << 16) | ((uint32_t)p[1] << 8) | p[2];
 		return true;
+	case OTAR_INVENTORY:
+		return true;
+	case OTAR_TIME:
+		m->time_s = get32(p);
+		return true;
 	default:
 		return false;
 	}
 }
 
-void otar_group_mac_key(const uint8_t tek[OTAR_KEY_LEN], uint8_t k_mac[OTAR_KEY_LEN])
+void otar_group_mac_key(const uint8_t tek[OTAR_KEY_LEN], const char *label, uint8_t k_mac[OTAR_KEY_LEN])
 {
 	uint8_t prk[SHA256_LEN];
 	hkdf_extract((const uint8_t *)"RFOTAR1 group", 13, tek, OTAR_KEY_LEN, prk);
-	(void)hkdf_expand(prk, "co", 2, k_mac, OTAR_KEY_LEN);
+	(void)hkdf_expand(prk, label, strlen(label), k_mac, OTAR_KEY_LEN);
 	crypto_wipe(prk, sizeof prk);
 }

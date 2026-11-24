@@ -3782,6 +3782,31 @@ static void test_dmr_voice_features(void)
 		run(50);
 		CHECK(!sm.view.otar.on);
 		kv_t3_set(CODEPLUG_KEY_TRAFFIC + 1, traffic5, 0 + CODEPLUG_TRAFFIC_HDR);	// a short record: gone for the rest
+		// TIME (otar.md 7.4): a radio with no clock takes the net's, then moves it at most 48 hours; a time set by
+		// hand stays first
+		utc_clock_clear();
+		o.arg = RADIO_OTAR_TIME;
+		o.arg2 = 1795442700u;
+		radio_sm_request(&sm, &o, now);
+		run(50);
+		CHECK(sm.view.otar.clock_ok && sm.view.otar.clock_src == UTC_SRC_NET &&
+		      sm.view.otar.now_min == otar_minutes(1795442700LL));
+		o.arg2 = 1795442700u + 3u * 86400u;	// three days on: refused
+		radio_sm_request(&sm, &o, now);
+		run(50);
+		CHECK(sm.view.otar.now_min < otar_minutes(1795442700LL) + 60u);
+		o.arg2 = 1795442700u + 3600u;		// an hour on: taken
+		radio_sm_request(&sm, &o, now);
+		run(50);
+		CHECK(sm.view.otar.now_min == otar_minutes(1795442700LL) + 60u);
+		o.arg = RADIO_OTAR_CLOCK;
+		o.arg2 = 1795442700u;
+		radio_sm_request(&sm, &o, now);
+		o.arg = RADIO_OTAR_TIME;
+		o.arg2 = 1795442700u + 600u;
+		radio_sm_request(&sm, &o, now);
+		run(50);
+		CHECK(sm.view.otar.clock_src == UTC_SRC_HAND && sm.view.otar.now_min == otar_minutes(1795442700LL));
 		utc_clock_clear();
 	}
 #endif

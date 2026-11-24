@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
-// OTAR key management messages (docs/spec/otar.md 7, phase 3): REKEY, ACK, HELLO, CHANGEOVER and ROSTER, built and checked.
+// OTAR key management messages (docs/spec/otar.md 7): REKEY, ACK, HELLO, CHANGEOVER, INVENTORY, ROSTER, TIME and
+// ZEROIZE, built and checked.
 // Pure: no RTOS, no allocation. Every message: a 10-octet header, a body, and the first 8 octets of an AES-256-CMAC
 // over the sender's and receiver's DMR IDs (3 + 3) and every octet before it. REKEY, ACK and HELLO go between two
-// radios under their pair's MAC key; CHANGEOVER goes to the talkgroup under a key from the next TEK
+// radios under their pair's MAC key; CHANGEOVER and TIME go to the talkgroup under a key from a TEK (7.3)
 #ifndef RFOUNDRY_OTAR_MSG_H
 #define RFOUNDRY_OTAR_MSG_H
 
@@ -17,7 +18,8 @@
 #define OTAR_MAC		8u
 #define OTAR_MSG_MAX		72u
 
-enum { OTAR_REKEY = 1, OTAR_ACK = 2, OTAR_CHANGEOVER = 3, OTAR_HELLO = 4, OTAR_ROSTER = 6, OTAR_ZEROIZE = 8 };
+enum { OTAR_REKEY = 1, OTAR_ACK = 2, OTAR_CHANGEOVER = 3, OTAR_HELLO = 4, OTAR_INVENTORY = 5, OTAR_ROSTER = 6,
+       OTAR_TIME = 7, OTAR_ZEROIZE = 8 };
 
 // ACK results (7.2)
 enum { OTAR_ACK_STORED = 0, OTAR_ACK_HELD = 1, OTAR_ACK_OLD = 2, OTAR_ACK_STORE_FAILED = 3, OTAR_ACK_WRAP = 4,
@@ -30,6 +32,8 @@ enum { OTAR_ACK_STORED = 0, OTAR_ACK_HELD = 1, OTAR_ACK_OLD = 2, OTAR_ACK_STORE_
 #define OTAR_ROSTER_REC		37u	// a roster record (otar_net.h OTAR_REC_LEN): DMR ID, rank, flags, public key
 #define OTAR_ROSTER_LEN		(OTAR_HDR + OTAR_ROSTER_REC + OTAR_MAC)			// 55
 #define OTAR_ZEROIZE_LEN	(OTAR_HDR + 3u + OTAR_MAC)				// 21
+#define OTAR_INVENTORY_LEN	(OTAR_HDR + OTAR_MAC)					// 18
+#define OTAR_TIME_LEN		(OTAR_HDR + 4u + OTAR_MAC)				// 22
 
 typedef struct {
 	uint8_t type;
@@ -53,6 +57,8 @@ typedef struct {
 	uint8_t active_kid, next_kid;
 	// ZEROIZE: the DMR ID of the radio told to wipe its keys
 	uint32_t target;
+	// TIME: UTC seconds since 2026-01-01
+	uint32_t time_s;
 } otar_msg_t;
 
 // The addresses a MAC covers: the sender's DMR ID and the receiver's (a radio's, or the talkgroup's)
@@ -69,6 +75,10 @@ int otar_changeover_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_ma
 int otar_roster_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m);
 // ZEROIZE (otar.md 7.5): a net control tells one member to wipe its keys, under the pair's MAC key
 int otar_zeroize_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m);
+// INVENTORY (otar.md 7, 9): a net control asks a member what it holds; no body. The member answers an ACK per keyset
+int otar_inventory_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m);
+// TIME (otar.md 7.4): a net control's UTC to the talkgroup, under the active TEK's group key "time"
+int otar_time_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m);
 
 // The header of a message (no MAC checked yet): its type, net, message number and rank. False for one that isn't an
 // OTAR message of this version, or has another length for its type
@@ -78,7 +88,10 @@ bool otar_peek(const uint8_t *msg, int len, otar_msg_t *m);
 bool otar_open(const uint8_t *msg, int len, const otar_addr_t *a, const uint8_t *ukek,
 	       const uint8_t k_mac[OTAR_KEY_LEN], otar_msg_t *m);
 
-// The MAC key a CHANGEOVER uses: from the TEK it makes active (otar.md 7.3)
-void otar_group_mac_key(const uint8_t tek[OTAR_KEY_LEN], uint8_t k_mac[OTAR_KEY_LEN]);
+// A group message's MAC key from a TEK (otar.md 7.3): label OTAR_GK_CO for CHANGEOVER (the TEK it makes active),
+// OTAR_GK_TIME for TIME (the active TEK)
+#define OTAR_GK_CO	"co"
+#define OTAR_GK_TIME	"time"
+void otar_group_mac_key(const uint8_t tek[OTAR_KEY_LEN], const char *label, uint8_t k_mac[OTAR_KEY_LEN]);
 
 #endif

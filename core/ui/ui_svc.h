@@ -145,6 +145,9 @@ typedef struct {
 	bool pend;
 	uint8_t pend_from, pend_lost;
 	bool remote_wipe;	// a net control may wipe this radio's keys (Remote wipe)
+	bool removed;		// a net control revoked this radio: "Removed from the net"
+	uint8_t sched_days;	// a net control's rekey schedule: every this many days, 0 by hand
+	uint32_t sched_at;	// ... the next one, UTC minutes (0: none yet)
 } ui_net_view_t;
 void ui_svc_net_view(ui_net_view_t *v);
 // Start a net with this radio as net control 1: the pool fills first (ui_svc_net_tick makes the key pair, the net ID
@@ -162,7 +165,7 @@ bool ui_svc_net_member(uint16_t i, uint32_t *id, uint8_t *rank, uint8_t fp[3]);
 bool ui_svc_net_tick(const radio_view_t *v, uint32_t now);
 // Net control: rekey the net now (otar.md 9): a new key from the pool, sent to every member. UI_NET_* or 0 (started)
 enum { UI_NET_OK, UI_NET_NOT_NC, UI_NET_NOT_MANAGED, UI_NET_BUSY, UI_NET_NO_TG, UI_NET_NO_NEXT, UI_NET_NO_KID,
-       UI_NET_NOT_FIRST, UI_NET_NO_MEMBER, UI_NET_HIGHER, UI_NET_NO_LOST };
+       UI_NET_NOT_FIRST, UI_NET_NO_MEMBER, UI_NET_HIGHER, UI_NET_NO_LOST, UI_NET_NO_CLOCK };
 uint8_t ui_svc_net_rekey(const radio_view_t *v, uint16_t mins);
 // Net control: change the net over now: CHANGEOVER to the talkgroup, then this radio. UI_NET_*
 uint8_t ui_svc_net_change_over(const radio_view_t *v);
@@ -203,6 +206,24 @@ uint8_t ui_svc_net_wipe(const radio_view_t *v, uint32_t id);
 // A take over waiting (ui_net_view_t.pend): accepted (the lost net control revoked here) or refused
 void ui_svc_net_accept(bool yes);
 void ui_svc_net_set_remote_wipe(bool on);
+// A net control: TIME to the talkgroup (otar.md 7.4), from a clock that isn't the net's. UI_NET_OK, NOT_NC, NO_TG,
+// NO_CLOCK, BUSY
+uint8_t ui_svc_net_send_time(const radio_view_t *v);
+// A net control: rekey every `days` days (0 by hand; otar.md 9), the first that many days from now by the clock.
+// UI_NET_OK, NOT_NC, NO_CLOCK
+uint8_t ui_svc_net_set_schedule(const radio_view_t *v, uint8_t days);
+// A net control: INVENTORY to member id (otar.md 9): what it holds, never a key. UI_NET_OK, NOT_NC, NO_MEMBER, BUSY
+uint8_t ui_svc_net_inventory(const radio_view_t *v, uint32_t id);
+// Its answer as the member screen shows it: the keysets the member holds (up to 2), each matching this radio's key of
+// that keyset or not
+enum { UI_INV_NONE, UI_INV_ASKING, UI_INV_GOT, UI_INV_NO_ANSWER };
+typedef struct {
+	uint8_t state;		// UI_INV_*
+	uint8_t n;		// keysets answered
+	uint16_t keyset[2];
+	bool same[2];		// the member's key of that keyset is this radio's
+} ui_inv_view_t;
+void ui_svc_net_inventory_view(uint32_t id, ui_inv_view_t *r);
 #endif
 #if CONFIG_GROUP_KEY_FILL
 // Group key fill (ui_svc_groupkey.c, docs/spec/group-key-fill.md): one session while the Group key screen is open.

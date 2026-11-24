@@ -271,7 +271,9 @@ typedef struct {
 	otar_keys_t otar;
 	uint8_t otar_rtc;		// 1: the board's real-time clock holds RadioFoundry's UTC (otar.md 7.4); 0 not trusted
 	uint8_t otar_wipe;		// 1: a net control may wipe this radio's keys (ZEROIZE, otar.md 7.5); 0 off
-	uint8_t reserved_otar[10];	// 0: otar_net starts page 2
+	uint8_t otar_sched;		// a net control's rekey schedule (otar.md 9): every this many days, 0 by hand
+	uint8_t otar_sched_at[3];	// ... the next one due, UTC minutes since 2026-01-01 (big-endian, 24 bits); 0 none
+	uint8_t reserved_otar[6];	// 0: otar_net starts page 2
 	// OTAR net membership (otar.md 5, 6), appended: an older record reads no key pair and no net
 	otar_net_t otar_net;
 	// OTAR message numbers (otar.md 7), appended: this radio's last sent, and the last taken from net control 1

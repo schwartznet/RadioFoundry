@@ -38,6 +38,7 @@ typedef struct {
 // This radio's place in a net (otar.md 5, 6; phase 2): the net, its rank (0 member, 1-4 net control) and its X25519
 // private key. In the settings record, never the codeplug (which is shared) or a file; the emergency wipe clears it
 #define OTAR_NET_IN		0x01u	// flags: in a net
+#define OTAR_NET_REMOVED	0x02u	// ... and a net control told this radio it is revoked (otar.md 7.5)
 typedef struct {
 	uint16_t net_id;
 	uint8_t rank;
