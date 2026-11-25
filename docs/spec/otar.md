@@ -507,6 +507,9 @@ After the three fixes: the rejoined member said HELLO 20 s after start, took key
 over. Its Net keys showed "Keyset 12: key 89", and a 2 s call from it reached the net control as AES-256
 (`call.rx_encrypted_calls` 1, 90 frames, none dropped). Both radios: `airq.failed` 0, `data.tx_gave_up` 0.
 
+On air after the review's fix: a member on keyset 12 left the net and joined again by key fill (code compared on
+both screens); its Net keys still showed "Keyset 12: key 89".
+
 Left, documented (review): a member that a backup net control joined has only that net control on its roster until net
 control 1 is added, and ROSTER from the backup can't add a better rank, so that backup is its authority and its catch-up
 may jump the member's keyset. It needs a backup net control that is compromised or broken.
