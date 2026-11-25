@@ -549,6 +549,8 @@ static void tek_job(void *ctx)
 }
 
 // A member: a REKEY from its net control (7.1)
+static uint32_t authority(void);
+
 __attribute__((noinline)) static void on_rekey(const radio_view_t *v, const uint8_t *msg, int len, uint32_t src, const otar_net_t *n, uint32_t now)
 {
 	otar_member_t nc;
@@ -596,10 +598,12 @@ __attribute__((noinline)) static void on_rekey(const radio_view_t *v, const uint
 			radio_req_otar(RADIO_OTAR_NOW, 0);
 	} else if (m.keyset <= v->otar.keyset || (v->otar.has_next && m.keyset < v->otar.next_keyset)) {
 		eng.ack.result = OTAR_ACK_OLD;	// keyset numbers only go up (7.1): never back to an older key
-	} else if (m.keyset > (uint32_t)v->otar.keyset + KEYSET_STEP_MAX || m.keyset > 0xFFFFu ||
-		   m.kid == v->otar.kid || (v->otar.has_prev && m.kid == v->otar.prev_kid)) {
+	} else if ((m.keyset > (uint32_t)v->otar.keyset + KEYSET_STEP_MAX && !(now_ks && src == authority())) ||
+		   m.keyset > 0xFFFFu || m.kid == v->otar.kid || (v->otar.has_prev && m.kid == v->otar.prev_kid)) {
 		// Too far ahead (one sender could park the net on a number nobody else reaches), or a key ID in use: the
-		// active key's record would be overwritten (7.1)
+		// active key's record would be overwritten (7.1). The authority's catch-up (flagged now) is the net's own
+		// number however far: a radio off through many rekeys, or cleared and joined again, takes it (found on air: a
+		// rejoined radio on keyset 1 refused the net's 12 and never caught up)
 		eng.ack.result = OTAR_ACK_REFUSED;
 	} else {
 		// Stored by the housekeeping task, then made the next keyset, then ACKed (engine_tick)

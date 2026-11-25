@@ -407,7 +407,7 @@ static void test_member(void)
 	CHECK(last_out(&r) && r.result == OTAR_ACK_HELD && req_now == now_before + 1 && keys.ks_active == 7);
 
 	// Too far ahead (one sender parking the net on a number nobody reaches), or a key ID in use: refused (7.1)
-	rekey_msg(&m, 7 + 9, 90, 0x90, OTAR_RK_NOW);
+	rekey_msg(&m, 7 + 9, 90, 0x90, 0);
 	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
 	run(1000);
 	CHECK(last_out(&r) && r.result == OTAR_ACK_REFUSED && keys.ks_active == 7);
@@ -415,6 +415,19 @@ static void test_member(void)
 	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
 	run(1000);
 	CHECK(last_out(&r) && r.result == OTAR_ACK_REFUSED && tek[81].k[0] == 0x71);
+	// The authority's catch-up, flagged now, however far ahead: the net's own number (a radio off through many
+	// rekeys, or cleared and joined again; found on air at keyset 1 against the net's 12)
+	now_before = req_now;
+	rekey_msg(&m, 7 + 9, 90, 0x90, OTAR_RK_NOW);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(2000);
+	CHECK(last_out(&r) && r.result == OTAR_ACK_STORED && req_now == now_before + 1 && keys.ks_active == 16);
+	CHECK(tek[90].used && tek[90].k[0] == 0x90);
+	// Never past 65535, flagged now or not
+	rekey_msg(&m, 0x10000u, 91, 0x91, OTAR_RK_NOW);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(1000);
+	CHECK(last_out(&r) && r.result == OTAR_ACK_REFUSED && keys.ks_active == 16);
 }
 
 // ===================== ranks in ROSTER (otar.md 10): the test is net control 2
