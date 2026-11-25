@@ -490,16 +490,23 @@ Tests: `otarCryptoTest` (a body's octets aren't in the message, the same body un
 differently, a changed ciphertext octet fails the MAC, opening leaves the message unchanged, version 1 refused);
 `dmrDataServiceTest` (port 4103 goes in the clear, mixed ports don't).
 
-### 23.5 Through a repeater (2026-11-25, not done)
+### 23.5 Through a repeater (not tested)
 
-Not checked yet: every on-air check above is simplex. Tried from the bench on two repeaters, neither could be used:
+Result: not tested. The radios need to be farther apart. Every on-air check above is simplex. The bench tries on
+2026-11-25 (below) gave no result either way. The test is planned for the week of 2026-11-30, with one radio moved
+farther from the others.
+
+Tried from the bench on two repeaters, neither could be used:
 
 | Repeater | What happened |
 |---|---|
 | UHF pair 451.650 / 456.650, about 16.6 km | The net control, moved, reached it at times (voice through, both ways, at times); a member at the bench received its OTAR messages and ACKed them at the link layer, but none of its ACKs reached the net control. OTAR retried and reported "no answer", as it should |
 | VHF pair 152.300 / 157.560, about 8.7 km (an AES tag put on a clear channel for the test, removed after) | `dmr.tx_error=no_repeater` on 9 of 10 wake-ups; once it opened, the over dropped within half a second. A stock-firmware radio at the same spot transmitted a clean call (SDR on the input: colour code 01, group call) that the repeater never repeated (SDR on the output: nothing): stock firmware talks without the repeater's answer, ours waits for it. With our net control (better placed) set to the stock radio's talkgroup, it heard none of those calls either; what sounded like a connection was the stock radio's own key-up beep. So the path, not the firmware |
 
-To finish it: a radio with a solid path to a repeater (outdoors, a window, an outside antenna, or a repeater with line of sight). The test then is the roster, a rekey and a changeover through it, as in 23.3.
+To finish it: the radios farther apart, each with a solid path to the repeater (outdoors, a window, an outside
+antenna, or a repeater with line of sight). Radios close together also fail through a repeater for another reason:
+the repeater's output overloads a receiver next to the sender (key-fill.md 2.1). The test then is the roster, a rekey
+and a changeover through it, as in 23.3.
 
 ### 23.4 A radio cleared and joined again (2026-11-25)
 
