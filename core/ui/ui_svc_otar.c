@@ -1267,8 +1267,10 @@ void ui_svc_net_joined(void)
 static void manage_joined(const radio_view_t *v)
 {
 	eng.manage_due = false;
-	if (v->ch.mode == RADIO_MODE_DMR && v->ch.kind == CODEPLUG_KIND_DMR_AES && v->ch.aes_ref != 0 &&
-	    ui_svc_aes_key_there(v->ch.system, (uint8_t)(v->ch.aes_ref - 1u)))
+	// Whether or not the radio holds the channel's key: one whose keys were cleared (or never loaded) manages them
+	// all the same, says HELLO and gets the net's active key as a REKEY flagged now (9), all in the clear (dmr-data.md
+	// 13.5). Found on air: a radio rejoined after Clear all keys stayed "Keys not managed" and never caught up
+	if (v->ch.mode == RADIO_MODE_DMR && v->ch.kind == CODEPLUG_KIND_DMR_AES && v->ch.aes_ref != 0)
 		radio_req_otar(RADIO_OTAR_START, (uint8_t)(v->ch.aes_ref - 1u));
 }
 

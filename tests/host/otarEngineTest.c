@@ -656,12 +656,34 @@ static void test_msgnum(void)
 	CHECK(out_n == 1 && last_out(&r) && r.type == OTAR_HELLO && r.msgnum > 1000);
 }
 
+// A radio whose keys were all cleared joins on its AES channel: it manages the channel's keys though it holds none,
+// and says HELLO, so the net control sends it the active key (found on air: it stayed unmanaged and never caught up)
+static void test_join_without_key(void)
+{
+	setup(0);
+	roster_add(PEER_ID, 1, peer_pub);
+	roster_add(ENGINE_ID, 0, eng_pub);
+	otar_stop(&keys);
+	memset(tek, 0, sizeof tek);
+	view.ch.mode = RADIO_MODE_DMR;
+	view.ch.kind = CODEPLUG_KIND_DMR_AES;
+	view.ch.aes_ref = 78;
+	ui_svc_net_joined();
+	out_n = 0;
+	run(25000);
+	CHECK(otar_on(&keys));
+	otar_msg_t r;
+	CHECK(out_n >= 1 && outbox[0].dst == PEER_ID && last_out(&r) && r.type == OTAR_HELLO);
+	memset(&view.ch, 0, sizeof view.ch);
+}
+
 int main(void)
 {
 	test_msgnum();
 	test_member();
 	test_ranks();
 	test_nc();
+	test_join_without_key();
 	printf("otarEngineTest: %d checks, %d failures\n", checks, failures);
 	return failures != 0;
 }
