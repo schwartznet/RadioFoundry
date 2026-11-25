@@ -12002,6 +12002,18 @@ static void test_rf_floor(void)
 	for (int i = 0; i < 60; i++)
 		radio_sm_floor_track(&f, -104, t += 100);	// gone: back down as the average comes down
 	CHECK(radio_sm_rf_floor(&f) <= -103);
+
+	// The gate waits for the receiver to settle on the channel: not scanning or in dual watch, and
+	// RADIO_NOISE_SETTLE_MS after a tune (review: the reading before the hold could be another frequency's)
+	f.rf_tuned_ms = t;
+	CHECK(!radio_sm_noise_settled(&f, t + 100));
+	CHECK(radio_sm_noise_settled(&f, t + RADIO_NOISE_SETTLE_MS));
+	f.scan.kind = SCAN_DUAL;
+	CHECK(!radio_sm_noise_settled(&f, t + 10000));
+	f.scan.kind = SCAN_ZONE;
+	CHECK(!radio_sm_noise_settled(&f, t + 10000));
+	f.scan.kind = SCAN_OFF;
+	CHECK(radio_sm_noise_settled(&f, t + 10000));
 }
 #endif
 

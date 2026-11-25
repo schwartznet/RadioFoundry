@@ -891,6 +891,9 @@ static void tune(radio_sm_t *sm, uint32_t now_ms)
 	}
 	#endif
 	sm->retune_pending = sm->retune_due = false;	// this tune is the one they wait for
+#if CONFIG_KEY_FILL && CONFIG_AIR
+	sm->rf_tuned_ms = now_ms != 0 ? now_ms : 1;	// the noise gate's settling (radio_sm_noise_settled)
+#endif
 #if CONFIG_SFR_CWID
 	cw_cancel(sm);		// the repeater's ID: the board is set up for the channel below
 #endif
@@ -7571,6 +7574,11 @@ static void bench_leave(radio_sm_t *sm, uint32_t now_ms)
 int16_t radio_sm_rf_floor(const radio_sm_t *sm)
 {
 	return sm->rf_floor_dbm;
+}
+
+bool radio_sm_noise_settled(const radio_sm_t *sm, uint32_t now_ms)
+{
+	return sm->scan.kind == SCAN_OFF && (uint32_t)(now_ms - sm->rf_tuned_ms) >= RADIO_NOISE_SETTLE_MS;
 }
 
 void radio_sm_floor_track(radio_sm_t *sm, int16_t rssi_dbm, uint32_t now_ms)

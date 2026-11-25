@@ -168,6 +168,8 @@ static void noise_grab(void)
 	board.radio->status(&st);
 	int16_t rssi = st.rssi_dbm;
 	bool receiving = sm.view.state == RS_RX;
+	// Scanning, in dual watch or just retuned, the reading before the hold may be another frequency's (review)
+	bool settled = radio_sm_noise_settled(&sm, hal_millis());
 	if (!radio_sm_noise_hold(&sm, true, hal_millis()))
 		return;
 	board.radio->status(&st);
@@ -189,7 +191,7 @@ static void noise_grab(void)
 	}
 	board.radio->status(&st);
 	rssi = st.rssi_dbm > rssi ? st.rssi_dbm : rssi;
-	if (receiving && rssi < 0)
+	if ((receiving || !settled) && rssi < 0)
 		rssi = 0;	// above any quiet limit: mixed in, credited nothing (noise_post, NOISE_LOUD)
 	(void)radio_sm_noise_hold(&sm, false, hal_millis());
 	noise_post(buf, n, rssi, radio_sm_rf_floor(&sm));
