@@ -280,8 +280,16 @@ The source: two receivers, each tapped for 240 s on a quiet channel (464.5 MHz, 
 The pool credits 0.25 bits per sample (128 bits per 512-sample grab): 14 times below the lower of the two. The health
 tests' claim of 2 bits per sample is below both too. The debug link dropped some stretches (about 1,400 gaps in each
 capture), so these are joined runs, not one stream; the firmware's grabs are 512 samples without a gap, and the
-samples' lag-1 correlation in the low 4 bits is near 0 (-0.002), so the gaps hide little. Not done: SP 800-90B's
-restart tests (3.1.4: 1,000 restarts of 1,000 samples), and any certification.
+samples' lag-1 correlation in the low 4 bits is near 0 (-0.002), so the gaps hide little. Not done: any
+certification.
+
+Restarts (SP 800-90B 3.1.4, `ea_restart -n`, radio A, H_I 3.711609): 1,000 restarts by the debug link's reset, the first
+1,000 samples of the receive copy after each, low 4 bits. Taken from the start of the copy, the test failed (H_r 0.70):
+one start in 1,000 gave about 125 nearly silent samples first, with runs of 17 and 35 equal symbols, and the
+predictors' longest correct run (36) sets the row estimate. The grab now drops the copy's first 128 samples
+(`NOISE_WARMUP`, 6.1). With the same 128 dropped after each start the test passed: min(H_r, H_c, H_I) = 3.69 bits per
+sample. Such a start would also fail the repetition count (11 equal), and a grab is credited 128 bits against about
+1,800 of noise, so even without the drop it would not have been credited as random.
 
 The gate, on air with `Receive a key` opened and cancelled over the debug link (each open grabs until the pool fills):
 
