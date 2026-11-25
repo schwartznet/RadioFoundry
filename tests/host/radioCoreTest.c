@@ -2685,7 +2685,7 @@ static void test_dmr_denied(void)
 	CHECK(sm.view.state == RS_TX && hw.tx_hz == 433500000);
 	run(500);
 	CHECK(sm.view.dmr.state == RDMR_TX_WAIT);
-	run(4000);
+	run(DMR_CALL_WAKEUP_PATIENCE_MS + 500);	// the tries, then a slow repeater's wait
 	CHECK(sm.view.state == RS_TX_DENIED && sm.view.tx_deny == TXDENY_NO_REPEATER && hw.tx_off_calls == 2);
 	req(RREQ_PTT, 0);
 	CHECK(sm.view.state == RS_IDLE);
@@ -2730,7 +2730,7 @@ static void test_dmr_rpt_ticks_alone(void)
 	req(RREQ_PTT, 1);
 	run(300);
 	CHECK(sm.view.dmr.state == RDMR_TX_WAIT && sim.air_count == air + 1 && sim.air[air].kind == DMR_BURST_CSBK);
-	run(4000);
+	run(DMR_CALL_WAKEUP_PATIENCE_MS + 500);
 	CHECK(sm.view.state == RS_TX_DENIED && sm.view.tx_deny == TXDENY_NO_REPEATER);
 	bool only_csbks = true;
 	for (unsigned i = air; i < sim.air_count; i++) {
