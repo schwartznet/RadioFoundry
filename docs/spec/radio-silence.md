@@ -19,7 +19,7 @@ word on Home. Its flash and RAM per radio: [feature-matrix.md](../feature-matrix
 | Where | Name | Values | Stored |
 |---|---|---|---|
 | Settings > Privacy, the last row | Radio silence | Off (default), On | `settings_t.rs_flags` bit 6 (`SETTINGS_RS_SILENCE`), with the radio core's settings: a record from before reads off |
-| Settings > Keys, a side key's press or long press | Radio silence | toggles it, saved as the menu saves it | key function 20 (`KEYFN_SILENCE`, appended) |
+| Settings > Keys, a side key's press or long press | Radio silence | toggles it, saved as the menu saves it | key function 22 (`KEYFN_SILENCE`, appended after `KEYFN_MONITOR_TOGGLE`) |
 
 It is kept over a restart on purpose: a radio switched on again under silence must not register (ARS) or answer
 before its user turns silence off. The radio core sets `radio_silence_flag` (`radio_silence_set`) whenever its
@@ -78,4 +78,4 @@ ROAM, MON). The side key says what it did: "Radio silence: only PTT transmits" o
 | `radioCoreTest` (position) | Under silence a voice call goes without its GPS Info, even on a channel the codeplug asks it for |
 | `aprsRadioTest` `test_silence` | No timed beacon for two intervals; Send now goes; off again, the timed beacon comes back |
 | `uiFlowTest` | The Privacy row, the side key both ways, Home's `SIL` |
-| `keyassignTest` | `KEYFN_SILENCE` is 20, appended |
+| `keyassignTest` | `KEYFN_SILENCE` is 22, appended |

@@ -6,6 +6,7 @@
 #include "board.h"
 #include "codeplug/codeplug_records.h"
 #include "dmr/dmrAes.h"
+#include "dmr/dmrData.h"
 #include "dmr/dmrPrivacy.h"
 #include "radio/radio.h"
 #include "radio/radio_aes.h"
@@ -349,15 +350,17 @@ bool radio_aes_configure(const channel_t *ch, dmr_call_config_t *cfg)
 	return true;
 }
 
-void radio_aes_data_privacy(dmrDataPrivacy_t *p)
+bool radio_aes_data_config(const channel_t *ch, dmrDataPrivacy_t *p)
 {
+	if (ch->kind != CODEPLUG_KIND_DMR_AES)
+		return false;
 	// AES-256 OFB, a new MI from the radio's sequence for every packet. Without the key no data packet goes, and none
 	// is sent in the clear
 	memset(p, 0, sizeof *p);
 	uint8_t alg, kid;
 	if (!dmrAesTxKey(&channel_keys, &alg, &kid)) {
 		p->mode = DMR_DATA_PRIVACY_BLOCK;
-		return;
+		return true;
 	}
 	p->mode = DMR_DATA_PRIVACY_ENCRYPT;
 	p->alg = DMR_AES_DATA_ALG;
@@ -365,6 +368,7 @@ void radio_aes_data_privacy(dmrDataPrivacy_t *p)
 	p->crypt = dmrAesDataCrypt;
 	p->newMi = dmrAesDataMi;
 	p->ctx = &channel_keys;
+	return true;
 }
 
 #if CONFIG_OTAR

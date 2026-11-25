@@ -2718,43 +2718,68 @@ static void data_rx(const dmr_burst_t *b, uint32_t now_ms, void *ctx)
 	dmrDataServiceRxBurst(&d, now_ms);
 }
 
-// A DMR VFO sends data as a DMR channel does: it has its own color code, slot and talk target, and tx_check covers its
-// frequency. An FM VFO is out by the mode
-// What may send data, with tx_check's reason (deny) taken as given: data_can_send, data_can_send_clear
-static bool data_can_send_as(const radio_sm_t *sm, uint8_t deny)
+// Why the channel can't send data now (tx_deny_t, TXDENY_NONE: it can). A DMR VFO sends data as a DMR channel does: it
+// has its own color code, slot and talk target, and tx_check covers its frequency. An FM VFO is out by the mode.
+// clear: for what goes without the channel's AES key (a clear self-protected packet, a link response:
+// dmrDataChannel_t.canSendClear, dmr-data.md 13.5), so a missing key or MI reservation doesn't count
+static uint8_t data_deny_as(const radio_sm_t *sm, bool clear)
 {
-	bool roaming = false;
+	if (sm->view.ch.mode != RADIO_MODE_DMR) {
+		return TXDENY_NOT_DMR;
+	}
+	if (!sm->dmr_running) {
+		return TXDENY_NO_DMR;
+	}
+	if (sm->hotspot) {
+		return TXDENY_HOTSPOT;
+	}
+	uint8_t why = tx_check(sm);
+#if CONFIG_DMR_AES
+	if (clear && (why == TXDENY_AES_KEY || why == TXDENY_AES_WAIT)) {
+		why = TXDENY_NONE;
+	}
+#else
+	(void)clear;
+#endif
+	if (why != TXDENY_NONE) {
+		return why;
+	}
+	if (sm->view.dmr.own_id == 0) {
+		return TXDENY_NO_ID;
+	}
 #if CONFIG_DMR_ROAMING
-	roaming = roam_searching(&sm->roam);	// never on a site being looked at
+	if (roam_searching(&sm->roam)) {
+		return TXDENY_BUSY;	// never on a site being looked at
+	}
 #endif
 #if CONFIG_DMR_TRUNK_TX
 	// A trunked system: data asks for a channel on the TSCC, or goes on the packet data call the radio is in. Never
 	// while hunting or in a voice call
 	if (sm->t3_on && !(t3m.state == T3_CAMPED || (t3m.state == T3_FOLLOW && t3m.call.data))) {
-		return false;
+		// In a voice call the channel is busy; TXDENY_TRUNK's text is the last refused PTT's (t3.why)
+		return t3m.state == T3_FOLLOW ? TXDENY_BUSY : TXDENY_TRUNK;
 	}
 #endif
-	return sm->dmr_running && !sm->hotspot && sm->view.ch.mode == RADIO_MODE_DMR &&
-		deny == TXDENY_NONE && sm->view.dmr.own_id != 0 && !roaming;
+	return TXDENY_NONE;
+}
+
+static uint8_t data_deny(const radio_sm_t *sm)
+{
+	return data_deny_as(sm, false);
 }
 
 static bool data_can_send(const radio_sm_t *sm)
 {
 	// An AES channel sends data encrypted with its key (data_tick), and only with it: tx_check refuses without the key
 	// or a saved MI reservation (dmr-data.md 13.4)
-	return data_can_send_as(sm, tx_check(sm));
+	return data_deny(sm) == TXDENY_NONE;
 }
 
 // All but the AES key: the data service then sends only clear self-protected packets and link responses
 // (dmrDataChannel_t.canSendClear, dmr-data.md 13.5), so a radio that lost its key can be given it again
 static bool data_can_send_clear(const radio_sm_t *sm)
 {
-	uint8_t deny = tx_check(sm);
-#if CONFIG_DMR_AES
-	if (deny == TXDENY_AES_KEY || deny == TXDENY_AES_WAIT)
-		deny = TXDENY_NONE;
-#endif
-	return data_can_send_as(sm, deny);
+	return data_deny_as(sm, true) == TXDENY_NONE;
 }
 
 static bool data_send(radio_sm_t *sm, const dmrBurst_t *bursts, int count)
@@ -3274,11 +3299,12 @@ static void data_init(radio_sm_t *sm)
 static void data_tick(radio_sm_t *sm, uint32_t now_ms)
 {
 	const channel_t *ch = &sm->view.ch;
+	uint8_t deny = data_deny(sm);
 	dmrDataChannel_t c = {
 		.ownId = sm->view.dmr.own_id,
 		.talkGroup = sm->talk_private ? 0 : sm->talk_id,
 		.rmo = sm->view.dmr.rmo,
-		.canTransmit = data_can_send(sm),
+		.canTransmit = deny == TXDENY_NONE,
 		.canSendClear = data_can_send_clear(sm),
 	};
 	uint32_t h = 2166136261u;	// FNV-1a of what a registration is for
@@ -3301,14 +3327,19 @@ static void data_tick(radio_sm_t *sm, uint32_t now_ms)
 	data_key.type = (dmrPrivacyType_t)sm->privacy_type;
 	data_key.key = sm->privacy_key;
 	dmrPrivacyDataConfig(&data_key, &c.privacy);
+#endif
 #if CONFIG_DMR_AES
-	if (ch->kind == CODEPLUG_KIND_DMR_AES) {
-		// The channel's AES key covers its data (docs/spec/dmr-data.md 13.4): AES-256 OFB, a new MI from the radio's
-		// sequence for every packet. Without the key no data packet goes, and none is sent in the clear
-		radio_aes_data_privacy(&c.privacy);
+	// An AES channel: its rule, not the basic privacy key's. The channel's AES key covers its data (dmr-data.md 13.4):
+	// AES-256 OFB, a new MI per packet; without the key no data packet goes, and none is sent in the clear
+	radio_aes_data_config(ch, &c.privacy);
+#endif
+	uint8_t packet = deny != TXDENY_NONE ? deny :
+		c.privacy.mode == DMR_DATA_PRIVACY_BLOCK ? TXDENY_DATA_ENCRYPTED : TXDENY_NONE;
+	if (deny != sm->view.data_deny || packet != sm->view.packet_deny) {
+		sm->view.data_deny = deny;
+		sm->view.packet_deny = packet;
+		changed(sm);	// the UI reads these before a send: a stale copy refuses one that would go, or the reverse
 	}
-#endif
-#endif
 #if CONFIG_DMR_IP_GATEWAY
 	// Control station passthrough while the PC can take the packets (docs/spec/usb-network.md 5.2)
 	dmrDataServiceSetPassthrough(hostlink_net_passthrough_active());
@@ -7190,10 +7221,13 @@ bool radio_sm_hotspot_freq_ok(uint32_t rx_hz, uint32_t tx_hz)
 	return rx_hz != 0 && tx_hz != 0 && board_in_band(rx_hz, false) && board_in_band(tx_hz, true);
 }
 
-uint8_t radio_sm_hotspot_power(uint8_t rf_level)
+uint8_t radio_sm_hotspot_power(uint8_t rf_level, uint8_t own)
 {
 	if (board.power_count == 0) {
 		return 0;
+	}
+	if (rf_level == RADIO_HS_RF_OWN) {
+		return own < board.power_count ? own : board.power_count - 1u;
 	}
 	return (uint8_t)(((uint32_t)rf_level * (board.power_count - 1u) + 127u) / 255u);
 }
@@ -7230,6 +7264,15 @@ static void hotspot_arm(radio_sm_t *sm)
 	sm->dmr_keyed = !radio_silent() && key_tx(sm, sm->hs_tx_hz, RADIO_BW_12K5, sm->hs_power, &none);
 	if (was && !sm->dmr_keyed) {
 		board.radio->rx(sm->hs_rx_hz, RADIO_BW_12K5, &none);	// refused now (TX inhibit, radio silence): not left armed
+	}
+}
+
+// A hotspot on the radio's own power (the host's RF level left at its default) follows the radio's power level
+static void hotspot_follow_power(radio_sm_t *sm)
+{
+	if (sm->hotspot && sm->hs_rf_level == RADIO_HS_RF_OWN && sm->hs_power != sm->view.power) {
+		sm->hs_power = sm->view.hs_power = sm->view.power;
+		hotspot_arm(sm);
 	}
 }
 
@@ -7459,6 +7502,9 @@ static void hotspot_enter(radio_sm_t *sm, uint32_t rx_hz, uint32_t now_ms)
 	sm->hs_rx_hz = hz;
 	sm->hs_tx_hz = 0;
 	sm->hs_carrier = false;
+	// The power set now, not the one from the last hotspot: the first keying (hotspot_freq) comes before the host's
+	// level, and the screen shows it
+	sm->hs_power = sm->view.hs_power = radio_sm_hotspot_power(sm->hs_rf_level, sm->view.power);
 	sm->hotspot = true;
 	sm->view.hotspot = true;
 	sm->view.state = RS_IDLE;
@@ -7688,6 +7734,9 @@ static void apply_prefs(radio_sm_t *sm, const settings_t *st)
 	}
 	if (!sm->temp_power) {
 		sm->view.power = channel_power(&sm->view.ch);
+#if CONFIG_DMR
+		hotspot_follow_power(sm);	// the settings' power while a hotspot runs on it
+#endif
 	}
 	sm->vfo_step_set = st->vfo_step_hz >= 1000u && st->vfo_step_hz <= 1000000u ? st->vfo_step_hz : 0;
 	step_update(sm);
@@ -8328,6 +8377,31 @@ static const hal_audio_t *pcm_audio(void)
 }
 #endif
 
+#if CONFIG_DMR && CONFIG_BEEP
+// The mic gate of the AMBE voice path (ambeVoiceSetMicGate, DMR and NXDN): a beep's echo, unless a host audio
+// session's samples replace the mic (they never hear the speaker), or a board that holds beeps off the speaker while
+// DMR transmits (CAP_BEEP_NOT_ON_AIR) transmits DMR: its speaker sounds nothing the mic could hear. NXDN has no such
+// hold. Audio task
+static bool dmr_mic_gate(void)
+{
+#if CONFIG_NET_USRP
+	if (audio_mux_host_mic()) {
+		return false;
+	}
+#endif
+	if ((board.caps & CAP_BEEP_NOT_ON_AIR) != 0) {
+#if CONFIG_NXDN
+		if (!radio_nxdn_running()) {
+			return false;
+		}
+#else
+		return false;
+#endif
+	}
+	return beep_mic_echo();
+}
+#endif
+
 void radio_sm_init(radio_sm_t *sm, uint32_t now_ms)
 {
 	settings_t st;
@@ -8421,12 +8495,12 @@ void radio_sm_init(radio_sm_t *sm, uint32_t now_ms)
 #if CONFIG_DMR
 	sm->codec = board.vocoder != NULL && board.vocoder->present != NULL && board.vocoder->present();
 	sm->view.dmr.codec = sm->codec;
-	sm->hs_power = default_power();
 	dmr_call_init(board.dmr);	// board.dmr NULL: DMR channels receive nothing and refuse PTT
 	ambeVoiceInit(pcm_audio(), board.vocoder);
 	dmr_call_set_voice(ambeVoiceSink(), ambeVoiceSource());
 #if CONFIG_BEEP
 	ambeVoiceSetMixer(beep_mix);	// beeps while the voice stream owns the PCM audio
+	ambeVoiceSetMicGate(dmr_mic_gate);	// ... and kept off the air: the mic hears the speaker
 #endif
 #if CONFIG_DMR_DATA_CORE
 	data_init(sm);
@@ -8439,6 +8513,7 @@ void radio_sm_init(radio_sm_t *sm, uint32_t now_ms)
 	radio_p25_init(pcm_audio());
 #if CONFIG_IMBE && CONFIG_BEEP
 	p25VoiceSetMixer(beep_mix);
+	p25VoiceSetMicGate(beep_mic_echo);
 #endif
 #endif
 
@@ -8449,7 +8524,8 @@ void radio_sm_init(radio_sm_t *sm, uint32_t now_ms)
 	select_position(sm, st.zone_index, st.channel, st.zone_pos);
 	apply_prefs(sm, &st);
 #if CONFIG_DMR
-	sm->hs_power = default_power();
+	sm->hs_power = sm->view.hs_power = default_power();
+	sm->hs_rf_level = RADIO_HS_RF_OWN;
 #endif
 	if (!sm->have_channels || (st.vfo && VFO_AVAILABLE)) {
 		if (VFO_AVAILABLE) {
@@ -8819,6 +8895,9 @@ static void power_request(radio_sm_t *sm, const radio_req_t *req)
 	}
 	sm->temp_power = sm->view.power != channel_power(&sm->view.ch);
 	set_temporary(sm);
+#if CONFIG_DMR
+	hotspot_follow_power(sm);
+#endif
 	changed(sm);
 }
 
@@ -9036,9 +9115,10 @@ static void dmr_privacy_request(radio_sm_t *sm, const radio_req_t *req)
 
 static void hs_power_request(radio_sm_t *sm, const radio_req_t *req)
 {
-	uint8_t level = radio_sm_hotspot_power((uint8_t)req->arg);
+	sm->hs_rf_level = (uint8_t)req->arg;
+	uint8_t level = radio_sm_hotspot_power(sm->hs_rf_level, sm->view.power);
 	bool same = level == sm->hs_power;
-	sm->hs_power = level;
+	sm->hs_power = sm->view.hs_power = level;
 	// The host re-sends its level (a split TX half's cap): the same one keeps the keying as it is, unless keying is
 	// held now (a critical battery), which drops it
 	if (!same || !sm->dmr_keyed || tx_held(sm)) {

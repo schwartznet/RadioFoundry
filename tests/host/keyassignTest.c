@@ -152,8 +152,8 @@ static void test_toggles(void)
 		{ KEYFN_KEY_LOCK, 11, ACT_LOCK }, { KEYFN_CALL_BACK, 12, ACT_CALL_BACK }, { KEYFN_HOME_ZONE, 13, ACT_HOME_ZONE },
 		{ KEYFN_COPY_VFO, 14, ACT_COPY_VFO }, { KEYFN_DUAL_WATCH, 15, ACT_DUAL_WATCH }, { KEYFN_AB, 16, ACT_AB },
 		{ KEYFN_VFO_TOGGLE, 17, ACT_VFO_TOGGLE }, { KEYFN_TALK_LABEL, 19, ACT_TALK_LABEL },
-		{ KEYFN_SCAN_SKIP, 20, ACT_SCAN_SKIP },
-		{ KEYFN_SILENCE, 21, ACT_SILENCE },
+		{ KEYFN_SCAN_SKIP, 20, ACT_SCAN_SKIP }, { KEYFN_MONITOR_TOGGLE, 21, ACT_MONITOR_TOGGLE },
+		{ KEYFN_SILENCE, 22, ACT_SILENCE },
 	};
 	// Stored in the codeplug's slots: append only, so every value that shipped keeps its number
 	CHECK(KEYFN_DEFAULT == 0 && KEYFN_NONE == 1 && KEYFN_MONITOR == 2 && KEYFN_TALK_TARGET == 3 &&
@@ -180,6 +180,10 @@ static void test_toggles(void)
 	// A value one past the last is not a function: it reads as the default
 	uint16_t s[KEYASSIGN_SLOTS] = { KEYASSIGN_MARKER, KEYFN_COUNT, KEYFN_COUNT };
 	CHECK(keyassign_get(s, 0, false) == KEYFN_DEFAULT && keyassign_get(s, 0, true) == KEYFN_DEFAULT);
+	// The value is 21 and the retired 9 and 10 stay retired: Monitor toggle is a new function, not their return
+	CHECK(KEYFN_MONITOR_TOGGLE == 21 && KEYFN_MONITOR_TOGGLE == KEYFN_SCAN_SKIP + 1);
+	CHECK(KEYFN_SILENCE == 22 && KEYFN_SILENCE == KEYFN_MONITOR_TOGGLE + 1);	// appended after it (radio-silence.md)
+	CHECK(!keyassign_allowed(KEYFN_HEAR_ALL, false) && !keyassign_allowed(KEYFN_MONITOR_LATCH, true));
 	// The retired monitor latch reads as the default: the monitor key stays held
 	uint16_t m[KEYASSIGN_SLOTS] = { 0 };
 	keyassign_set(m, 0, false, KEYFN_MONITOR_LATCH);
@@ -366,6 +370,8 @@ static void test_home_keys(void)
 	CHECK(memcmp(hm, hb, sizeof(hm)) == 0);
 	CHECK(keyassign_home_allowed(KEYFN_SCAN, false) && !keyassign_home_allowed(KEYFN_MONITOR, false));
 	CHECK(keyassign_home_allowed(KEYFN_SCAN_SKIP, false) && keyassign_home_allowed(KEYFN_SCAN_SKIP, true));
+	// Monitor toggle is a plain press or long press function (it latches, it needs no held key), so a home key may have it
+	CHECK(keyassign_home_allowed(KEYFN_MONITOR_TOGGLE, false) && keyassign_home_allowed(KEYFN_MONITOR_TOGGLE, true));
 	CHECK(!keyassign_home_allowed(KEYFN_TONE_BURST, false) && !keyassign_home_allowed(KEYFN_EMERGENCY, true));
 
 	// P1 press: scan. P2 left alone
