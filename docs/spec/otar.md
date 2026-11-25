@@ -309,6 +309,9 @@ on voice.
 | Settings > Privacy | Remote wipe: Off / From net control; clock source |
 | Home | The AES256 badge as today; the KID on the chips line |
 
+As built, Change over the net and Leave the net ask first: only OK says yes, Back says no, a digit never does. Change
+over names the key and how many members hold it, and warns that the others can't hear the net (23.3).
+
 ## 13. Storage
 
 | What | Where | Size |
@@ -484,6 +487,24 @@ A call from the net control then reached both cabled members as AES-256 (PI head
 Tests: `otarCryptoTest` (a body's octets aren't in the message, the same body under the next message number encrypts
 differently, a changed ciphertext octet fails the MAC, opening leaves the message unchanged, version 1 refused);
 `dmrDataServiceTest` (port 4103 goes in the clear, mixed ports don't).
+
+### 23.3 On air, 2026-11-24 night and 2026-11-25
+
+Four radios, net 8B16. Each finding below was fixed, tested on the host and then on air unless it says otherwise.
+
+| Found | Fix |
+|---|---|
+| Storing a new traffic key reused a slot in use: the net control's active key 85 was overwritten | A new key goes after the highest slot in use, else the first free one (`codeplug_traffic_key_set`). The net control got key 85 back by key fill on a channel without encryption |
+| An AES channel without its key refused every transmission, so that net control could send no OTAR message at all | Clear self-protected packets and link responses still go ([dmr-data.md](dmr-data.md) 13.5, `canSendClear`). Tested on the host only, not provoked on air |
+| Link responses were dropped on a channel that encrypts data: every confirmed packet went its full tries and was reported failed (Send the roster: 3 failed, about 14 clear drops) | Responses are taken. Afterwards: net control 6 sent 0 failed, member 4 sent 0 failed, `data.clear_rx_dropped` 0 on both |
+| A stray key press in Net changed the net over to key 87 before the members had it (one caught up by HELLO after a restart) | Change over the net and Leave the net ask first (12) |
+
+2026-11-25: Rekey now by hand to key 89 from the receiver's noise, no key pressed. Net status went from sent to OK on
+its own, "3 of 3 have it" about 40 s after the start. (The night before, the screen was thought not to refresh. It does:
+it redraws every second, and `uiFlowTest` "a member's ACK" checks it.) Change over the net then showed "Change over to
+key 89? 3 of 3 have it". A second 6 and then Back left the net on keyset 11; 6 then OK changed all four radios to keyset
+12. On a member, Leave the net showed "Leave the net? Rejoining needs a key fill" and Back kept it in the net. The host
+tests also pass under ASan and UBSan (91.1 % of lines).
 
 ### 23.2 Second review (2026-11-24)
 
