@@ -2778,18 +2778,35 @@ static void testPrivacy(void)
 	// It goes out, not only into the queue (found on air: the start held it back until it was given up)
 	CHECK(h != NULL && stats.txLists == lists + 1 && stats.txGaveUp == gaveUp);
 	CHECK(stats.txPrivacyBlocked == blocked);
-#if CONFIG_DMR_TMS
-	// A clear confirmed text heard there: dropped, but its link response goes, or the sender tries again and again
+	// A confirmed OTAR packet heard there (key fill's are the same): its link response goes, or the sender tries
+	// again and again and reports it failed
 	runMainTask(2000);
 	lists = stats.txLists;
 	lastTxCount = 0;
-	receiveConfirmedTMS(RADIO_B, "clear", 5, 0);
+	{
+		static const uint8_t body[] = { 1, 2, 3, 4 };
+		dmrBurst_t in[DMR_DATA_MAX_BURSTS];
+		int n = dmrDataBuildUDP(false, OUR_ID, RADIO_B, DMR_UDP_PORT_OTAR, DMR_UDP_PORT_OTAR, body, sizeof body,
+					DMR_TYPE_RATE_1_2, 0, in, DMR_DATA_MAX_BURSTS);
+		dmrDataRxResult_t r = DMR_DATA_RX_NONE;
+		dmrDataRxReset();
+		for (int i = 0; (i < n) && (r != DMR_DATA_RX_PACKET); i++)
+			r = dmrDataRxBurst(&in[i]);
+		CHECK(r == DMR_DATA_RX_PACKET);
+		dmrDataPacket_t pk = dmrDataRxPacket;
+		pk.dpf = DMR_DPF_CONFIRMED;
+		pk.responseRequested = true;
+		pk.sendSeq = 0;
+		millis += 60;
+		now = millis;
+		handlePacket(&pk);
+		dmrDataRxReset();
+	}
 	runMainTask(300);
 	h = txHeader();
 	CHECK(h != NULL && (h->payload[0] & 0x0F) == DMR_DPF_RESPONSE);
 	CHECK(stats.txLists == lists + 1 && stats.txGaveUp == gaveUp);
 	runMainTask(2000);
-#endif
 	ch.canSendClear = false;	// not even that without a channel to send on
 	runMainTask(2000);
 	CHECK(!dmrDataServiceSendIPDelivery(false, RADIO_A, DMR_IP_PROTO_UDP, kf, sizeof kf,
