@@ -151,7 +151,10 @@ static void hs_post(const radio_req_t *req, bool must)
 // Key fill's grab of the receiver's noise (support/noise.h, key-fill.md 6.1): the modem held as the bench holds it,
 // NOISE_SAMPLES of the FM receive copy read in about 70 ms, the channel given back, the samples checked, hashed and
 // posted for the UI task. Nothing when the radio can't let go of the modem now (transmitting, a hotspot, the bench)
-#define NOISE_READS	12	// polls, 10 ms apart; the tap buffers 60 ms or more
+#define NOISE_READS	16	// polls, 10 ms apart; the tap buffers 60 ms or more
+// Samples dropped after the receive copy starts: its first ones can be a near-silent start (measured 2026-11-25: one
+// start in 1000 gave about 125 samples of nearly one value, key-fill.md 6.1.1). 16 ms at 8 kHz
+#define NOISE_WARMUP	128u
 static void noise_grab(void)
 {
 	static int16_t buf[NOISE_SAMPLES];
@@ -169,11 +172,18 @@ static void noise_grab(void)
 		return;
 	board.radio->status(&st);
 	rssi = st.rssi_dbm > rssi ? st.rssi_dbm : rssi;
-	unsigned n = 0;
+	unsigned n = 0, skip = NOISE_WARMUP;
 	if (bb->rx_start()) {
 		for (int i = 0; i < NOISE_READS && n < NOISE_SAMPLES; i++) {
 			vTaskDelay(pdMS_TO_TICKS(10));
-			n += bb->rx_read(&buf[n], (uint16_t)(NOISE_SAMPLES - n));
+			while (skip > 0) {
+				uint16_t got = bb->rx_read(buf, (uint16_t)(skip < NOISE_SAMPLES ? skip : NOISE_SAMPLES));
+				if (got == 0)
+					break;
+				skip -= got;
+			}
+			if (skip == 0)
+				n += bb->rx_read(&buf[n], (uint16_t)(NOISE_SAMPLES - n));
 		}
 		bb->rx_stop();
 	}
