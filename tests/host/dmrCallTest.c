@@ -1208,10 +1208,26 @@ static void test_rmo_ticks_alone(void)
 	dmr_call_ptt(true);
 	run_ms(10);
 	CHECK(V()->phase == DMR_CALL_PHASE_TX_WAKEUP);
-	run_ms(3000);
+	run_ms(DMR_CALL_WAKEUP_PATIENCE_MS + 500);
 	CHECK(csbks_on_air() == before + DMR_CALL_WAKEUP_ATTEMPTS && V()->tx_error == DMR_TX_ERR_NO_REPEATER);
 	dmr_call_ptt(false);
 	run_ms(30);
+
+	// A slow repeater (on air: its outbound about 3.9 s after the first wake-up): the tries end at 1.8 s, the radio
+	// listens on while PTT is held, sending nothing more, and the over goes once the repeater is heard
+	run_ms(10000);
+	before = csbks_on_air();
+	dmr_call_ptt(true);
+	run_ms(3000);
+	CHECK(csbks_on_air() == before + DMR_CALL_WAKEUP_ATTEMPTS && V()->tx_error != DMR_TX_ERR_NO_REPEATER);
+	CHECK(V()->phase == DMR_CALL_PHASE_TX_WAKEUP);
+	sim.repeater = true;
+	run_ms(1000);
+	CHECK(V()->phase == DMR_CALL_PHASE_TX_VOICE && csbks_on_air() == before + DMR_CALL_WAKEUP_ATTEMPTS);
+	dmr_call_ptt(false);
+	run_ms(600);
+	sim.repeater = false;
+	run_ms(10000);
 
 	// A neighbor's repeater on the frequency, another color code: its slot numbers are real but it isn't ours
 	setup(&c);

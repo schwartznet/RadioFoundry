@@ -44,6 +44,10 @@
 #define DMR_CALL_RESUME_MS		1500	// the same LC this soon after a call faded is that call, not a new one
 #define DMR_CALL_WAKEUP_ATTEMPTS	3
 #define DMR_CALL_WAKEUP_LISTEN_MS	600	// after each BS_Dwn_Act
+// After the last BS_Dwn_Act the radio listens on, sending nothing more, until this long from the first while PTT is
+// held (or data waits): a slow repeater still admits the over. Measured on air 2026-11-25: a VHF repeater's outbound
+// came about 3.9 s after the first wake-up, past the 1.8 s of the tries alone, so every over was refused
+#define DMR_CALL_WAKEUP_PATIENCE_MS	4500
 #define DMR_CALL_REPEATER_HOLD_MS	300	// the repeater counts as up this long after its outbound was last seen
 #define DMR_CALL_LBT_DMO_MS		120	// machine traffic: quiet needed before sending (gotcha 3.6)
 #define DMR_CALL_LBT_RMO_MS		180

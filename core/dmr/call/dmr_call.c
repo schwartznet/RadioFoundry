@@ -156,6 +156,7 @@ static struct {
 	uint32_t tx_since;	// PTT handling start (access wait)
 	uint32_t deadline;
 	uint32_t wake_sent_ms;
+	uint32_t wake_first_ms;		// the wake-up's first BS_Dwn_Act (DMR_CALL_WAKEUP_PATIENCE_MS)
 	uint8_t wake_tries;
 	bool rewoken;		// this key-up woke the repeater again after a voice start the modem gave up (tx_rewake)
 	bool tx_listening;	// this over hears the repeater between its bursts (the modem's tx_listen)
@@ -1631,6 +1632,8 @@ static void tx_wakeup(uint32_t now)
 	s.queued = s.started = 0;
 	tx_put(DMR_BURST_CSBK, 0, true, csbk, sizeof(csbk));
 	s.modem->tx_end();
+	if (s.wake_tries == 0)
+		s.wake_first_ms = now;
 	s.wake_tries++;
 	s.view.wake_sent++;
 	s.wake_sent_ms = now;
@@ -1837,6 +1840,8 @@ static void tx_poll(uint32_t now)
 
 			if (s.wake_tries < tries)
 				tx_wakeup(now);
+			else if ((s.ptt || s.data_active) && before(now, s.wake_first_ms + DMR_CALL_WAKEUP_PATIENCE_MS))
+				s.deadline = now + 50;	// a slow repeater: listen on, nothing more sent
 			else
 				tx_deny(DMR_TX_ERR_NO_REPEATER);
 		}
