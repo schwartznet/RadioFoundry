@@ -500,12 +500,16 @@ way; each was fixed with a host test that fails without the fix, then checked on
 | Found | Fix |
 |---|---|
 | The member heard key fill's offer and never answered: `data.tx_gave_up` 9. 13.5's queue let clear self-protected packets through, but the start of each transmission still asked for the channel's key | Each list carries whether it may go on `canTransmitClear` (a clear self-protected packet, a link response). `dmrDataServiceTest` now checks the list starts, not that it was built |
-| Joined, it stayed "Keys not managed": a radio started managing the channel's keys on joining only when it held the channel's key, so it never said HELLO | It starts managing on any AES channel (6); the catch-up brings the key (`otarEngineTest`) |
+| Joined, it stayed "Keys not managed": a radio started managing the channel's keys on joining only when it held the channel's key, so it never said HELLO | A radio not managing keys yet starts on any AES channel (6); the catch-up brings the key (`otarEngineTest`). One that manages them already (Leave the net keeps them) keeps its keysets: starting again would put it back on keyset 1 (found in review) |
 | Managing from keyset 1, it refused the net's catch-up REKEY for keyset 12: more than 8 ahead (23.2) | The best-ranked net control's catch-up, flagged now, is taken however far ahead (7.1). Any other REKEY keeps the limit, none passes 65535 |
 
 After the three fixes: the rejoined member said HELLO 20 s after start, took key 89 as a REKEY flagged now and changed
 over. Its Net keys showed "Keyset 12: key 89", and a 2 s call from it reached the net control as AES-256
 (`call.rx_encrypted_calls` 1, 90 frames, none dropped). Both radios: `airq.failed` 0, `data.tx_gave_up` 0.
+
+Left, documented (review): a member that a backup net control joined has only that net control on its roster until net
+control 1 is added, and ROSTER from the backup can't add a better rank, so that backup is its authority and its catch-up
+may jump the member's keyset. It needs a backup net control that is compromised or broken.
 
 Also seen: with its keys cleared the radio refused PTT on the AES channel (no frame sent), so nothing went out in the
 clear. The debug view's `tx_deny` shows the last refused PTT only, not whether the channel can transmit now.

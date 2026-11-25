@@ -687,6 +687,13 @@ static void test_join_without_key(void)
 	CHECK(otar_on(&keys));
 	otar_msg_t r;
 	CHECK(out_n >= 1 && outbox[0].dst == PEER_ID && last_out(&r) && r.type == OTAR_HELLO);
+
+	// A radio that manages keys already (left the net and joins again) keeps its keysets: not back to keyset 1
+	keys.ks_active = 12;
+	keys.kid_active[0] = 89;
+	ui_svc_net_joined();
+	run(1000);
+	CHECK(otar_on(&keys) && keys.ks_active == 12 && keys.kid_active[0] == 89);
 	memset(&view.ch, 0, sizeof view.ch);
 }
 
