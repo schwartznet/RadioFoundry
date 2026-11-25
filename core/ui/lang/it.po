@@ -5293,6 +5293,41 @@ msgid " days"
 msgstr " giorni"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_ASK_CO"
+msgid "Change over to key "
+msgstr "Passare alla chiave "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ASK_CO_END"
+msgid "?"
+msgstr "?"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_REKEY_OF"
+msgid " of "
+msgstr " su "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_REKEY_HAVE_IT"
+msgid " have it"
+msgstr " la hanno"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ASK_CO_LOSE"
+msgid "Others can't hear the net"
+msgstr "Gli altri non sentiranno la rete"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ASK_CO_UNSURE"
+msgid "Members' keys not checked"
+msgstr "Chiavi dei membri non verificate"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ASK_LEAVE"
+msgid "Leave the net? Its key pair is wiped: rejoining needs a key fill"
+msgstr "Lasciare la rete? La coppia di chiavi viene cancellata: rientrare richiede un carica chiave"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_TYPE_ID"
 msgid "Member's DMR ID: "
 msgstr "ID DMR del membro: "
@@ -5378,9 +5413,29 @@ msgid ", asked "
 msgstr ", chiesto "
 
 #: core/ui/ui_menus.c
+msgctxt "NET_CHANGING"
+msgid "Changing the net over"
+msgstr "Cambio della rete"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_WHY_NC_ONLY"
 msgid "Only a net control does that"
 msgstr "Solo un controllo di rete lo fa"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_WHY_TG"
+msgid "Needs a talkgroup as the target"
+msgstr "Serve un gruppo come destinazione"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_WHY_NO_NEXT"
+msgid "No next key to change over to"
+msgstr "Nessuna chiave successiva"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_LEFT"
+msgid "Left the net"
+msgstr "Rete lasciata"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_WHY_MANAGE"
@@ -5423,11 +5478,6 @@ msgid "Sending the time"
 msgstr "Invio dell'ora"
 
 #: core/ui/ui_menus.c
-msgctxt "NET_WHY_TG"
-msgid "Needs a talkgroup as the target"
-msgstr "Serve un gruppo come destinazione"
-
-#: core/ui/ui_menus.c
 msgctxt "NET_TIME_BUSY"
 msgid "The time is being sent"
 msgstr "L'ora è già in invio"
@@ -5441,21 +5491,6 @@ msgstr "Nessuna ora propria da inviare"
 msgctxt "NET_ROSTER_SENDING"
 msgid "Sending the roster"
 msgstr "Invio dell'elenco"
-
-#: core/ui/ui_menus.c
-msgctxt "NET_CHANGING"
-msgid "Changing the net over"
-msgstr "Cambio della rete"
-
-#: core/ui/ui_menus.c
-msgctxt "NET_WHY_NO_NEXT"
-msgid "No next key to change over to"
-msgstr "Nessuna chiave successiva"
-
-#: core/ui/ui_menus.c
-msgctxt "NET_LEFT"
-msgid "Left the net"
-msgstr "Rete lasciata"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_TITLE"
@@ -5621,16 +5656,6 @@ msgstr "Chiave "
 msgctxt "NET_REKEY_HAVE"
 msgid ": "
 msgstr ": "
-
-#: core/ui/ui_menus.c
-msgctxt "NET_REKEY_OF"
-msgid " of "
-msgstr " su "
-
-#: core/ui/ui_menus.c
-msgctxt "NET_REKEY_HAVE_IT"
-msgid " have it"
-msgstr " la hanno"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_REKEY_AT"

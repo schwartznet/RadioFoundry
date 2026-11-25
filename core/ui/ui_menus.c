@@ -9163,6 +9163,10 @@ static uint8_t net_rk_when = 1;	// Key change: index into nk_mins, 5 min each ti
 static uint32_t net_typed;	// Add a member: the ID typed
 static uint8_t net_typed_n;	// its digits; 0 and not typing: no entry
 static bool net_typing;
+// A row that waits for OK (P7): Change over the net (every member that lacks the key loses the net's voice; found on
+// air, a stray key press changed a net over before its members had the key) and Leave the net (the key pair wiped).
+// NET_ROWS: none
+static uint8_t net_ask = NET_ROWS;
 
 static void net_view_now(ui_net_view_t *n) { ui_svc_net_view(n); }
 // The rows (otar.md 9, 10, 20): not in a net, Start and Join. In one: a take over to accept first, Members, the net
@@ -9260,6 +9264,33 @@ static const char *net_body(void)
 		sb_u32(&b, n.presses, 1);
 		return id_body;
 	}
+	if (net_ask == NET_CHANGE_OVER) {
+		const radio_view_t *v = ui_view();
+		sb_str(&b, TR(NET_ASK_CO, "Change over to key "));
+		sb_u32(&b, v->otar.next_kid, 1);
+		sb_str(&b, TR(NET_ASK_CO_END, "?"));
+		sb_chr(&b, '\n');
+		// Who has it: the rekey run's count when it is the run's key, else not known here
+		ui_rekey_view_t r;
+		ui_svc_net_rekey_view(&r);
+		if (r.on && r.kid == v->otar.next_kid && r.members > 0) {
+			sb_u32(&b, r.done, 1);
+			sb_str(&b, TR(NET_REKEY_OF, " of "));
+			sb_u32(&b, r.members, 1);
+			sb_str(&b, TR(NET_REKEY_HAVE_IT, " have it"));
+			if (r.done < r.members) {
+				sb_chr(&b, '\n');
+				sb_str(&b, TR(NET_ASK_CO_LOSE, "Others can't hear the net"));
+			}
+		} else {
+			sb_str(&b, TR(NET_ASK_CO_UNSURE, "Members' keys not checked"));
+		}
+		return id_body;
+	}
+	if (net_ask == NET_LEAVE) {
+		sb_str(&b, TR(NET_ASK_LEAVE, "Leave the net? Its key pair is wiped: rejoining needs a key fill"));
+		return id_body;
+	}
 	if (net_typing) {
 		sb_str(&b, TR(NET_TYPE_ID, "Member's DMR ID: "));
 		if (net_typed_n > 0)
@@ -9324,7 +9355,26 @@ static const char *net_body(void)
 
 static const char *net_hint(void)
 {
+	if (net_ask != NET_ROWS)
+		return TR(HINT_OK_YES_BACK_NO, "OK yes  Back no");
 	return net_typing ? TR(NK_HINT_ENTRY, "0-9  OK set  Back") : TR(HINT_OK_PICK_BACK, "OK pick  Back");
+}
+
+// A row confirmed with OK (net_ask)
+static void net_confirmed(uint8_t row)
+{
+	const radio_view_t *v = ui_view();
+	if (row == NET_CHANGE_OVER) {
+		switch (ui_svc_net_change_over(v)) {
+		case UI_NET_OK: ui_toast(TR(NET_CHANGING, "Changing the net over")); break;
+		case UI_NET_NOT_NC: ui_toast(TR(NET_WHY_NC_ONLY, "Only a net control does that")); break;
+		case UI_NET_NO_TG: ui_toast(TR(NET_WHY_TG, "Needs a talkgroup as the target")); break;
+		default: ui_toast(TR(NET_WHY_NO_NEXT, "No next key to change over to")); break;
+		}
+	} else if (row == NET_LEAVE) {
+		ui_svc_net_leave();
+		ui_toast(TR(NET_LEFT, "Left the net"));
+	}
 }
 
 static void net_select(uint16_t i, bool hold)
@@ -9417,17 +9467,14 @@ static void net_select(uint16_t i, bool hold)
 			ui_toast(TR(NET_WHY_BUSY, "A rekey is running"));
 		break;
 	case NET_CHANGE_OVER:
-		switch (ui_svc_net_change_over(v)) {
-		case UI_NET_OK: ui_toast(TR(NET_CHANGING, "Changing the net over")); break;
-		case UI_NET_NOT_NC: ui_toast(TR(NET_WHY_NC_ONLY, "Only a net control does that")); break;
-		case UI_NET_NO_TG: ui_toast(TR(NET_WHY_TG, "Needs a talkgroup as the target")); break;
-		default: ui_toast(TR(NET_WHY_NO_NEXT, "No next key to change over to")); break;
-		}
+		// Nothing to change over to: said at once, not after a question
+		if (!v->otar.on || !v->otar.has_next)
+			ui_toast(TR(NET_WHY_NO_NEXT, "No next key to change over to"));
+		else
+			net_ask = NET_CHANGE_OVER;
 		break;
-	default:
-		ui_svc_net_leave();
-		ui_toast(TR(NET_LEFT, "Left the net"));
-		break;
+	case NET_LEAVE: net_ask = NET_LEAVE; break;
+	default: break;
 	}
 	ui_dirty();
 }
@@ -9442,6 +9489,20 @@ static bool net_key(const input_event_t *ev)
 			ui_dirty();
 		}
 		return true;	// every other key is a random key press for the pool (ui.c)
+	}
+	if (net_ask != NET_ROWS) {
+		// Only OK says yes: a digit (SF_NUMBERED picks rows) or any other key never does
+		if (ev->gesture != GESTURE_PRESS)
+			return true;
+		if (ev->action == ACT_SELECT) {
+			uint8_t row = net_ask;
+			net_ask = NET_ROWS;
+			net_confirmed(row);
+		} else if (ev->action == ACT_BACK) {
+			net_ask = NET_ROWS;
+		}
+		ui_dirty();
+		return true;
 	}
 	if (!net_typing)
 		return false;
@@ -9470,6 +9531,7 @@ static bool net_key(const input_event_t *ev)
 static void net_enter(void)
 {
 	net_typing = false;
+	net_ask = NET_ROWS;
 	net_rk_when = 1;	// 5 min
 }
 

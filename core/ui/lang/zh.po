@@ -5295,6 +5295,41 @@ msgid " days"
 msgstr " 天"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_ASK_CO"
+msgid "Change over to key "
+msgstr "切换到密钥 "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ASK_CO_END"
+msgid "?"
+msgstr "？"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_REKEY_OF"
+msgid " of "
+msgstr " / "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_REKEY_HAVE_IT"
+msgid " have it"
+msgstr " 已收到"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ASK_CO_LOSE"
+msgid "Others can't hear the net"
+msgstr "其他电台听不到网络"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ASK_CO_UNSURE"
+msgid "Members' keys not checked"
+msgstr "未检查电台密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ASK_LEAVE"
+msgid "Leave the net? Its key pair is wiped: rejoining needs a key fill"
+msgstr "退出网络？会擦除密钥对：重新加入需密钥注入"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_TYPE_ID"
 msgid "Member's DMR ID: "
 msgstr "电台 DMR ID: "
@@ -5380,9 +5415,29 @@ msgid ", asked "
 msgstr ", 已询问 "
 
 #: core/ui/ui_menus.c
+msgctxt "NET_CHANGING"
+msgid "Changing the net over"
+msgstr "正在全网更换"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_WHY_NC_ONLY"
 msgid "Only a net control does that"
 msgstr "仅限主台"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_WHY_TG"
+msgid "Needs a talkgroup as the target"
+msgstr "目标须为群组"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_WHY_NO_NEXT"
+msgid "No next key to change over to"
+msgstr "无下一密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_LEFT"
+msgid "Left the net"
+msgstr "已退出网络"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_WHY_MANAGE"
@@ -5425,11 +5480,6 @@ msgid "Sending the time"
 msgstr "正在发送时间"
 
 #: core/ui/ui_menus.c
-msgctxt "NET_WHY_TG"
-msgid "Needs a talkgroup as the target"
-msgstr "目标须为群组"
-
-#: core/ui/ui_menus.c
 msgctxt "NET_TIME_BUSY"
 msgid "The time is being sent"
 msgstr "时间正在发送"
@@ -5443,21 +5493,6 @@ msgstr "无本机时间可发送"
 msgctxt "NET_ROSTER_SENDING"
 msgid "Sending the roster"
 msgstr "正在发送名单"
-
-#: core/ui/ui_menus.c
-msgctxt "NET_CHANGING"
-msgid "Changing the net over"
-msgstr "正在全网更换"
-
-#: core/ui/ui_menus.c
-msgctxt "NET_WHY_NO_NEXT"
-msgid "No next key to change over to"
-msgstr "无下一密钥"
-
-#: core/ui/ui_menus.c
-msgctxt "NET_LEFT"
-msgid "Left the net"
-msgstr "已退出网络"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_TITLE"
@@ -5623,16 +5658,6 @@ msgstr "密钥 "
 msgctxt "NET_REKEY_HAVE"
 msgid ": "
 msgstr ": "
-
-#: core/ui/ui_menus.c
-msgctxt "NET_REKEY_OF"
-msgid " of "
-msgstr " / "
-
-#: core/ui/ui_menus.c
-msgctxt "NET_REKEY_HAVE_IT"
-msgid " have it"
-msgstr " 已收到"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_REKEY_AT"
