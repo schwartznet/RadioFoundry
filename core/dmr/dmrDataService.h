@@ -54,6 +54,10 @@ typedef struct
 	uint32_t talkGroup;						// the channel's talkgroup (group data to it is ours); 0: none
 	bool     rmo;							// through a repeater
 	bool     canTransmit;					// a DMR channel we may send on now: not RX only, in band, no hotspot
+	// canTransmit but for the channel's AES key (missing, or no message indicator saved yet): only a self-protected
+	// packet in the clear (DMR_IPS_SELF_PROTECTED: key fill, OTAR) and link responses go. So a radio that lost the
+	// channel's key can still be given it again over the air (dmr-data.md 13.5)
+	bool     canSendClear;
 	bool     trunked;						// default SMS uses the trunked short data service
 	uint32_t channelKey;					// changes with the frequency, slot or color code (ARS registers again)
 	dmrDataPrivacy_t privacy;				// the channel's data privacy (dmrData.h): data encrypted or held back

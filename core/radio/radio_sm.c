@@ -2717,10 +2717,9 @@ static void data_rx(const dmr_burst_t *b, uint32_t now_ms, void *ctx)
 
 // A DMR VFO sends data as a DMR channel does: it has its own color code, slot and talk target, and tx_check covers its
 // frequency. An FM VFO is out by the mode
-static bool data_can_send(const radio_sm_t *sm)
+// What may send data, with tx_check's reason (deny) taken as given: data_can_send, data_can_send_clear
+static bool data_can_send_as(const radio_sm_t *sm, uint8_t deny)
 {
-	// An AES channel sends data encrypted with its key (data_tick), and only with it: tx_check refuses without the key
-	// or a saved MI reservation (dmr-data.md 13.4)
 	bool roaming = false;
 #if CONFIG_DMR_ROAMING
 	roaming = roam_searching(&sm->roam);	// never on a site being looked at
@@ -2733,7 +2732,26 @@ static bool data_can_send(const radio_sm_t *sm)
 	}
 #endif
 	return sm->dmr_running && !sm->hotspot && sm->view.ch.mode == RADIO_MODE_DMR &&
-		tx_check(sm) == TXDENY_NONE && sm->view.dmr.own_id != 0 && !roaming;
+		deny == TXDENY_NONE && sm->view.dmr.own_id != 0 && !roaming;
+}
+
+static bool data_can_send(const radio_sm_t *sm)
+{
+	// An AES channel sends data encrypted with its key (data_tick), and only with it: tx_check refuses without the key
+	// or a saved MI reservation (dmr-data.md 13.4)
+	return data_can_send_as(sm, tx_check(sm));
+}
+
+// All but the AES key: the data service then sends only clear self-protected packets and link responses
+// (dmrDataChannel_t.canSendClear, dmr-data.md 13.5), so a radio that lost its key can be given it again
+static bool data_can_send_clear(const radio_sm_t *sm)
+{
+	uint8_t deny = tx_check(sm);
+#if CONFIG_DMR_AES
+	if (deny == TXDENY_AES_KEY || deny == TXDENY_AES_WAIT)
+		deny = TXDENY_NONE;
+#endif
+	return data_can_send_as(sm, deny);
 }
 
 static bool data_send(radio_sm_t *sm, const dmrBurst_t *bursts, int count)
@@ -2951,7 +2969,8 @@ static void data_t3_tick(radio_sm_t *sm, uint32_t now_ms)
 static bool data_tx_start(const dmrBurst_t *bursts, int count, void *ctx)
 {
 	radio_sm_t *sm = ctx;
-	if (!data_can_send(sm) || sm->ptt || count <= 0) {
+	// The service holds back what the channel's key would have to protect (canSendClear, dmrDataPrivacyAllows)
+	if (!data_can_send_clear(sm) || sm->ptt || count <= 0) {
 		return false;
 	}
 #if CONFIG_DMR_TRUNK_TX
@@ -3257,6 +3276,7 @@ static void data_tick(radio_sm_t *sm, uint32_t now_ms)
 		.talkGroup = sm->talk_private ? 0 : sm->talk_id,
 		.rmo = sm->view.dmr.rmo,
 		.canTransmit = data_can_send(sm),
+		.canSendClear = data_can_send_clear(sm),
 	};
 	uint32_t h = 2166136261u;	// FNV-1a of what a registration is for
 	uint32_t vals[] = { ch->rx_hz, ch->tx_hz, sm->view.dmr.ts, sm->view.dmr.cc };

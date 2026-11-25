@@ -2756,6 +2756,32 @@ static void testPrivacy(void)
 	CHECK(stats.txPrivacy == before + 1);
 	h = txHeader();
 	CHECK(h != NULL && h[1].dataType == DMR_TYPE_DATA_HEADER && (h[1].payload[0] & 0x0F) == 15);
+	// The channel's key gone (found on air: a net control whose key was overwritten could send no OTAR at all): only
+	// the clear self-protected packets go, so it can be given the key again; anything else waits for the key
+	static const dmrDataPrivacy_t noKey = { .mode = DMR_DATA_PRIVACY_BLOCK };
+	reset();
+	ch.privacy = noKey;
+	ch.canTransmit = false;
+	ch.canSendClear = true;
+	runMainTask(2000);
+	CHECK(!dmrDataServiceSendIPDelivery(false, RADIO_A, DMR_IP_PROTO_UDP, kf, sizeof kf, DMR_IPS_UNCONFIRMED));
+	CHECK(!dmrDataServiceSendIPDelivery(false, RADIO_A, DMR_IP_PROTO_UDP, kf, sizeof kf,
+					    DMR_IPS_UNCONFIRMED | DMR_IPS_SELF_PROTECTED));	// port 4105: not a clear service
+	kf[1] = kf[3] = (uint8_t)DMR_UDP_PORT_OTAR;
+	blocked = stats.txPrivacyBlocked;
+	CHECK(dmrDataServiceSendIPDelivery(false, RADIO_A, DMR_IP_PROTO_UDP, kf, sizeof kf,
+					   DMR_IPS_UNCONFIRMED | DMR_IPS_SELF_PROTECTED));
+	runMainTask(300);
+	h = txHeader();
+	CHECK(h != NULL);
+	CHECK(stats.txPrivacyBlocked == blocked);
+	ch.canSendClear = false;	// not even that without a channel to send on
+	runMainTask(2000);
+	CHECK(!dmrDataServiceSendIPDelivery(false, RADIO_A, DMR_IP_PROTO_UDP, kf, sizeof kf,
+					    DMR_IPS_UNCONFIRMED | DMR_IPS_SELF_PROTECTED));
+	ch.canTransmit = true;
+	ch.privacy = encrypt;
+	runMainTask(100);
 	// A clear text on a channel that encrypts data: anyone could have sent it, so it is dropped (13.5)
 	heard = packetsHeard;
 	uint32_t clear_dropped = stats.rxClearDropped;

@@ -281,6 +281,12 @@ static bool canTransmit(void)
 	return channel.canTransmit && (channel.ownId != 0);
 }
 
+// What may go when the channel lacks only its key: a clear self-protected packet, a link response (dmrDataChannel_t)
+static bool canTransmitClear(void)
+{
+	return canTransmit() || (channel.canSendClear && (channel.ownId != 0));
+}
+
 bool dmrDataServiceIsBusy(void)
 {
 	return txPending || txRunning;
@@ -782,22 +788,29 @@ static void ipStartOwn(uint32_t dst, const uint8_t *l4, int length, bool compres
 	ipx.result = result;
 }
 
+// The IP packet under way: a clear self-protected one goes on canTransmitClear
+static bool canTransmitIp(void)
+{
+	return ipx.clear ? canTransmitClear() : canTransmit();
+}
+
 static bool ipSend(bool group, uint32_t dst, uint32_t srcIp, uint32_t dstIp, uint8_t ttl, uint8_t protocol, const uint8_t *l4,
 					int length, uint8_t delivery)
 {
-	if ((ipx.state != IPX_IDLE) || !canTransmit() || (l4 == NULL) || (length <= 0) || (dst == 0))
+	bool self = (delivery & DMR_IPS_SELF_PROTECTED) != 0;
+	delivery = (uint8_t)(delivery & ~DMR_IPS_SELF_PROTECTED);
+	uint16_t srcPort = (protocol == DMR_IP_PROTO_UDP) && (l4 != NULL) ? udpPort(l4, length, 0) : 0;
+	uint16_t dstPort = (protocol == DMR_IP_PROTO_UDP) && (l4 != NULL) ? udpPort(l4, length, 2) : 0;
+	bool clear = self && (protocol == DMR_IP_PROTO_UDP) && dmrDataUdpClear(srcPort, dstPort);	// both: the service and its port
+	if ((ipx.state != IPX_IDLE) || !(clear ? canTransmitClear() : canTransmit()) || (l4 == NULL) || (length <= 0) || (dst == 0))
 	{
 		return false;
 	}
-	bool self = (delivery & DMR_IPS_SELF_PROTECTED) != 0;
-	delivery = (uint8_t)(delivery & ~DMR_IPS_SELF_PROTECTED);
-	uint16_t srcPort = (protocol == DMR_IP_PROTO_UDP) ? udpPort(l4, length, 0) : 0;
-	uint16_t dstPort = (protocol == DMR_IP_PROTO_UDP) ? udpPort(l4, length, 2) : 0;
 	bool confirmed = (delivery == DMR_IPS_SETTINGS) ? dmrDataServiceIpWantConfirmed(&settings, group, dst, protocol, srcPort, dstPort) :
 			(!group && (delivery == DMR_IPS_CONFIRMED));
 
 	ipStart(group, dst, protocol, l4, length, (protocol == DMR_IP_PROTO_UDP) && dmrDataUdpCompress(srcPort, dstPort), confirmed);
-	ipx.clear = self && (protocol == DMR_IP_PROTO_UDP) && dmrDataUdpClear(srcPort, dstPort);	// both: the service and its port
+	ipx.clear = clear;
 	ipx.srcIp = srcIp;
 	ipx.dstIp = dstIp;
 	ipx.ttl = ttl;
@@ -946,7 +959,7 @@ static void ipRetry(uint64_t blocks)
 	ipx.blocks = blocks;
 	ipx.state = IPX_QUEUED;
 	ipx.since = now;
-	if (!dmrDataServiceIsBusy() && canTransmit())
+	if (!dmrDataServiceIsBusy() && canTransmitIp())
 	{
 		ipTransmit();// at once when the service is free, else from the tick
 	}
@@ -954,7 +967,7 @@ static void ipRetry(uint64_t blocks)
 
 static void ipTick(void)
 {
-	if ((ipx.state == IPX_QUEUED) && !dmrDataServiceIsBusy() && canTransmit())
+	if ((ipx.state == IPX_QUEUED) && !dmrDataServiceIsBusy() && canTransmitIp())
 	{
 		ipTransmit();
 	}
@@ -2166,7 +2179,9 @@ void dmrDataServiceTick(uint32_t nowMs, const dmrDataChannel_t *ch)
 	}
 
 	// The next queued reply, once the last one's TMS ACK has gone
-	while (!tmsAckPending && (replyReadIdx != replyWriteIdx) && !dmrDataServiceIsBusy() && canTransmit())
+	// A link response carries no user data: it goes when only the channel's key is missing too
+	while (!tmsAckPending && (replyReadIdx != replyWriteIdx) && !dmrDataServiceIsBusy() &&
+			(canTransmit() || (canTransmitClear() && (replyQueue[replyReadIdx].response != 0) && !replyQueue[replyReadIdx].tms)))
 	{
 		pendingReply_t reply = replyQueue[replyReadIdx];
 

@@ -914,6 +914,12 @@ Only those two services' own packets go clear: they queue with `DMR_IPS_SELF_PRO
 data service sends a packet clear only when it has the flag and both ports are 4101, or both 4103. A host's datagram
 through the gateway between the same ports has no flag and is encrypted as any other.
 
+Without the channel's key: an AES channel whose key the radio doesn't hold (or that has no message indicators saved
+yet) refuses every transmission, voice and data. Those clear packets still go, and so do link responses, which carry no
+user data (`dmrDataChannel_t.canSendClear`): everything else waits for the key. Otherwise a radio that lost the
+channel's key could not be given it again on that channel. Found on air (2026-11-24): a net control whose active key
+had been overwritten could send no OTAR message, and was mended only by a key fill on a channel without encryption.
+
 Receiving: on a channel that encrypts data, a packet without a privacy header is taken only when it is UDP between
 those ports. Any other clear packet there (a text, a position, an ARS) could have come from anyone, so it is dropped and
 counted (`data.clear_rx_dropped`); confirmed data is still acknowledged, as for an encrypted packet without the key.
