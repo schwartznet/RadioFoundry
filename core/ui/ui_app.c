@@ -2542,7 +2542,8 @@ __attribute__((noinline)) static void knob_tick(const radio_view_t *v)
 }
 #endif
 
-bool ui_app_tick(const radio_view_t *v, uint32_t now_ms)
+// The tick without the key services (ui_app_tick): its frame, about 380 bytes, isn't under their crypto
+__attribute__((noinline)) static bool app_tick(const radio_view_t *v, uint32_t now_ms)
 {
 	static uint32_t serial_seen;
 	static uint8_t battery_seen;
@@ -2569,20 +2570,12 @@ bool ui_app_tick(const radio_view_t *v, uint32_t now_ms)
 	ui_crash_tick(now_ms);
 #endif
 #if CONFIG_KEY_FILL
-	// The key fill session runs here, and the screen keeps the backlight on (key-fill.md 9)
-	if (ui_svc_kf_tick(v, now_ms))
-		dirty = true;
+	// The key fill session runs in svc_tick; its screen keeps the backlight on (key-fill.md 9)
 	if (stack[sp].scr == SCR_KEY_FILL)
 		wake_req = true;
 #endif
 #if CONFIG_GROUP_KEY_FILL
-	// The group key session runs here; its screen keeps the backlight on (group-key-fill.md 7)
-	if (ui_svc_gk_tick(v, now_ms))
-		dirty = true;
-#if CONFIG_OTAR
-	if (ui_svc_net_tick(v, now_ms))	// Start a net, the roster's writes, rekeying (otar.md 6, 7)
-		dirty = true;
-#endif
+	// So does the group key session's (group-key-fill.md 7)
 	if (stack[sp].scr == SCR_GROUP_KEY || stack[sp].scr == SCR_KEY_GEN)
 		wake_req = true;
 #endif
@@ -2837,6 +2830,36 @@ bool ui_app_tick(const radio_view_t *v, uint32_t now_ms)
 		dirty = true;
 	}
 	bool d = dirty;
+	return d;
+}
+
+// Key fill, the group key and OTAR: their sessions run here, beside app_tick and not under it. Their crypto (HKDF,
+// HMAC, SHA-256, X25519) is the UI task's deepest stack, and app_tick's frame on top of it left 52 bytes over the
+// margin on the DM-32 (docs/dev/stack-check.md)
+__attribute__((noinline)) static bool svc_tick(const radio_view_t *v, uint32_t now_ms)
+{
+	bool changed = false;
+	(void)v;
+	(void)now_ms;
+#if CONFIG_KEY_FILL
+	changed = ui_svc_kf_tick(v, now_ms) || changed;
+#endif
+#if CONFIG_GROUP_KEY_FILL
+	changed = ui_svc_gk_tick(v, now_ms) || changed;
+#if CONFIG_OTAR
+	changed = ui_svc_net_tick(v, now_ms) || changed;	// Start a net, the roster's writes, rekeying (otar.md 6, 7)
+#endif
+#endif
+	return changed;
+}
+
+bool ui_app_tick(const radio_view_t *v, uint32_t now_ms)
+{
+	bool d = app_tick(v, now_ms);
+	if (svc_tick(v, now_ms)) {
+		dirty = true;
+		d = true;
+	}
 	return d;
 }
 
