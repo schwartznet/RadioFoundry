@@ -156,11 +156,19 @@ static void noise_grab(void)
 {
 	static int16_t buf[NOISE_SAMPLES];
 	const hal_baseband_t *bb = board.baseband;
-	if (bb == NULL || bb->rx_start == NULL || !radio_sm_noise_hold(&sm, true, hal_millis()))
+	if (bb == NULL || bb->rx_start == NULL)
 		return;
+	// The strength before the hold, from the receiver as it runs on the channel: the hold retunes it, and a reading
+	// inside it can still be the quiet one from before (found on air: grabs credited under a carrier at -41 dBm read
+	// -113). A signal being received (RS_RX) is never quiet, whatever a reading says
 	radio_status_t st;
 	board.radio->status(&st);
 	int16_t rssi = st.rssi_dbm;
+	bool receiving = sm.view.state == RS_RX;
+	if (!radio_sm_noise_hold(&sm, true, hal_millis()))
+		return;
+	board.radio->status(&st);
+	rssi = st.rssi_dbm > rssi ? st.rssi_dbm : rssi;
 	unsigned n = 0;
 	if (bb->rx_start()) {
 		for (int i = 0; i < NOISE_READS && n < NOISE_SAMPLES; i++) {
@@ -171,6 +179,8 @@ static void noise_grab(void)
 	}
 	board.radio->status(&st);
 	rssi = st.rssi_dbm > rssi ? st.rssi_dbm : rssi;
+	if (receiving && rssi < 0)
+		rssi = 0;	// above any quiet limit: mixed in, credited nothing (noise_post, NOISE_LOUD)
 	(void)radio_sm_noise_hold(&sm, false, hal_millis());
 	noise_post(buf, n, rssi, radio_sm_rf_floor(&sm));
 	memset(buf, 0, sizeof buf);
