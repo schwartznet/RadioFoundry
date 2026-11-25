@@ -2767,7 +2767,7 @@ static void testPrivacy(void)
 	reset();
 	ch.privacy = encrypt;
 	runMainTask(100);
-	uint32_t blocked = stats.txPrivacyBlocked;
+	blocked = stats.txPrivacyBlocked;
 	before = stats.txPrivacy;
 	CHECK(dmrDataServiceSendIPDelivery(false, RADIO_A, DMR_IP_PROTO_UDP, kf, sizeof kf,
 					   DMR_IPS_UNCONFIRMED | DMR_IPS_SELF_PROTECTED));
