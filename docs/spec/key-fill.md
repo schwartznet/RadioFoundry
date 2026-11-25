@@ -266,6 +266,35 @@ On air 2026-11-24, two radios on this build, no key pressed: Receive a key opene
 control, Rekey now made its key from one grab and the run reached all three members ("Key 83: 3 of 3 have it"), so the
 radio receives and sends DMR as before after the grab.
 
+#### 6.1.1 Measured (2026-11-25)
+
+The source: two receivers, each tapped for 240 s on a quiet channel (464.5 MHz, a bench build with `CONFIG_AIR_RAW`,
+`rfoundry_debug.py air tap --bits 16`), the low 4 bits of each sample, run through NIST's SP 800-90B tool
+(`ea_non_iid -i -a`, usnistgov/SP800-90B_EntropyAssessment at 87c104d):
+
+| Radio | Samples | H_original (4 bits) | H_bitstring (per bit) | Min-entropy per sample |
+|---|---|---|---|---|
+| A | 1,097,463 | 3.71 (t-tuple) | 0.933 | 3.71 |
+| B | 1,097,719 | 3.69 | 0.878 | 3.51 |
+
+The pool credits 0.25 bits per sample (128 bits per 512-sample grab): 14 times below the lower of the two. The health
+tests' claim of 2 bits per sample is below both too. The debug link dropped some stretches (about 1,400 gaps in each
+capture), so these are joined runs, not one stream; the firmware's grabs are 512 samples without a gap, and the
+samples' lag-1 correlation in the low 4 bits is near 0 (-0.002), so the gaps hide little. Not done: SP 800-90B's
+restart tests (3.1.4: 1,000 restarts of 1,000 samples), and any certification.
+
+The gate, on air with `Receive a key` opened and cancelled over the debug link (each open grabs until the pool fills):
+
+| Channel | Grabs | Credited | Refused as loud |
+|---|---|---|---|
+| Quiet (floor -113 dBm) | 60 | 60 | 0 |
+| Another radio keyed on it, 8 s around each open (received at -41 dBm) | 60 | 0 | 60 |
+
+Before the fix in this section's Quiet channel row, the same carrier test credited 13 of 51 grabs: the grab read the
+strength after the hold had retuned the receiver, and that reading could still be the quiet one from before (-113 under
+a carrier at -41). Not measured: a weak carrier just above the floor (-105 to -95 dBm), where the gate's 6 dB margin is
+what decides; a carrier modulated to pass the health tests.
+
 ## 7. Security
 
 | Threat | What stops it |
