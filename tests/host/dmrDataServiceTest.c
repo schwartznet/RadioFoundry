@@ -2769,12 +2769,27 @@ static void testPrivacy(void)
 					    DMR_IPS_UNCONFIRMED | DMR_IPS_SELF_PROTECTED));	// port 4105: not a clear service
 	kf[1] = kf[3] = (uint8_t)DMR_UDP_PORT_OTAR;
 	blocked = stats.txPrivacyBlocked;
+	uint32_t lists = stats.txLists, gaveUp = stats.txGaveUp;
+	lastTxCount = 0;
 	CHECK(dmrDataServiceSendIPDelivery(false, RADIO_A, DMR_IP_PROTO_UDP, kf, sizeof kf,
 					   DMR_IPS_UNCONFIRMED | DMR_IPS_SELF_PROTECTED));
 	runMainTask(300);
 	h = txHeader();
-	CHECK(h != NULL);
+	// It goes out, not only into the queue (found on air: the start held it back until it was given up)
+	CHECK(h != NULL && stats.txLists == lists + 1 && stats.txGaveUp == gaveUp);
 	CHECK(stats.txPrivacyBlocked == blocked);
+#if CONFIG_DMR_TMS
+	// A clear confirmed text heard there: dropped, but its link response goes, or the sender tries again and again
+	runMainTask(2000);
+	lists = stats.txLists;
+	lastTxCount = 0;
+	receiveTMS(RADIO_B, "clear", 5);
+	runMainTask(300);
+	h = txHeader();
+	CHECK(h != NULL && (h->payload[0] & 0x0F) == DMR_DPF_RESPONSE);
+	CHECK(stats.txLists == lists + 1 && stats.txGaveUp == gaveUp);
+	runMainTask(2000);
+#endif
 	ch.canSendClear = false;	// not even that without a channel to send on
 	runMainTask(2000);
 	CHECK(!dmrDataServiceSendIPDelivery(false, RADIO_A, DMR_IP_PROTO_UDP, kf, sizeof kf,

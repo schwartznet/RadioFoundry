@@ -117,6 +117,7 @@ static bool txPending = false;			// waiting for a clear channel
 static bool txRunning = false;			// given to the host, waiting for dmrDataServiceTxDone
 static uint32_t txPendingSince;
 static bool txIsReply;
+static bool txClearOk;					// the list may go on canTransmitClear: a clear self-protected packet, a link response
 static uint8_t txKind;
 static uint16_t txGuardMs = DMR_DATA_TX_GUARD_MS;
 static bool txChain = true;
@@ -309,6 +310,7 @@ static bool queueTx(int count, uint8_t kind)
 	txBurstCount = count;
 	txPendingSince = now;
 	txIsReply = false;
+	txClearOk = false;
 	txKind = kind;
 	txPending = true;
 	txGuardCounted = false;
@@ -731,6 +733,7 @@ static void ipBuildAndQueue(void)
 		ipFinish(DMR_REQ_FAILED);
 		return;
 	}
+	txClearOk = ipx.clear;
 	if (ipx.tries == 0)
 	{
 		dmrDataCountIpTx(ipx.sap, pdu, n, ipx.confirmed ? ipConfirmedRate : IP_UNCONFIRMED_RATE, ipx.confirmed);
@@ -2205,6 +2208,7 @@ void dmrDataServiceTick(uint32_t nowMs, const dmrDataChannel_t *ch)
 		{
 			queueReply(dmrDataBuildResponse(reply.sap, reply.dst, channel.ownId, reply.response, reply.sack ? reply.flags : NULL,
 											txBursts));
+			txClearOk = txPending && txIsReply;	// a link response carries no user data (dmrDataChannel_t)
 			stats.responsesSent++;
 		}
 		break;
@@ -2254,7 +2258,10 @@ void dmrDataServiceTick(uint32_t nowMs, const dmrDataChannel_t *ch)
 	{
 		// Replies go at once: the sender waits for them, and they follow its packet, not ours
 		bool guarded = !txIsReply && txEnded && ((now - txEndedAt) < txGuardMs);
-		bool clear = !guarded && canTransmit() && (env.channelClear == NULL || env.channelClear(now, env.ctx));
+		// The list's own right to go: a clear self-protected packet or a link response needs only canTransmitClear
+		// (found on air: the queue let them through, then this start held them until they were given up)
+		bool clear = !guarded && (txClearOk ? canTransmitClear() : canTransmit()) &&
+			     (env.channelClear == NULL || env.channelClear(now, env.ctx));
 
 		if (guarded && !txGuardCounted)
 		{
