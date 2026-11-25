@@ -490,6 +490,17 @@ Tests: `otarCryptoTest` (a body's octets aren't in the message, the same body un
 differently, a changed ciphertext octet fails the MAC, opening leaves the message unchanged, version 1 refused);
 `dmrDataServiceTest` (port 4103 goes in the clear, mixed ports don't).
 
+### 23.5 Through a repeater (2026-11-25, not done)
+
+Not checked yet: every on-air check above is simplex. Tried from the bench on two repeaters, neither could be used:
+
+| Repeater | What happened |
+|---|---|
+| UHF pair 451.650 / 456.650, about 16.6 km | The net control, moved, reached it at times (voice through, both ways, at times); a member at the bench received its OTAR messages and ACKed them at the link layer, but none of its ACKs reached the net control. OTAR retried and reported "no answer", as it should |
+| VHF pair 152.300 / 157.560, about 8.7 km (an AES tag put on a clear channel for the test, removed after) | `dmr.tx_error=no_repeater` on 9 of 10 wake-ups; once it opened, the over dropped within half a second. A stock-firmware radio at the same spot transmitted a clean call (SDR on the input: colour code 01, group call) that the repeater never repeated (SDR on the output: nothing): stock firmware talks without the repeater's answer, ours waits for it. So the path, not the firmware |
+
+To finish it: a radio with a solid path to a repeater (outdoors, a window, an outside antenna, or a repeater with line of sight). The test then is the roster, a rekey and a changeover through it, as in 23.3.
+
 ### 23.4 A radio cleared and joined again (2026-11-25)
 
 The test: 4674131 had every key cleared (Settings > Privacy > Clear all keys: traffic keys, key pair, net and keysets),
