@@ -178,8 +178,10 @@ of its own), then ACKs with the check value ([key-check.md](key-check.md)) of wh
 already holds, same keyset, key ID and check value, is ACKed again (NC's retry); the same keyset and key ID with
 another key is refused. So no NC can move a member back to an older keyset. A keyset more than 8 above the active
 one, above 65535, or a key ID the active or previous keyset uses is refused too: one sender can't park the net on a
-number the others never reach, or overwrite the key in use. A REKEY flagged now for the keyset the member holds as its
-next (it missed a changeover by hand) is HELD and changes it over.
+number the others never reach, or overwrite the key in use. The exception is the catch-up (9): a REKEY flagged now
+from the member's best-ranked net control is the net's own keyset, taken however far above the active one (never above
+65535), so a radio off through many rekeys, or cleared and joined again, catches up (23.4). A REKEY flagged now for the
+keyset the member holds as its next (it missed a changeover by hand) is HELD and changes it over.
 
 Changeover time: whole UTC minutes since 2026-01-01; 0 = on NC's CHANGEOVER only. Flags: bit 0 change over at the
 changeover time by the member's clock; bit 1 the net's active key, which the member changes over to as soon as it is
@@ -487,6 +489,26 @@ A call from the net control then reached both cabled members as AES-256 (PI head
 Tests: `otarCryptoTest` (a body's octets aren't in the message, the same body under the next message number encrypts
 differently, a changed ciphertext octet fails the MAC, opening leaves the message unchanged, version 1 refused);
 `dmrDataServiceTest` (port 4103 goes in the clear, mixed ports don't).
+
+### 23.4 A radio cleared and joined again (2026-11-25)
+
+The test: 4674131 had every key cleared (Settings > Privacy > Clear all keys: traffic keys, key pair, net and keysets),
+stayed on the AES TEST channel, joined net 8B16 again by key fill from the net control (code compared, OK on both), and
+had to get the net's active key (keyset 12, key 89) over the air, all without the channel's key. Three bugs stood in the
+way; each was fixed with a host test that fails without the fix, then checked on air.
+
+| Found | Fix |
+|---|---|
+| The member heard key fill's offer and never answered: `data.tx_gave_up` 9. 13.5's queue let clear self-protected packets through, but the start of each transmission still asked for the channel's key | Each list carries whether it may go on `canTransmitClear` (a clear self-protected packet, a link response). `dmrDataServiceTest` now checks the list starts, not that it was built |
+| Joined, it stayed "Keys not managed": a radio started managing the channel's keys on joining only when it held the channel's key, so it never said HELLO | It starts managing on any AES channel (6); the catch-up brings the key (`otarEngineTest`) |
+| Managing from keyset 1, it refused the net's catch-up REKEY for keyset 12: more than 8 ahead (23.2) | The best-ranked net control's catch-up, flagged now, is taken however far ahead (7.1). Any other REKEY keeps the limit, none passes 65535 |
+
+After the three fixes: the rejoined member said HELLO 20 s after start, took key 89 as a REKEY flagged now and changed
+over. Its Net keys showed "Keyset 12: key 89", and a 2 s call from it reached the net control as AES-256
+(`call.rx_encrypted_calls` 1, 90 frames, none dropped). Both radios: `airq.failed` 0, `data.tx_gave_up` 0.
+
+Also seen: with its keys cleared the radio refused PTT on the AES channel (no frame sent), so nothing went out in the
+clear. The debug view's `tx_deny` shows the last refused PTT only, not whether the channel can transmit now.
 
 ### 23.3 On air, 2026-11-24 night and 2026-11-25
 
