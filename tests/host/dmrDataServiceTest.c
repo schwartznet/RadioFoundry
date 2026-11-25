@@ -2781,7 +2781,21 @@ static void testPrivacy(void)
 					    DMR_IPS_UNCONFIRMED | DMR_IPS_SELF_PROTECTED));
 	ch.canTransmit = true;
 	ch.privacy = encrypt;
-	runMainTask(100);
+	runMainTask(2000);
+	// A confirmed OTAR packet there: the receiver's link ACK (always clear) ends it, not counted as a clear drop
+	uint32_t cd = stats.rxClearDropped;
+	CHECK(dmrDataServiceSendIPDelivery(false, RADIO_A, DMR_IP_PROTO_UDP, kf, sizeof kf,
+					   DMR_IPS_CONFIRMED | DMR_IPS_SELF_PROTECTED));
+	runMainTask(300);
+	h = txHeader();
+	CHECK(h != NULL && (h->payload[0] & 0x0F) == DMR_DPF_CONFIRMED);
+	if (h != NULL)
+	{
+		respond(RADIO_A, (h->payload[1] >> 4) & 0x0F, DMR_RESPONSE_ACK((h->payload[9] >> 4) & 7), NULL);
+	}
+	CHECK(!dmrDataServiceIpBusy() && dmrDataServiceIpResult() == DMR_REQ_OK);
+	CHECK(stats.rxClearDropped == cd);
+	runMainTask(2000);
 	// A clear text on a channel that encrypts data: anyone could have sent it, so it is dropped (13.5)
 	heard = packetsHeard;
 	uint32_t clear_dropped = stats.rxClearDropped;

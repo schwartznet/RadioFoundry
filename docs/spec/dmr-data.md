@@ -923,6 +923,9 @@ had been overwritten could send no OTAR message, and was mended only by a key fi
 Receiving: on a channel that encrypts data, a packet without a privacy header is taken only when it is UDP between
 those ports. Any other clear packet there (a text, a position, an ARS) could have come from anyone, so it is dropped and
 counted (`data.clear_rx_dropped`); confirmed data is still acknowledged, as for an encrypted packet without the key.
+A link response is taken: it is always clear (it carries no user data). Until 2026-11-24 responses were dropped there
+too, so every confirmed packet on an encrypting channel went its full tries and was reported failed; OTAR still worked,
+as it counts its own ACK messages.
 On a channel that doesn't encrypt data, clear packets are taken as always.
 
 ### 13.6 Open
