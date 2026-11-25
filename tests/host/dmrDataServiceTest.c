@@ -2783,7 +2783,7 @@ static void testPrivacy(void)
 	runMainTask(2000);
 	lists = stats.txLists;
 	lastTxCount = 0;
-	receiveTMS(RADIO_B, "clear", 5);
+	receiveConfirmedTMS(RADIO_B, "clear", 5, 0);
 	runMainTask(300);
 	h = txHeader();
 	CHECK(h != NULL && (h->payload[0] & 0x0F) == DMR_DPF_RESPONSE);
