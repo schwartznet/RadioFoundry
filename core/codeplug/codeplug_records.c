@@ -165,21 +165,31 @@ bool codeplug_traffic_key_set(uint8_t system, uint8_t alg, uint16_t key_id, cons
 {
 	uint8_t v[CODEPLUG_TRAFFIC_HDR + 64u];
 	codeplug_kv_cursor_t c;
-	uint16_t k, hit = 0, free_key = 0, next = CODEPLUG_KEY_TRAFFIC;
+	uint16_t k, hit = 0, top = 0;
 	int n;
 	if (len == 0 || len > 64u)
 		return false;
+	// The record of this key if there is one, and the highest record in use. The area keeps its entries in the order
+	// they were written, not sorted (codeplug-settings.md 5), so a jump in the keys walked is no gap: a new key goes
+	// above the highest, and only when that is the last one a gap is looked for record by record
 	codeplug_kv_begin(&c, CODEPLUG_KEY_TRAFFIC, (uint16_t)(CODEPLUG_KEY_TRAFFIC + TRAFFIC_MAX - 1u));
 	while ((n = codeplug_kv_next(&c, &k, v, CODEPLUG_TRAFFIC_HDR)) >= 0) {
-		if (free_key == 0 && k > next)
-			free_key = next;	// a gap before this record
-		next = (uint16_t)(k + 1u);
+		top = k > top ? k : top;
 		if (hit == 0 && n >= (int)CODEPLUG_TRAFFIC_HDR && v[0] == system && v[1] == alg && rec_rd16(&v[2]) == key_id)
 			hit = k;
 	}
-	if (free_key == 0 && next < CODEPLUG_KEY_TRAFFIC + TRAFFIC_MAX)
-		free_key = next;
-	uint16_t at = hit != 0 ? hit : free_key;
+	uint16_t at = hit;
+	if (at == 0 && top == 0)
+		at = CODEPLUG_KEY_TRAFFIC;
+	else if (at == 0 && top + 1u < CODEPLUG_KEY_TRAFFIC + TRAFFIC_MAX)
+		at = (uint16_t)(top + 1u);
+	for (uint16_t cand = CODEPLUG_KEY_TRAFFIC; at == 0 && cand < CODEPLUG_KEY_TRAFFIC + TRAFFIC_MAX; cand++) {
+		bool used = false;
+		codeplug_kv_begin(&c, cand, cand);
+		used = codeplug_kv_next(&c, &k, NULL, 0) >= 0;
+		if (!used)
+			at = cand;
+	}
 	if (at == 0)
 		return false;
 	v[0] = system;

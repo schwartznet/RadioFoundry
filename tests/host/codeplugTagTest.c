@@ -598,8 +598,33 @@ static void test_aes_reference(void)
 }
 #endif
 
+// Traffic keys stored, one removed, more stored (an OTAR net's rekeys: otar.md 8): none overwrites another. The area
+// keeps entries in the order written, not sorted, so a gap in the keys walked isn't a free record (found on air: the
+// active key was overwritten and the net control could send no data)
+static void test_traffic_key_slots(void)
+{
+	fresh();
+	uint8_t k[32], got[32];
+	for (uint16_t id = 1; id <= 4; id++) {
+		memset(k, id, sizeof k);
+		CHECK(codeplug_traffic_key_set(1, 0x25, id, k, sizeof k));
+	}
+	CHECK(codeplug_traffic_key_remove(1, 0x25, 2));		// the previous keyset's key, its overlap over
+	for (uint16_t id = 5; id <= 8; id++) {
+		memset(k, id, sizeof k);
+		CHECK(codeplug_traffic_key_set(1, 0x25, id, k, sizeof k));
+		CHECK(codeplug_traffic_key_remove(1, 0x25, (uint16_t)(id - 2u)));	// each rekey drops the one before last
+		for (uint16_t have = (uint16_t)(id - 1u); have <= id; have++) {
+			CHECK(codeplug_traffic_key(1, 0x25, have, got, sizeof got) == 32 && got[0] == have && got[31] == have);
+		}
+	}
+	CHECK(codeplug_traffic_key(1, 0x25, 1, got, sizeof got) == 32 && got[0] == 1);	// untouched all along
+	CHECK(codeplug_traffic_key(1, 0x25, 2, got, sizeof got) == -1);
+}
+
 int main(void)
 {
+	test_traffic_key_slots();
 #if CONFIG_DMR_AES
 	test_aes_reference();
 #endif
