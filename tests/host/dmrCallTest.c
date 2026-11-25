@@ -1060,10 +1060,10 @@ static void test_rmo_wakeup(void)
 	CHECK(tries == DMR_CALL_WAKEUP_ATTEMPTS && sim.air_count == tries);
 	CHECK(V()->phase == DMR_CALL_PHASE_IDLE && V()->tx_error == DMR_TX_ERR_NO_REPEATER);
 
-	// No repeater: three tries 600 ms apart, then refused
+	// No repeater: three tries 600 ms apart, a slow repeater's wait (DMR_CALL_WAKEUP_PATIENCE_MS), then refused
 	setup(&c);
 	dmr_call_ptt(true);
-	run_ms(3000);
+	run_ms(DMR_CALL_WAKEUP_PATIENCE_MS + 500);
 	unsigned csbks = 0;
 	for (unsigned i = 0; i < sim.air_count; i++)
 		csbks += sim.air[i].kind == DMR_BURST_CSBK;
@@ -1183,7 +1183,7 @@ static void test_rmo_ticks_alone(void)
 	dmr_call_ptt(true);
 	run_ms(10);
 	CHECK(V()->phase == DMR_CALL_PHASE_TX_WAKEUP);
-	run_ms(3000);
+	run_ms(DMR_CALL_WAKEUP_PATIENCE_MS + 500);
 	CHECK(csbks_on_air() == DMR_CALL_WAKEUP_ATTEMPTS && sim.air_count == csbks_on_air());
 	CHECK(V()->phase == DMR_CALL_PHASE_TX_DENIED && V()->tx_error == DMR_TX_ERR_NO_REPEATER && !V()->repeater_up);
 	dmr_call_ptt(false);
@@ -1324,7 +1324,7 @@ static void test_rmo_wake_lost(void)
 	run_ms(400);
 	sim.lose_next = 99;
 	dmr_call_ptt(true);
-	run_ms(2000);
+	run_ms(DMR_CALL_WAKEUP_PATIENCE_MS + 500);
 	CHECK(V()->tx_error == DMR_TX_ERR_NO_REPEATER && sim.lost_tx == DMR_CALL_WAKEUP_ATTEMPTS);
 	dmr_call_ptt(false);
 	run_ms(600);
@@ -1604,7 +1604,7 @@ static void test_rmo_drop_under_over(void)
 	dmr_call_ptt(true);
 	run_ms(120);
 	sim.repeater = false;
-	run_ms(4000);
+	run_ms(DMR_CALL_WAKEUP_PATIENCE_MS + 500);
 	CHECK(rpt_drops() == d0 + 1 && V()->tx_error != DMR_TX_OK && V()->phase != DMR_CALL_PHASE_TX_VOICE);
 	dmr_call_ptt(false);
 	run_ms(600);
@@ -1624,7 +1624,7 @@ static void test_rmo_drop_under_over(void)
 	run_ms(400);
 	CHECK(rpt_drops() == d0 + 1);
 	unsigned v0 = air_of(DMR_BURST_VOICE);
-	run_ms(4000);
+	run_ms(DMR_CALL_WAKEUP_PATIENCE_MS + 500);
 	CHECK(csbks_on_air() == 3);	// every wake-up try, none answered
 	CHECK(air_of(DMR_BURST_VOICE) == v0 && V()->tx_error == DMR_TX_ERR_NO_REPEATER);
 	dmr_call_ptt(false);
