@@ -293,7 +293,8 @@ The gate, on air with `Receive a key` opened and cancelled over the debug link (
 Before the fix in this section's Quiet channel row, the same carrier test credited 13 of 51 grabs: the grab read the
 strength after the hold had retuned the receiver, and that reading could still be the quiet one from before (-113 under
 a carrier at -41). Not measured: a weak carrier just above the floor (-105 to -95 dBm), where the gate's 6 dB margin is
-what decides; a carrier modulated to pass the health tests.
+what decides; a carrier modulated to pass the health tests. Not covered by the gate yet (review): a grab right
+after a scan hop or a dual watch retune, when the reading before the hold may still be the other frequency's.
 
 ## 7. Security
 
