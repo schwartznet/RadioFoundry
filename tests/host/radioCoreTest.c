@@ -3616,10 +3616,10 @@ static void test_dmr_voice_features(void)
 	uint32_t res0 = sv.aes_mi_res;
 	settings_t older = sv;
 	CHECK(res0 != 0);
-	// Data (#1109): AES has no data form yet, so text is held back with its reason; signaling carries only the IDs,
-	// which the voice LC sends in the clear too, so a radio check goes on air
+	// Data: with the key, packets go encrypted with it (tested below, dmr-data.md 13.4), so nothing is refused; signaling
+	// carries only the IDs, which the voice LC sends in the clear too, so a radio check goes on air (#1110)
 	run(100);
-	CHECK(sm.view.data_deny == TXDENY_NONE && sm.view.packet_deny == TXDENY_DATA_ENCRYPTED);
+	CHECK(sm.view.data_deny == TXDENY_NONE && sm.view.packet_deny == TXDENY_NONE);
 	first = sim.air_count;
 	CHECK(dmr_signal_radio_check(9990001));
 	run(500);
@@ -3628,10 +3628,6 @@ static void test_dmr_voice_features(void)
 		rc += sim.air[i].kind == DMR_BURST_CSBK && (sim.air[i].payload[0] & 0x3F) == DMR_CSBKO_RADIO_CHECK;
 	CHECK(rc == 1);
 	run(10000);		// no answer here: its tries end
-	first = sim.air_count;
-	sms_send(9990001, false, "clear text", false, DMR_SMS_FORMAT_DEFAULT);
-	run(500);
-	CHECK(sim.air_count == first && dmr_data_last_event().kind == DMR_DATA_EV_SMS_BLOCKED);
 	first = sim.air_count;
 	tx_once();
 	air_lc(first, &l);
