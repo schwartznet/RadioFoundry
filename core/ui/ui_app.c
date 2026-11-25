@@ -2834,8 +2834,8 @@ __attribute__((noinline)) static bool app_tick(const radio_view_t *v, uint32_t n
 }
 
 // Key fill, the group key and OTAR: their sessions run here, beside app_tick and not under it. Their crypto (HKDF,
-// HMAC, SHA-256, X25519) is the UI task's deepest stack, and app_tick's frame on top of it left 52 bytes over the
-// margin on the DM-32 (docs/dev/stack-check.md)
+// HMAC, SHA-256, X25519) is the UI task's deepest stack, and app_tick's frame on top of it left the task 52 bytes
+// over the margin on a radio (docs/dev/stack-check.md)
 __attribute__((noinline)) static bool svc_tick(const radio_view_t *v, uint32_t now_ms)
 {
 	bool changed = false;
