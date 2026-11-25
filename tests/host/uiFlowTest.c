@@ -1110,7 +1110,7 @@ static const flow_t flows[] = {
 	{ "O a member's net: Members and Leave only", NET_JOINED, "1 back",
 	  "screen=net shows=Members shows=Leave_the_net hides=Add_a_member hides=Rekey_now hides=Net_status", 2, false },
 	// Leave the net wipes the key pair: it asks first, and only OK says yes
-	{ "O leaving the net asks first", NET_JOINED, "3", "toast=none screen=net shows=Leave_the_net?_Its_key_pair_is_wiped",
+	{ "O leaving the net asks first", NET_JOINED, "3", "toast=none screen=net shows=Leave_the_net?",
 	  1, false },
 	{ "O a member leaves the net", NET_JOINED, "3 ok", "toast=Left_the_net shows=Not_in_a_net", 2, false },
 	{ "O back keeps the net", NET_JOINED, "3 back", "toast=none shows=Net_1A2B:_member hides=Leave_the_net?", 2, false },

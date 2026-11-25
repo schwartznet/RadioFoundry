@@ -5324,8 +5324,8 @@ msgstr "Chiavi dei membri non verificate"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_ASK_LEAVE"
-msgid "Leave the net? Its key pair is wiped: rejoining needs a key fill"
-msgstr "Lasciare la rete? La coppia di chiavi viene cancellata: rientrare richiede un carica chiave"
+msgid "Leave the net? Rejoining needs a key fill"
+msgstr "Lasciare la rete? Rientrare richiede un carica chiave"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_TYPE_ID"

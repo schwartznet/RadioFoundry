@@ -5326,8 +5326,8 @@ msgstr "未检查电台密钥"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_ASK_LEAVE"
-msgid "Leave the net? Its key pair is wiped: rejoining needs a key fill"
-msgstr "退出网络？会擦除密钥对：重新加入需密钥注入"
+msgid "Leave the net? Rejoining needs a key fill"
+msgstr "退出网络？重新加入需密钥注入"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_TYPE_ID"

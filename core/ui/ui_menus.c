@@ -9164,7 +9164,7 @@ static uint32_t net_typed;	// Add a member: the ID typed
 static uint8_t net_typed_n;	// its digits; 0 and not typing: no entry
 static bool net_typing;
 // A row that waits for OK (P7): Change over the net (every member that lacks the key loses the net's voice; found on
-// air, a stray key press changed a net over before its members had the key) and Leave the net (the key pair wiped).
+// air, a stray key press changed a net over before its members had the key) and Leave the net (the key pair wiped: rejoining needs a key fill).
 // NET_ROWS: none
 static uint8_t net_ask = NET_ROWS;
 
@@ -9288,7 +9288,7 @@ static const char *net_body(void)
 		return id_body;
 	}
 	if (net_ask == NET_LEAVE) {
-		sb_str(&b, TR(NET_ASK_LEAVE, "Leave the net? Its key pair is wiped: rejoining needs a key fill"));
+		sb_str(&b, TR(NET_ASK_LEAVE, "Leave the net? Rejoining needs a key fill"));
 		return id_body;
 	}
 	if (net_typing) {
