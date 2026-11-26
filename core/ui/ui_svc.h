@@ -201,8 +201,13 @@ uint8_t ui_svc_net_revoke(const radio_view_t *v, uint32_t id);
 // Net control 2-4: the highest-ranked net control above this one taken as lost: revoked and the net told, each member
 // asked to accept it. *lost its rank. NOT_NC, NO_LOST, BUSY
 uint8_t ui_svc_net_take_over(const radio_view_t *v, uint8_t *lost);
-// A net control: ZEROIZE to member id (it wipes its keys when its Remote wipe is on)
+// A net control: ZEROIZE to member id (it wipes its keys when its Remote wipe is on), tried up to 3 times until it
+// answers. BUSY: one is still being tried
 uint8_t ui_svc_net_wipe(const radio_view_t *v, uint32_t id);
+// ... and what member id answered, as its member screen shows it: wiped, refused (Remote wipe off, or it ranks the
+// same or above), or no answer after the tries (off, out of range, or wiped with its answer lost)
+enum { UI_ZZ_NONE, UI_ZZ_SENDING, UI_ZZ_WIPED, UI_ZZ_REFUSED, UI_ZZ_NO_ANSWER };
+uint8_t ui_svc_net_wipe_state(uint32_t id);
 // A take over waiting (ui_net_view_t.pend): accepted (the lost net control revoked here) or refused
 void ui_svc_net_accept(bool yes);
 void ui_svc_net_set_remote_wipe(bool on);

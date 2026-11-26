@@ -144,7 +144,16 @@ bool codeplug_traffic_key_set(uint8_t system, uint8_t alg, uint16_t id, const ui
 	memcpy(tek[id].k, key, 32);
 	return true;
 }
-bool ui_svc_clear_keys_start(void) { return true; }
+static int out_n_now(void);
+// The wipe (Clear all keys): counted, with how many messages had gone by then; the net and key pair go, as on the radio
+static int wipes, wipe_out_n;
+bool ui_svc_clear_keys_start(void)
+{
+	wipes++;
+	wipe_out_n = out_n_now();
+	memset(&live.otar_net, 0, sizeof live.otar_net);
+	return true;
+}
 void ui_svc_noise_want(uint32_t ms) { (void)ms; }
 
 // --- randomness: deterministic, always full (the engine's own key presses aren't what is tested here)
@@ -201,7 +210,9 @@ bool otar_send(uint32_t dst, bool group, const uint8_t *msg, int len)
 	}
 	return true;
 }
-otar_send_state_t otar_send_state(void) { return OTAR_SEND_SENT; }
+static otar_send_state_t send_state = OTAR_SEND_SENT;	// what the transport says of the last message
+otar_send_state_t otar_send_state(void) { return send_state; }
+static int out_n_now(void) { return out_n; }
 int otar_take(uint8_t out[OTAR_MSG_MAX], uint32_t *src, uint32_t *dst, bool *group)
 {
 	if (in_n == 0)
@@ -265,6 +276,7 @@ static void setup(uint8_t rank)
 	live.otar_net.flags = OTAR_NET_IN;
 	saved = live;
 	kv_n = 0;
+	in_n = 0;
 	CHECK(otar_pair_keys(peer_priv, eng_pub, NET_ID, PEER_ID, ENGINE_ID, ukek, kmac, &ws));
 }
 
@@ -281,6 +293,8 @@ static int build(uint8_t type, otar_msg_t *m, uint8_t *out)
 	case OTAR_HELLO: return otar_hello_build(out, &a, kmac, m);
 	case OTAR_ROSTER: return otar_roster_build(out, &a, kmac, m);
 	case OTAR_TIME: return otar_time_build(out, &a, kmac, m);
+	case OTAR_ZEROIZE: return otar_zeroize_build(out, &a, kmac, m);
+	case OTAR_INVENTORY: return otar_inventory_build(out, &a, kmac, m);
 	default: return 0;
 	}
 }
@@ -697,6 +711,135 @@ static void test_join_without_key(void)
 	memset(&view.ch, 0, sizeof view.ch);
 }
 
+// The engine's message i to the test's radio, opened
+static bool out_open(int i, otar_msg_t *m)
+{
+	if (i < 0 || i >= out_n)
+		return false;
+	otar_addr_t a = { ENGINE_ID, outbox[i].dst };
+	return outbox[i].dst == PEER_ID && otar_open(outbox[i].m, outbox[i].len, &a, ukek, kmac, m);
+}
+
+// ===================== ZEROIZE answered (otar.md 7.5): the engine a member, the test its net control
+static void test_zeroize_member(void)
+{
+	setup(0);
+	roster_add(PEER_ID, 1, peer_pub);
+	roster_add(ENGINE_ID, 0, eng_pub);
+	otar_start(&keys, 0, 77);
+	tek[77].used = true;
+	run(25000);
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t m, r;
+
+	// Remote wipe off: REFUSED, under the pair's keys, echoing the ZEROIZE; nothing wiped
+	wipes = 0;
+	memset(&m, 0, sizeof m);
+	m.rank = 1;
+	m.target = ENGINE_ID;
+	out_n = 0;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ZEROIZE, &m, buf));
+	run(1000);
+	CHECK(out_n == 1 && last_out(&r) && r.type == OTAR_ACK && r.result == OTAR_ACK_REFUSED && r.echo == m.msgnum);
+	CHECK(wipes == 0 && (live.otar_net.flags & OTAR_NET_IN));
+
+	// Remote wipe on: the WIPED ACK is built and handed over first; while the transport still sends it nothing else is
+	// answered (an INVENTORY waiting) and nothing is wiped yet
+	live.otar_wipe = 1;
+	saved = live;
+	memset(&m, 0, sizeof m);
+	m.rank = 1;
+	m.target = ENGINE_ID;
+	out_n = 0;
+	send_state = OTAR_SEND_SENDING;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ZEROIZE, &m, buf));
+	uint32_t zz_num = m.msgnum;
+	memset(&m, 0, sizeof m);
+	m.rank = 1;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_INVENTORY, &m, buf));
+	run(5000);
+	CHECK(out_n == 1 && out_open(0, &r) && r.type == OTAR_ACK && r.result == OTAR_ACK_WIPED && r.echo == zz_num &&
+	      r.ckr == 0);
+	CHECK(wipes == 0);
+	// The send done: the wipe, after the ACK went (and the INVENTORY still unanswered: the net is gone)
+	send_state = OTAR_SEND_SENT;
+	run(2000);
+	CHECK(wipes == 1 && wipe_out_n == 1 && out_n == 1);
+
+	// A transport that never finishes: the wipe goes all the same, a minute on
+	setup(0);
+	roster_add(PEER_ID, 1, peer_pub);
+	roster_add(ENGINE_ID, 0, eng_pub);
+	run(1000);
+	live.otar_wipe = 1;
+	saved = live;
+	wipes = 0;
+	memset(&m, 0, sizeof m);
+	m.rank = 1;
+	m.target = ENGINE_ID;
+	out_n = 0;
+	send_state = OTAR_SEND_SENDING;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ZEROIZE, &m, buf));
+	run(30000);
+	CHECK(wipes == 0 && out_n == 1);
+	run(31000);
+	CHECK(wipes == 1);
+	send_state = OTAR_SEND_SENT;
+}
+
+// ===================== ZEROIZE retried until answered (otar.md 7.5): the engine net control 1, the test a member
+static void test_zeroize_nc(void)
+{
+	setup(1);
+	roster_add(ENGINE_ID, 1, eng_pub);
+	roster_add(PEER_ID, 0, peer_pub);
+	run(3000);
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t m, r;
+	out_n = 0;
+	CHECK(ui_svc_net_wipe(v_now(), PEER_ID) == UI_NET_OK);
+	CHECK(ui_svc_net_wipe(v_now(), PEER_ID) == UI_NET_BUSY);
+	run(1000);
+	CHECK(out_n == 1 && last_out(&r) && r.type == OTAR_ZEROIZE && r.target == PEER_ID);
+	CHECK(ui_svc_net_wipe_state(PEER_ID) == UI_ZZ_SENDING);
+	// An ACK echoing something else doesn't answer it; the right one does: wiped, and no more tries
+	memset(&m, 0, sizeof m);
+	m.result = OTAR_ACK_WIPED;
+	m.echo = r.msgnum - 1u;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &m, buf));
+	run(500);
+	CHECK(ui_svc_net_wipe_state(PEER_ID) == UI_ZZ_SENDING);
+	memset(&m, 0, sizeof m);
+	m.result = OTAR_ACK_WIPED;
+	m.echo = r.msgnum;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &m, buf));
+	run(500);
+	CHECK(ui_svc_net_wipe_state(PEER_ID) == UI_ZZ_WIPED);
+	run(90000);
+	CHECK(out_n == 1);
+
+	// No answer: 3 tries, 20 s apart, then shown as no answer
+	out_n = 0;
+	CHECK(ui_svc_net_wipe(v_now(), PEER_ID) == UI_NET_OK);
+	run(90000);
+	int zz = 0;
+	for (int i = 0; i < out_n; i++)
+		zz += out_open(i, &r) && r.type == OTAR_ZEROIZE;
+	CHECK(zz == 3 && out_n == 3);
+	CHECK(ui_svc_net_wipe_state(PEER_ID) == UI_ZZ_NO_ANSWER);
+
+	// Refused (its Remote wipe off): shown as refused
+	CHECK(ui_svc_net_wipe(v_now(), PEER_ID) == UI_NET_OK);
+	run(1000);
+	CHECK(last_out(&r) && r.type == OTAR_ZEROIZE);
+	memset(&m, 0, sizeof m);
+	m.result = OTAR_ACK_REFUSED;
+	m.echo = r.msgnum;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &m, buf));
+	run(500);
+	CHECK(ui_svc_net_wipe_state(PEER_ID) == UI_ZZ_REFUSED);
+}
+
 int main(void)
 {
 	test_msgnum();
@@ -704,6 +847,8 @@ int main(void)
 	test_ranks();
 	test_nc();
 	test_join_without_key();
+	test_zeroize_member();
+	test_zeroize_nc();
 	printf("otarEngineTest: %d checks, %d failures\n", checks, failures);
 	return failures != 0;
 }

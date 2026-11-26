@@ -15,7 +15,10 @@
 #include "otar/otar_crypto.h"
 
 #define OTAR_PORT		4103u	// UDP source and destination port
-#define OTAR_VERSION		4u	// 4: ACK echoes its request's number; 3: HELLO keysets, TIME per member; 2: body encrypted
+// 4: ACK echoes its request's number; 3: HELLO keysets, TIME per member; 2: body encrypted. ACK results 8-10 came
+// later without a new version: a version 4 radio ignores an ACK it doesn't wait for, and counts one it waits for with
+// CKR 0 and another result as a roster entry not stored, so a net part-way through an update keeps working (otar.md 7.2)
+#define OTAR_VERSION		4u
 #define OTAR_ENC_LABEL		"RFOTAR2 enc"	// HKDF info of the body's key
 #define OTAR_HDR		10u
 #define OTAR_MAC		8u
@@ -28,9 +31,9 @@ enum { OTAR_REKEY = 1, OTAR_ACK = 2, OTAR_CHANGEOVER = 3, OTAR_HELLO = 4, OTAR_I
 #define OTAR_RK_CLOCK	0x01u	// change over at the changeover time by the member's clock
 #define OTAR_RK_NOW	0x02u	// the net's active key: change over to it once stored (a member that missed it, 9)
 
-// ACK results (7.2)
+// ACK results (7.2). WIPED: a ZEROIZE taken, the keys wiped once this ACK has gone (7.5); with CKR 0
 enum { OTAR_ACK_STORED = 0, OTAR_ACK_HELD = 1, OTAR_ACK_OLD = 2, OTAR_ACK_STORE_FAILED = 3, OTAR_ACK_WRAP = 4,
-       OTAR_ACK_NOT_MANAGED = 5, OTAR_ACK_REFUSED = 6, OTAR_ACK_ASKED = 7 };
+       OTAR_ACK_NOT_MANAGED = 5, OTAR_ACK_REFUSED = 6, OTAR_ACK_ASKED = 7, OTAR_ACK_WIPED = 8 };
 
 #define OTAR_REKEY_LEN		(OTAR_HDR + 4u + 1u + 1u + 4u + 1u + 40u + OTAR_MAC)	// 69
 #define OTAR_ACK_LEN		(OTAR_HDR + 4u + 1u + 1u + 3u + 4u + OTAR_MAC)		// 31

@@ -2769,6 +2769,7 @@ static struct {
 	uint8_t sched;
 	uint32_t sched_at;
 	uint32_t inv_id;
+	uint32_t wipe_id;
 } net_sim;
 
 static void net_sim_add(uint32_t id, uint8_t rank)
@@ -2865,10 +2866,18 @@ uint8_t ui_svc_net_take_over(const radio_view_t *v, uint8_t *lost)
 	*lost = 0;
 	return net_sim.rank < 2 ? UI_NET_NOT_NC : UI_NET_NO_LOST;
 }
+// A wipe is answered at once: wiped
 uint8_t ui_svc_net_wipe(const radio_view_t *v, uint32_t id)
 {
 	int i = sim_member(id);
-	return (i < 0 || id == v->dmr.own_id) ? UI_NET_NO_MEMBER : UI_NET_OK;
+	if (i < 0 || id == v->dmr.own_id)
+		return UI_NET_NO_MEMBER;
+	net_sim.wipe_id = id;
+	return UI_NET_OK;
+}
+uint8_t ui_svc_net_wipe_state(uint32_t id)
+{
+	return id != 0 && id == net_sim.wipe_id ? UI_ZZ_WIPED : UI_ZZ_NONE;
 }
 void ui_svc_net_accept(bool yes) { (void)yes; }
 void ui_svc_net_set_remote_wipe(bool on) { net_sim.wipe = on; }

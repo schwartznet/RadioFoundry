@@ -5560,6 +5560,31 @@ msgid "revoked"
 msgstr "已撤销"
 
 #: core/ui/ui_menus.c
+msgctxt "NM_WIPE_IS"
+msgid "Wipe: "
+msgstr "擦除: "
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WIPE_SENDING"
+msgid "sending"
+msgstr "发送中"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WIPE_DONE"
+msgid "wiped"
+msgstr "已完成"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WIPE_REFUSED"
+msgid "refused"
+msgstr "已拒绝"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_KEYS_NO_ANSWER"
+msgid "no answer"
+msgstr "无回应"
+
+#: core/ui/ui_menus.c
 msgctxt "NM_KEYS"
 msgid "Keys: "
 msgstr "密钥: "
@@ -5568,11 +5593,6 @@ msgstr "密钥: "
 msgctxt "NM_KEYS_ASKING"
 msgid "asking"
 msgstr "查询中"
-
-#: core/ui/ui_menus.c
-msgctxt "NM_KEYS_NO_ANSWER"
-msgid "no answer"
-msgstr "无回应"
 
 #: core/ui/ui_menus.c
 msgctxt "NM_KEYS_NONE"

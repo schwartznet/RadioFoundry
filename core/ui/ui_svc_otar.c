@@ -355,7 +355,17 @@ static struct {
 		uint8_t from_rank;
 		otar_member_t e;
 	} pend;
-	uint32_t zz_to;		// a net control: ZEROIZE to send to this member (0 none)
+	// A net control: the ZEROIZE asked for (ui_svc_net_wipe), sent up to ZZ_TRIES times until its ACK comes
+	struct {
+		uint32_t id;		// the member (0 none)
+		uint8_t state;		// UI_ZZ_*
+		bool send, waiting;	// a try to send; one sent, its ACK awaited
+		uint8_t tries;
+		uint32_t sent_num, ack_by;
+	} zz;
+	// A member: a ZEROIZE taken, its ACK built; the wipe starts once the transport has let the ACK go, or by this time
+	bool zz_wipe;
+	uint32_t zz_wipe_by;
 	// Scratch off the UI task's stack: the roster run's member and entry, and its message
 	otar_member_t ros_d, ros_e;
 	otar_msg_t ros_m;
@@ -385,10 +395,13 @@ static bool pool_wanted(void)
 }
 
 #define ROS_TRIES	3u	// a roster entry no ACK came for is sent this many times, then counted as failed
+#define ZZ_TRIES	3u	// ... and a ZEROIZE, then shown as no answer
+#define ZZ_SEND_MS	60000u	// a member wiping: its ACK's send given this long (the transport's own limit is 10 s)
 #define ROS_SCAN	4u	// roster pairs looked at per tick
 #define SCHED_LOOK_MS	10000u	// the rekey schedule is looked at this often
 #define SCHED_CO_MIN	60u	// a scheduled rekey's changeover: this many minutes after it starts, by the clocks
 static void ros_start(uint32_t only, bool one, bool to_it);
+static void rk_free(void);
 static bool co_start(const radio_view_t *v, uint8_t kid, uint32_t keyset, uint16_t net_id, uint8_t rank, bool then_local);
 
 // A net control's message number: true when above the last taken from that sender (then kept), so a replay or an old
@@ -731,14 +744,14 @@ static __attribute__((noinline)) void ros_stored(const radio_view_t *v, uint32_t
 }
 
 // ZEROIZE (7.5) from a net control on the roster: this radio's keys wiped (Clear all keys, then a restart), only when
-// its Remote wipe is on. No answer
+// its Remote wipe is on and the sender ranks above it. Answered either way: WIPED, built and sent first, then the wipe
+// (engine_tick, once the transport has let it go); REFUSED when the wipe is off or the sender doesn't rank above it
 static __attribute__((noinline)) void on_zeroize(const radio_view_t *v, const uint8_t *msg, int len, uint32_t src,
 						 const otar_net_t *n, uint32_t now)
 {
 	otar_member_t nc;
-	if (SETTINGS_FIELD(otar_wipe) != 1u || !otar_roster_find(src, &nc) || nc.rank == 0 || (nc.flags & OTAR_M_REVOKED) ||
-	    (n->rank != 0 && nc.rank >= n->rank))
-		return;		// a net control is wiped only by one above it (7.5)
+	if (eng.zz_wipe || !otar_roster_find(src, &nc) || nc.rank == 0 || (nc.flags & OTAR_M_REVOKED))
+		return;
 	if (!eng.pair_ok || eng.pair_id != src) {
 		eng.pair_ok = pair_keys(v->dmr.own_id, src, n->net_id, eng.ukek, eng.kmac);
 		eng.pair_id = src;
@@ -750,22 +763,51 @@ static __attribute__((noinline)) void on_zeroize(const radio_view_t *v, const ui
 	if (!otar_open(msg, len, &a, NULL, eng.kmac, m) || m->net_id != n->net_id || m->target != v->dmr.own_id ||
 	    !take_msgnum(src, m->msgnum, now))
 		return;
-#if CONFIG_ZEROIZE
-	(void)ui_svc_clear_keys_start();
-#endif
+	// A net control is wiped only by one above it (7.5)
+	bool wipe = CONFIG_ZEROIZE && SETTINGS_FIELD(otar_wipe) == 1u && !(n->rank != 0 && nc.rank >= n->rank);
+	uint32_t echo = m->msgnum;
+	memset(m, 0, sizeof *m);
+	m->net_id = n->net_id;
+	m->rank = n->rank;
+	m->result = wipe ? OTAR_ACK_WIPED : OTAR_ACK_REFUSED;
+	m->echo = echo;
+	m->msgnum = next_msgnum(now);
+	otar_addr_t back = { v->dmr.own_id, src };
+	if (!wipe) {
+		if (eng.out_len == 0)
+			out_set(src, false, otar_ack_build(eng.out, &back, eng.kmac, m));
+		return;
+	}
+	// Wiping: the ACK takes the place of any message waiting (none matters now). From here the engine keeps only that
+	// ciphertext: the pair keys, a TEK being stored, a rekey run's key go at once, and nothing else is taken or sent
+	// until the wipe starts
+	out_set(src, false, otar_ack_build(eng.out, &back, eng.kmac, m));
+	crypto_wipe(m, sizeof *m);
+	crypto_wipe(eng.ukek, sizeof eng.ukek);
+	crypto_wipe(eng.kmac, sizeof eng.kmac);
+	eng.pair_ok = false;
+	crypto_wipe(eng.tek, sizeof eng.tek);
+	eng.tek_due = false;
+	crypto_wipe(&eng.ack, sizeof eng.ack);
+	rk_free();
+	eng.zz_wipe = true;
+	eng.zz_wipe_by = now + ZZ_SEND_MS;
 }
 
-// A net control: the ZEROIZE asked for (ui_svc_net_wipe), once the transport is free
+// A net control: a try of the ZEROIZE asked for (ui_svc_net_wipe), once the transport is free; its ACK within
+// ACK_WAIT_MS (on_member), else another try (engine_tick)
 static __attribute__((noinline)) void zz_send(const radio_view_t *v, const otar_net_t *n, uint32_t now)
 {
-	uint32_t to = eng.zz_to;
-	eng.zz_to = 0;
+	uint32_t to = eng.zz.id;
+	eng.zz.send = false;
 	if (!eng.pair_ok || eng.pair_id != to) {
 		eng.pair_ok = pair_keys(v->dmr.own_id, to, n->net_id, eng.ukek, eng.kmac);
 		eng.pair_id = to;
 	}
-	if (!eng.pair_ok)
+	if (!eng.pair_ok) {
+		eng.zz.state = UI_ZZ_NO_ANSWER;
 		return;
+	}
 	otar_msg_t *m = &eng.ros_m;
 	memset(m, 0, sizeof *m);
 	m->net_id = n->net_id;
@@ -774,6 +816,10 @@ static __attribute__((noinline)) void zz_send(const radio_view_t *v, const otar_
 	m->target = to;
 	otar_addr_t a = { v->dmr.own_id, to };
 	out_set(to, false, otar_zeroize_build(eng.out, &a, eng.kmac, m));
+	eng.zz.sent_num = m->msgnum;
+	eng.zz.waiting = true;
+	eng.zz.tries++;
+	eng.zz.ack_by = now + ACK_WAIT_MS;
 }
 
 // The check value of system's key kid: false when the codeplug doesn't hold it
@@ -951,7 +997,7 @@ __attribute__((noinline)) static void on_member(const radio_view_t *v, const uin
 	// before its MAC can be checked, so a stream of forged ones (any member's ID as the source) can't tie up this radio
 	bool want = msg[2] == OTAR_ACK &&
 		    ((rk != NULL && rk->cur != 0xFF && rk->m[rk->cur].id == src) || (eng.ros.waiting && eng.ros.dst == src) ||
-		     (eng.inv.state != UI_INV_NONE && eng.inv.id == src));
+		     (eng.inv.state != UI_INV_NONE && eng.inv.id == src) || (eng.zz.waiting && eng.zz.id == src));
 	if (msg[2] == OTAR_HELLO && (uint32_t)(now - eng.hello_at) >= HELLO_GAP_MS) {
 		eng.hello_at = now;
 		want = true;
@@ -968,6 +1014,12 @@ __attribute__((noinline)) static void on_member(const radio_view_t *v, const uin
 	crypto_wipe(kmac, sizeof kmac);
 	if (!ok)
 		return;
+	// A ZEROIZE's: wiped, or refused (its Remote wipe off, or this radio not above it)
+	if (m.type == OTAR_ACK && eng.zz.waiting && src == eng.zz.id && m.echo == eng.zz.sent_num) {
+		eng.zz.waiting = false;
+		eng.zz.state = m.result == OTAR_ACK_WIPED ? UI_ZZ_WIPED : UI_ZZ_REFUSED;
+		return;
+	}
 	if (m.type == OTAR_ACK && m.ckr == 0) {		// a roster entry's
 		if (eng.ros.on && eng.ros.waiting && src == eng.ros.dst && m.echo == eng.ros.sent_num) {
 			eng.ros.waiting = false;
@@ -1350,6 +1402,17 @@ static __attribute__((noinline)) bool sched_tick(const radio_view_t *v, uint32_t
 	return true;
 }
 
+// A member: the wipe a ZEROIZE asked for, its ACK gone first (on_zeroize)
+static void zz_wipe_start(void)
+{
+	eng.zz_wipe = false;
+	crypto_wipe(eng.out, sizeof eng.out);
+	eng.out_len = 0;
+#if CONFIG_ZEROIZE
+	(void)ui_svc_clear_keys_start();
+#endif
+}
+
 static bool engine_tick(const radio_view_t *v, uint32_t now)
 {
 	bool changed = false;
@@ -1365,7 +1428,7 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 		memset(&eng.ros, 0, sizeof eng.ros);
 		eng.ros_due = false;
 		eng.pend.on = false;
-		eng.zz_to = 0;
+		memset(&eng.zz, 0, sizeof eng.zz);
 		eng.inv_to = 0;
 		eng.cu_to = 0;
 		eng.inv_next = false;
@@ -1376,6 +1439,8 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 	}
 	if (!in) {
 		crypto_wipe(&n, sizeof n);
+		if (eng.zz_wipe)
+			zz_wipe_start();	// out of the net meanwhile: the wipe all the same
 		return false;
 	}
 	msgnum_tick(now);
@@ -1393,6 +1458,8 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 			}
 			if (st == OTAR_SEND_FAILED && eng.ros.waiting)
 				eng.ros.ack_by = now;	// not delivered: a try gone
+			if (st == OTAR_SEND_FAILED && eng.zz.waiting)
+				eng.zz.ack_by = now;
 
 		}
 	}
@@ -1401,6 +1468,14 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 			eng.sending = true;
 		crypto_wipe(eng.out, sizeof eng.out);
 		eng.out_len = 0;
+	}
+	// A member wiping (on_zeroize): its ACK handed to the transport and gone (sent or failed), or out of time. Nothing
+	// else runs meanwhile
+	if (eng.zz_wipe) {
+		if ((eng.out_len == 0 && !eng.sending) || (int32_t)(now - eng.zz_wipe_by) >= 0)
+			zz_wipe_start();
+		crypto_wipe(&n, sizeof n);
+		return true;
 	}
 	// A member's stored TEK: the next keyset, then the ACK
 	if (eng.tek_due && !eng.tek_job && eng.rk == NULL) {
@@ -1478,8 +1553,16 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 		eng.sched_ms = now;
 		changed = sched_tick(v, now) || changed;
 	}
-	// A ZEROIZE asked for
-	if (eng.zz_to != 0 && n.rank != 0 && mn_ok && eng.out_len == 0 && !eng.sending && !eng.ros.waiting && eng.rk == NULL) {
+	// A ZEROIZE asked for: a try, its ACK's wait, the next try
+	if (eng.zz.waiting && (int32_t)(now - eng.zz.ack_by) >= 0) {
+		eng.zz.waiting = false;
+		if (eng.zz.tries < ZZ_TRIES)
+			eng.zz.send = true;
+		else
+			eng.zz.state = UI_ZZ_NO_ANSWER;
+		changed = true;
+	}
+	if (eng.zz.send && n.rank != 0 && mn_ok && eng.out_len == 0 && !eng.sending && !eng.ros.waiting && eng.rk == NULL) {
 		zz_send(v, &n, now);
 		changed = true;
 	}
@@ -1766,10 +1849,18 @@ uint8_t ui_svc_net_wipe(const radio_view_t *v, uint32_t id)
 	if (id == v->dmr.own_id || !otar_roster_find(id, &m) || (m.flags & OTAR_M_REVOKED) ||
 	    (m.rank != 0 && m.rank <= own_rank()))
 		return UI_NET_NO_MEMBER;	// not a net control of this rank or above (7.5)
-	if (eng.zz_to != 0)
+	if (eng.zz.state == UI_ZZ_SENDING)
 		return UI_NET_BUSY;
-	eng.zz_to = id;
+	memset(&eng.zz, 0, sizeof eng.zz);
+	eng.zz.id = id;
+	eng.zz.state = UI_ZZ_SENDING;
+	eng.zz.send = true;
 	return UI_NET_OK;
+}
+
+uint8_t ui_svc_net_wipe_state(uint32_t id)
+{
+	return id != 0 && id == eng.zz.id ? eng.zz.state : (uint8_t)UI_ZZ_NONE;
 }
 
 void ui_svc_net_accept(bool yes)

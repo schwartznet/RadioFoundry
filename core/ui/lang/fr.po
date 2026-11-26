@@ -5558,6 +5558,31 @@ msgid "revoked"
 msgstr "révoquée"
 
 #: core/ui/ui_menus.c
+msgctxt "NM_WIPE_IS"
+msgid "Wipe: "
+msgstr "Effacement : "
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WIPE_SENDING"
+msgid "sending"
+msgstr "envoi en cours"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WIPE_DONE"
+msgid "wiped"
+msgstr "fait"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WIPE_REFUSED"
+msgid "refused"
+msgstr "refusé"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_KEYS_NO_ANSWER"
+msgid "no answer"
+msgstr "pas de réponse"
+
+#: core/ui/ui_menus.c
 msgctxt "NM_KEYS"
 msgid "Keys: "
 msgstr "Clés : "
@@ -5566,11 +5591,6 @@ msgstr "Clés : "
 msgctxt "NM_KEYS_ASKING"
 msgid "asking"
 msgstr "demande en cours"
-
-#: core/ui/ui_menus.c
-msgctxt "NM_KEYS_NO_ANSWER"
-msgid "no answer"
-msgstr "pas de réponse"
 
 #: core/ui/ui_menus.c
 msgctxt "NM_KEYS_NONE"

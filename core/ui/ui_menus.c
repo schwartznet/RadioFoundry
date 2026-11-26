@@ -9656,6 +9656,15 @@ static const char *nm_body(void)
 	sb_u32(&b, id, 1);
 	sb_str(&b, "  ");
 	net_fp(&b, fp);
+	// A wipe sent (otar.md 7.5): what the radio answered
+	uint8_t zz = ui_svc_net_wipe_state(id);
+	if (zz != UI_ZZ_NONE) {
+		sb_chr(&b, '\n');
+		sb_str(&b, TR(NM_WIPE_IS, "Wipe: "));
+		sb_str(&b, zz == UI_ZZ_SENDING ? TR(NM_WIPE_SENDING, "sending") :
+			   zz == UI_ZZ_WIPED ? TR(NM_WIPE_DONE, "wiped") :
+			   zz == UI_ZZ_REFUSED ? TR(NM_WIPE_REFUSED, "refused") : TR(NM_KEYS_NO_ANSWER, "no answer"));
+	}
 	ui_inv_view_t q;
 	ui_svc_net_inventory_view(id, &q);
 	if (q.state == UI_INV_NONE)
@@ -9710,7 +9719,7 @@ static void nm_select(uint16_t i, bool hold)
 	default:
 		res = ui_svc_net_wipe(v, id);
 		ui_toast(res == UI_NET_OK ? TR(NM_WIPE_SENT, "Wipe sent: done if its Remote wipe is on") :
-			 res == UI_NET_BUSY ? TR(NET_WHY_BUSY, "A rekey is running") : TR(NM_WHY_MEMBER, "Not for this radio"));
+			 res == UI_NET_BUSY ? TR(NM_INV_BUSY, "Still asking") : TR(NM_WHY_MEMBER, "Not for this radio"));
 		break;
 	}
 	ui_dirty();
