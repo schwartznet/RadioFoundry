@@ -183,7 +183,8 @@ typedef struct {
 	uint8_t presses;	// random key presses the pool still wants before the key is made
 	uint32_t changeover;	// UTC minutes, 0 by hand
 } ui_rekey_view_t;
-enum { UI_RK_WAIT, UI_RK_SENT, UI_RK_OK, UI_RK_FAIL };
+// SYNC: it said this radio's message numbers are behind its own, too far to skip (otar.md 7.6): not tried again
+enum { UI_RK_WAIT, UI_RK_SENT, UI_RK_OK, UI_RK_FAIL, UI_RK_SYNC };
 void ui_svc_net_rekey_view(ui_rekey_view_t *r);
 bool ui_svc_net_rekey_member(uint16_t i, uint32_t *id, uint8_t *state, uint8_t *tries);
 // Net control: send the roster (otar.md 7.5): only == 0 every entry to every member; else that member's entry to every
@@ -214,6 +215,9 @@ uint8_t ui_svc_net_wipe(const radio_view_t *v, uint32_t id);
 // same or above), or no answer after the tries (off, out of range, or wiped with its answer lost)
 enum { UI_ZZ_NONE, UI_ZZ_SENDING, UI_ZZ_WIPED, UI_ZZ_REFUSED, UI_ZZ_NO_ANSWER };
 uint8_t ui_svc_net_wipe_state(uint32_t id);
+// A net control: member id said this radio's message numbers are behind the last it took, further than this radio
+// skips (otar.md 7.6): it is heard again only once it joins again (a new key pair)
+bool ui_svc_net_out_of_sync(uint32_t id);
 // A take over waiting (ui_net_view_t.pend): accepted (the lost net control revoked here) or refused
 void ui_svc_net_accept(bool yes);
 void ui_svc_net_set_remote_wipe(bool on);

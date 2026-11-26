@@ -2886,6 +2886,7 @@ uint8_t ui_svc_net_wipe(const radio_view_t *v, uint32_t id)
 	net_sim.wipe_id = id;
 	return UI_NET_OK;
 }
+bool ui_svc_net_out_of_sync(uint32_t id) { (void)id; return false; }
 uint8_t ui_svc_net_wipe_state(uint32_t id)
 {
 	return id != 0 && id == net_sim.wipe_id ? UI_ZZ_WIPED : UI_ZZ_NONE;

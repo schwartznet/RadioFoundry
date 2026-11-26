@@ -357,11 +357,17 @@ static void test_member(void)
 	CHECK(last_out(&r) && r.type == OTAR_ACK && r.result == OTAR_ACK_STORED && memcmp(r.kcv, kcv5, 3) == 0);
 	CHECK(keys.ks_next == 5 && keys.kid_next[0] == 78);
 
-	// The same message again, recorded and played back: no answer at all (otar.md 23.1)
+	// The same message again, recorded and played back: never ACKed (otar.md 23.1); once, the "old message number"
+	// answer with the last number taken (7.6), then nothing
+	uint32_t first_num = m.msgnum;
 	out_n = 0;
 	deliver(PEER_ID, ENGINE_ID, false, replay, replay_n);
 	run(1000);
-	CHECK(out_n == 0);
+	CHECK(out_n == 1 && last_out(&r) && r.type == OTAR_ACK && r.result == OTAR_ACK_MSGNUM && r.keyset == first_num &&
+	      r.echo == first_num && r.ckr == 0);
+	deliver(PEER_ID, ENGINE_ID, false, replay, replay_n);
+	run(1000);
+	CHECK(out_n == 1);
 
 	// A net control's retry (a new message number): HELD; the same keyset and key ID with another key: refused
 	rekey_msg(&m, 5, 78, 0x55, 0);
@@ -557,7 +563,8 @@ static void test_ranks(void)
 	run(1000);
 	CHECK(last_out(&r) && r.result == OTAR_ACK_REFUSED && otar_roster_find(4688888u, &e) && (e.flags & OTAR_M_REVOKED));
 
-	// NC 2's counter: a message with one of its old numbers gets no answer at all; a fresh one is taken
+	// NC 2's counter: a message with one of its old numbers isn't taken, answered only "old message number" with the
+	// last number taken; a fresh one is taken
 	uint32_t keep = peer_msgnum;
 	peer_msgnum = 10;
 	memset(&e, 0, sizeof e);
@@ -570,7 +577,8 @@ static void test_ranks(void)
 	int before = out_n;
 	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ROSTER, &m, buf));
 	run(1000);
-	CHECK(out_n == before && otar_roster_find(4688889u, &e) && !(e.flags & OTAR_M_REVOKED));
+	CHECK(out_n == before + 1 && last_out(&r) && r.result == OTAR_ACK_MSGNUM && r.keyset == keep && r.echo == 11);
+	CHECK(otar_roster_find(4688889u, &e) && !(e.flags & OTAR_M_REVOKED));
 	peer_msgnum = keep;
 	e.flags = OTAR_M_REVOKED;
 	memset(&m, 0, sizeof m);
@@ -1015,6 +1023,119 @@ static void test_hello_member(void)
 	CHECK(out_n == before);
 }
 
+// The engine's "old message number" ACKs to the test's radio so far
+static int msgnum_acks(void)
+{
+	int k = 0;
+	otar_msg_t q;
+	for (int i = 0; i < out_n; i++)
+		k += out_open(i, &q) && q.type == OTAR_ACK && q.result == OTAR_ACK_MSGNUM;
+	return k;
+}
+
+// ===================== an old message number answered, rate-limited (otar.md 7.6): the engine a member
+static void test_oos_member(void)
+{
+	setup(0);
+	roster_add(PEER_ID, 1, peer_pub);
+	roster_add(ENGINE_ID, 0, eng_pub);
+	otar_start(&keys, 0, 77);
+	tek[77].used = true;
+	run(25000);
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t m, r;
+	memset(&m, 0, sizeof m);
+	m.rank = 1;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_INVENTORY, &m, buf));
+	run(1000);
+	uint32_t last = m.msgnum;
+	// A bad MAC: nothing, whatever its number
+	out_n = 0;
+	memset(&m, 0, sizeof m);
+	m.rank = 1;
+	m.msgnum = 5;
+	int n = build(OTAR_INVENTORY, &m, buf);
+	buf[n - 1] ^= 1u;
+	deliver(PEER_ID, ENGINE_ID, false, buf, n);
+	run(1000);
+	CHECK(out_n == 0);
+	// An old number with its MAC right: one answer, MSGNUM, the last number taken, under the pair's keys
+	memset(&m, 0, sizeof m);
+	m.rank = 1;
+	m.msgnum = 5;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_INVENTORY, &m, buf));
+	run(1000);
+	CHECK(out_n == 1 && last_out(&r) && r.type == OTAR_ACK && r.result == OTAR_ACK_MSGNUM && r.keyset == last &&
+	      r.echo == 5);
+	// More within 5 minutes, of any type: nothing; after them, one again
+	for (int i = 0; i < 4; i++) {
+		memset(&m, 0, sizeof m);
+		m.rank = 1;
+		m.msgnum = 6u + (uint32_t)i;
+		m.target = ENGINE_ID;
+		deliver(PEER_ID, ENGINE_ID, false, buf, build(i & 1 ? OTAR_ZEROIZE : OTAR_INVENTORY, &m, buf));
+		run(60000);
+	}
+	CHECK(msgnum_acks() == 1);
+	run(60000);
+	memset(&m, 0, sizeof m);
+	m.rank = 1;
+	m.msgnum = 20;
+	m.time_s = 1;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_TIME, &m, buf));
+	run(1000);
+	CHECK(msgnum_acks() == 2 && last_out(&r) && r.result == OTAR_ACK_MSGNUM && r.keyset == last && r.echo == 20);
+}
+
+// ===================== a member's "old message number" (otar.md 7.6): the engine net control 1
+static void test_oos_nc(void)
+{
+	setup(1);
+	roster_add(ENGINE_ID, 1, eng_pub);
+	roster_add(PEER_ID, 0, peer_pub);
+	otar_start(&keys, 0, 77);
+	tek[77].used = true;
+	keys.ks_active = 4;
+	run(3000);
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t m, r;
+	out_n = 0;
+	CHECK(ui_svc_net_rekey(v_now(), 0) == UI_NET_OK);
+	run(3000);
+	CHECK(out_n == 1 && last_out(&r) && r.type == OTAR_REKEY);
+	uint32_t sent = r.msgnum;
+	// Echoing a number it didn't send: ignored
+	memset(&m, 0, sizeof m);
+	m.result = OTAR_ACK_MSGNUM;
+	m.keyset = sent + 1000u;
+	m.echo = sent - 1u;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &m, buf));
+	run(1000);
+	CHECK(out_n == 1);
+	// The member took up to sent + 1000 from this radio (its settings went back): its numbers skip past, and the
+	// REKEY goes again at once
+	memset(&m, 0, sizeof m);
+	m.result = OTAR_ACK_MSGNUM;
+	m.keyset = sent + 1000u;
+	m.echo = sent;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &m, buf));
+	run(2000);
+	CHECK(out_n == 2 && last_out(&r) && r.type == OTAR_REKEY && r.msgnum > sent + 1000u);
+	CHECK(!ui_svc_net_out_of_sync(PEER_ID));
+	// Far beyond a skip: out of sync, rejoin; not tried again
+	memset(&m, 0, sizeof m);
+	m.result = OTAR_ACK_MSGNUM;
+	m.keyset = r.msgnum + 10000000u;
+	m.echo = r.msgnum;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &m, buf));
+	run(1000);
+	uint32_t id;
+	uint8_t state, tries;
+	CHECK(ui_svc_net_out_of_sync(PEER_ID) && ui_svc_net_rekey_member(0, &id, &state, &tries) && state == UI_RK_SYNC);
+	run(300000);
+	CHECK(out_n == 2);
+}
+
 int main(void)
 {
 	test_msgnum();
@@ -1026,6 +1147,8 @@ int main(void)
 	test_zeroize_nc();
 	test_hello_nc();
 	test_hello_member();
+	test_oos_member();
+	test_oos_nc();
 	printf("otarEngineTest: %d checks, %d failures\n", checks, failures);
 	return failures != 0;
 }

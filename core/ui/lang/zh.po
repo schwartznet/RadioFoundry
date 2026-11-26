@@ -5590,6 +5590,11 @@ msgid "revoked"
 msgstr "已撤销"
 
 #: core/ui/ui_menus.c
+msgctxt "NM_SYNC"
+msgid "Out of sync: rejoin"
+msgstr "不同步: 需重新加入"
+
+#: core/ui/ui_menus.c
 msgctxt "NM_WIPE_IS"
 msgid "Wipe: "
 msgstr "擦除: "
@@ -5698,6 +5703,11 @@ msgstr "OK"
 msgctxt "NET_ST_FAIL"
 msgid "no answer"
 msgstr "无回应"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ST_SYNC"
+msgid "out of sync"
+msgstr "不同步"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_NO_REKEY"

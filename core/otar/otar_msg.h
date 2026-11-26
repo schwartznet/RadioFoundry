@@ -33,9 +33,11 @@ enum { OTAR_REKEY = 1, OTAR_ACK = 2, OTAR_CHANGEOVER = 3, OTAR_HELLO = 4, OTAR_I
 
 // ACK results (7.2). WIPED: a ZEROIZE taken, the keys wiped once this ACK has gone (7.5). CURRENT: a net control's
 // answer to a HELLO when it has nothing to send the member, keyset its own active one (9; NOT_MANAGED when it manages
-// no keys). Both with CKR 0
+// no keys). MSGNUM: a message whose MAC checked but whose number isn't above the last one taken from its sender, which
+// keyset carries (7.6); sent at most once per few minutes per sender. All three with CKR 0
 enum { OTAR_ACK_STORED = 0, OTAR_ACK_HELD = 1, OTAR_ACK_OLD = 2, OTAR_ACK_STORE_FAILED = 3, OTAR_ACK_WRAP = 4,
-       OTAR_ACK_NOT_MANAGED = 5, OTAR_ACK_REFUSED = 6, OTAR_ACK_ASKED = 7, OTAR_ACK_WIPED = 8, OTAR_ACK_CURRENT = 9 };
+       OTAR_ACK_NOT_MANAGED = 5, OTAR_ACK_REFUSED = 6, OTAR_ACK_ASKED = 7, OTAR_ACK_WIPED = 8, OTAR_ACK_CURRENT = 9,
+       OTAR_ACK_MSGNUM = 10 };
 
 #define OTAR_REKEY_LEN		(OTAR_HDR + 4u + 1u + 1u + 4u + 1u + 40u + OTAR_MAC)	// 69
 #define OTAR_ACK_LEN		(OTAR_HDR + 4u + 1u + 1u + 3u + 4u + OTAR_MAC)		// 31

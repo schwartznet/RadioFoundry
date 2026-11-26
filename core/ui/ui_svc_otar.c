@@ -376,6 +376,11 @@ static struct {
 	// A member: a ZEROIZE taken, its ACK built; the wipe starts once the transport has let the ACK go, or by this time
 	bool zz_wipe;
 	uint32_t zz_wipe_by;
+	// A member: when it last told each net control counter's sender its number was old (fresh_or_tell; mask: ever)
+	uint8_t oos_mask;
+	uint32_t oos_at[4];
+	// A net control: a member that said this radio's numbers are behind its own, beyond what this radio can skip
+	uint32_t oos_id;
 	// Scratch off the UI task's stack: the roster run's member and entry, and its message
 	otar_member_t ros_d, ros_e;
 	otar_msg_t ros_m;
@@ -407,6 +412,8 @@ static bool pool_wanted(void)
 #define ROS_TRIES	3u	// a roster entry no ACK came for is sent this many times, then counted as failed
 #define ZZ_TRIES	3u	// ... and a ZEROIZE, then shown as no answer
 #define ZZ_SEND_MS	60000u	// a member wiping: its ACK's send given this long (the transport's own limit is 10 s)
+#define OOS_GAP_MS	300000u	// a member says "old message number" to one net control at most this often (7.6)
+#define MSGNUM_SKIP_MAX	65536u	// a net control skips its numbers past a member's at most this far (oos_got)
 #define ROS_SCAN	4u	// roster pairs looked at per tick
 #define SCHED_LOOK_MS	10000u	// the rekey schedule is looked at this often
 #define SCHED_CO_MIN	60u	// a scheduled rekey's changeover: this many minutes after it starts, by the clocks
@@ -436,8 +443,20 @@ void ui_svc_net_seen_clear(uint32_t now)
 	settings_end(now);
 }
 
+static bool take_msgnum_at(uint32_t src, uint32_t msgnum, uint32_t now, int *slot_out, uint32_t *last_out);
+
 static bool take_msgnum(uint32_t src, uint32_t msgnum, uint32_t now)
 {
+	int slot;
+	uint32_t last;
+	return take_msgnum_at(src, msgnum, now, &slot, &last);
+}
+
+// ... and the counter it was checked against (-1 none) with the last number it held
+static bool take_msgnum_at(uint32_t src, uint32_t msgnum, uint32_t now, int *slot_out, uint32_t *last_out)
+{
+	*slot_out = -1;
+	*last_out = 0;
 	if (src == 0)
 		return false;
 	// The sender's counter, else a free one, else one whose sender is no longer a net control here (looked up
@@ -469,6 +488,8 @@ static bool take_msgnum(uint32_t src, uint32_t msgnum, uint32_t now)
 		*seen = 0;
 	}
 	bool fresh = msgnum > *seen;
+	*slot_out = slot;
+	*last_out = *seen;
 	if (fresh)
 		*seen = msgnum;
 	settings_end_soon(now);	// saved at the next poll, not after changes rest: a power loss loses at most that much
@@ -563,6 +584,37 @@ static void queue_out(uint32_t dst, bool group, const uint8_t *msg, int len)
 	eng.out_group = group;
 }
 
+// A member: a net control's message whose MAC checked under the pair keys (eng.kmac, with src), its number taken; true
+// when it is fresh. Else, at most once per OOS_GAP_MS for that sender's counter, an ACK MSGNUM carrying the last number
+// taken from it (7.6), so a net control whose numbers went back (its settings restored) sees why it isn't heard. Never
+// for a message whose MAC fails (that stays silent), and never more often: a recording played back makes this radio
+// transmit at most once per OOS_GAP_MS per net control, and learns nothing, the reply being encrypted
+static bool fresh_or_tell(const radio_view_t *v, const otar_net_t *n, uint32_t src, uint32_t msgnum, uint32_t now)
+{
+	int slot;
+	uint32_t last;
+	if (take_msgnum_at(src, msgnum, now, &slot, &last))
+		return true;
+	if (slot < 0 || eng.out_len != 0 || !eng.pair_ok || eng.pair_id != src ||
+	    ((eng.oos_mask & (1u << slot)) && (uint32_t)(now - eng.oos_at[slot]) < OOS_GAP_MS))
+		return false;
+	otar_msg_t *a = &eng.ros_m;
+	memset(a, 0, sizeof *a);
+	a->net_id = n->net_id;
+	a->rank = n->rank;
+	a->keyset = last;
+	a->result = OTAR_ACK_MSGNUM;
+	a->echo = msgnum;
+	a->msgnum = next_msgnum(now);
+	otar_addr_t back = { v->dmr.own_id, src };
+	out_set(src, false, otar_ack_build(eng.out, &back, eng.kmac, a));
+	if (eng.out_len != 0) {
+		eng.oos_mask = (uint8_t)(eng.oos_mask | (1u << slot));
+		eng.oos_at[slot] = now;
+	}
+	return false;
+}
+
 static void tek_job(void *ctx)
 {
 	(void)ctx;
@@ -592,9 +644,9 @@ __attribute__((noinline)) static void on_rekey(const radio_view_t *v, const uint
 		crypto_wipe(&m, sizeof m);
 		return;
 	}
-	// An old message number: a replay (a net control's retry always has a new one). No answer, so a recording can't
-	// make this radio transmit
-	if (!take_msgnum(src, m.msgnum, now)) {
+	// An old message number: a replay (a net control's retry always has a new one). Never ACKed: at most the
+	// rate-limited "old message number" (fresh_or_tell), so a recording can't make this radio transmit at will
+	if (!fresh_or_tell(v, n, src, m.msgnum, now)) {
 		crypto_wipe(&m, sizeof m);
 		return;
 	}
@@ -684,7 +736,7 @@ static __attribute__((noinline)) void on_roster(const radio_view_t *v, const uin
 	}
 	otar_addr_t a = { src, v->dmr.own_id };
 	otar_msg_t *m = &eng.ros_m;
-	if (!otar_open(msg, len, &a, NULL, eng.kmac, m) || m->net_id != n->net_id || !take_msgnum(src, m->msgnum, now))
+	if (!otar_open(msg, len, &a, NULL, eng.kmac, m) || m->net_id != n->net_id || !fresh_or_tell(v, n, src, m->msgnum, now))
 		return;
 	memset(&eng.ack, 0, sizeof eng.ack);
 	eng.ack.net_id = n->net_id;
@@ -775,7 +827,7 @@ static __attribute__((noinline)) void on_zeroize(const radio_view_t *v, const ui
 	otar_addr_t a = { src, v->dmr.own_id };
 	otar_msg_t *m = &eng.ros_m;
 	if (!otar_open(msg, len, &a, NULL, eng.kmac, m) || m->net_id != n->net_id || m->target != v->dmr.own_id ||
-	    !take_msgnum(src, m->msgnum, now))
+	    !fresh_or_tell(v, n, src, m->msgnum, now))
 		return;
 	// A net control is wiped only by one above it (7.5)
 	bool wipe = CONFIG_ZEROIZE && SETTINGS_FIELD(otar_wipe) == 1u && !(n->rank != 0 && nc.rank >= n->rank);
@@ -875,7 +927,7 @@ static __attribute__((noinline)) void on_inventory(const radio_view_t *v, const 
 	}
 	otar_addr_t a = { src, v->dmr.own_id };
 	otar_msg_t *m = &eng.ros_m;
-	if (!otar_open(msg, len, &a, NULL, eng.kmac, m) || m->net_id != n->net_id || !take_msgnum(src, m->msgnum, now))
+	if (!otar_open(msg, len, &a, NULL, eng.kmac, m) || m->net_id != n->net_id || !fresh_or_tell(v, n, src, m->msgnum, now))
 		return;
 	memset(&eng.ack, 0, sizeof eng.ack);
 	eng.ack.net_id = n->net_id;
@@ -903,7 +955,7 @@ static __attribute__((noinline)) void on_time(const radio_view_t *v, const uint8
 	}
 	otar_addr_t a = { src, v->dmr.own_id };
 	otar_msg_t *m = &eng.ros_m;
-	if (otar_open(msg, len, &a, NULL, eng.kmac, m) && m->net_id == n->net_id && take_msgnum(src, m->msgnum, now))
+	if (otar_open(msg, len, &a, NULL, eng.kmac, m) && m->net_id == n->net_id && fresh_or_tell(v, n, src, m->msgnum, now))
 		radio_req_otar(RADIO_OTAR_TIME, (uint32_t)(OTAR_EPOCH_UNIX + (int64_t)m->time_s));
 }
 
@@ -1031,7 +1083,7 @@ static __attribute__((noinline)) void hello_answer(const radio_view_t *v, const 
 	bool answered = false;
 	for (uint8_t i = 0; rk != NULL && i < rk->n; i++) {
 		rk_member_t *mm = &rk->m[i];
-		if (mm->id == src && mm->state != UI_RK_OK) {
+		if (mm->id == src && mm->state != UI_RK_OK && mm->state != UI_RK_SYNC) {
 			mm->due = now;		// back on: its REKEY at once
 			if (mm->state == UI_RK_FAIL)
 				mm->state = UI_RK_WAIT;
@@ -1062,6 +1114,60 @@ static __attribute__((noinline)) void hello_answer(const radio_view_t *v, const 
 	}
 }
 
+// A net control's numbers skipped past last, a member's last taken from it (7.6): true when they are past it now. Only
+// up to MSGNUM_SKIP_MAX at once, so even a member with valid pair keys can't use up the 32-bit space
+static bool msgnum_skip(uint32_t last)
+{
+	if (last < mn.next)
+		return true;
+	if (last - mn.next >= MSGNUM_SKIP_MAX || last >= 0xFFFFFF00u)
+		return false;
+	mn.next = last + 1u;	// used once a reservation above it is saved (msgnum_tick)
+	return true;
+}
+
+// The net control: a member's ACK MSGNUM (7.6): the message it answers, which this radio waits for, came with a number
+// not above the last the member took from this radio (its settings went back, a restore). The numbers skip past it
+// and the message is tried again at once; beyond the skip, the member shows "Out of sync: rejoin"
+static __attribute__((noinline)) void oos_got(const otar_msg_t *m, uint32_t src, uint32_t now)
+{
+	uint32_t last = m->keyset, echo = m->echo;
+	rekey_t *rk = eng.rk;
+	rk_member_t *mm = rk != NULL && rk->cur != 0xFF && rk->m[rk->cur].id == src && rk->m[rk->cur].sent == echo ?
+			  &rk->m[rk->cur] : NULL;
+	bool ros = eng.ros.waiting && eng.ros.dst == src && eng.ros.sent_num == echo;
+	bool inv = eng.inv.state == UI_INV_ASKING && eng.inv.id == src && eng.inv.sent_num == echo;
+	bool zz = eng.zz.waiting && eng.zz.id == src && eng.zz.sent_num == echo;
+	if (last < echo || (mm == NULL && !ros && !inv && !zz))
+		return;		// not about a message this radio waits on
+	bool skipped = msgnum_skip(last);
+	if (!skipped)
+		eng.oos_id = src;
+	if (mm != NULL) {
+		mm->state = skipped ? UI_RK_WAIT : UI_RK_SYNC;
+		mm->due = now;
+		rk->cur = 0xFF;
+	}
+	if (ros)
+		eng.ros.ack_by = now;		// a try gone; the next goes with a fresh number
+	if (inv) {
+		if (skipped) {
+			eng.inv_to = src;
+			eng.inv.by = now + 2u * ACK_WAIT_MS;
+		} else {
+			eng.inv.state = UI_INV_NO_ANSWER;
+		}
+	}
+	if (zz) {
+		if (skipped) {
+			eng.zz.ack_by = now;
+		} else {
+			eng.zz.waiting = false;
+			eng.zz.state = UI_ZZ_NO_ANSWER;
+		}
+	}
+}
+
 // The net control: an ACK or a HELLO from a member
 __attribute__((noinline)) static void on_member(const radio_view_t *v, const uint8_t *msg, int len, uint32_t src, const otar_net_t *n, uint32_t now)
 {
@@ -1089,6 +1195,12 @@ __attribute__((noinline)) static void on_member(const radio_view_t *v, const uin
 	crypto_wipe(kmac, sizeof kmac);
 	if (!ok || m.type == OTAR_HELLO)
 		return;
+	if (m.type == OTAR_ACK && m.result == OTAR_ACK_MSGNUM) {
+		oos_got(&m, src, now);
+		return;
+	}
+	if (m.type == OTAR_ACK && src == eng.oos_id)
+		eng.oos_id = 0;		// it answers again: rejoined
 	// A ZEROIZE's: wiped, or refused (its Remote wipe off, or this radio not above it)
 	if (m.type == OTAR_ACK && eng.zz.waiting && src == eng.zz.id && m.echo == eng.zz.sent_num) {
 		eng.zz.waiting = false;
@@ -1217,7 +1329,7 @@ __attribute__((noinline)) static bool rk_step(const radio_view_t *v, const otar_
 		return false;
 	for (uint8_t i = 0; i < rk->n; i++) {
 		rk_member_t *mm = &rk->m[i];
-		if (mm->state == UI_RK_OK || (int32_t)(now - mm->due) < 0)
+		if (mm->state == UI_RK_OK || mm->state == UI_RK_SYNC || (int32_t)(now - mm->due) < 0)
 			continue;
 		uint8_t ukek[OTAR_KEY_LEN], kmac[OTAR_KEY_LEN];
 		if (!pair_keys(v->dmr.own_id, mm->id, n->net_id, ukek, kmac)) {
@@ -1546,6 +1658,8 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 		eng.hello.on = true;
 		eng.hello.due = now + HELLO_AFTER_MS;
 		memset(eng.hans, 0, sizeof eng.hans);
+		eng.oos_mask = 0;
+		eng.oos_id = 0;
 		eng.pair_ok = false;
 		memset(&eng.ros, 0, sizeof eng.ros);
 		eng.ros_due = false;
@@ -1643,6 +1757,7 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 			changed = true;
 		}
 		crypto_wipe(msg, OTAR_MSG_MAX);
+		mn_ok = msgnum_ready();		// a member's "old message number" may have skipped them past the reservation
 	}
 	// A member: the next keyset's ACK of an INVENTORY
 	if (eng.inv_next && eng.out_len == 0 && !eng.sending) {
@@ -1984,6 +2099,11 @@ uint8_t ui_svc_net_wipe(const radio_view_t *v, uint32_t id)
 	eng.zz.state = UI_ZZ_SENDING;
 	eng.zz.send = true;
 	return UI_NET_OK;
+}
+
+bool ui_svc_net_out_of_sync(uint32_t id)
+{
+	return id != 0 && id == eng.oos_id;
 }
 
 uint8_t ui_svc_net_wipe_state(uint32_t id)

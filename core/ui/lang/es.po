@@ -5588,6 +5588,11 @@ msgid "revoked"
 msgstr "revocada"
 
 #: core/ui/ui_menus.c
+msgctxt "NM_SYNC"
+msgid "Out of sync: rejoin"
+msgstr "Desincronizada: volver a unir"
+
+#: core/ui/ui_menus.c
 msgctxt "NM_WIPE_IS"
 msgid "Wipe: "
 msgstr "Borrado: "
@@ -5696,6 +5701,11 @@ msgstr "OK"
 msgctxt "NET_ST_FAIL"
 msgid "no answer"
 msgstr "sin respuesta"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ST_SYNC"
+msgid "out of sync"
+msgstr "desincronizada"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_NO_REKEY"
