@@ -5288,6 +5288,11 @@ msgid "Send the time"
 msgstr "Envoyer l'heure"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_REQUEST"
+msgid "Request keys"
+msgstr "Demander les clés"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_ON"
 msgid "On"
 msgstr "Oui"
@@ -5381,6 +5386,21 @@ msgstr ": membre"
 msgctxt "NET_REMOVED"
 msgid "Removed from the net"
 msgstr "Retiré du réseau"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_HELLO_ASKING"
+msgid "Asking for keys"
+msgstr "Demande des clés"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_HELLO_CURRENT"
+msgid "Keys up to date"
+msgstr "Clés à jour"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_HELLO_GOT"
+msgid "Keys received"
+msgstr "Clés reçues"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_NOT_IN"
@@ -5508,6 +5528,16 @@ msgid "Sending the roster"
 msgstr "Envoi de la liste"
 
 #: core/ui/ui_menus.c
+msgctxt "NM_INV_BUSY"
+msgid "Still asking"
+msgstr "Demande toujours en cours"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WHY_MEMBER"
+msgid "Not for this radio"
+msgstr "Pas pour cette radio"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_TITLE"
 msgid "Net"
 msgstr "Réseau"
@@ -5623,11 +5653,6 @@ msgid "Only net control 1 sets ranks"
 msgstr "Seul le contrôle de réseau 1 donne les rangs"
 
 #: core/ui/ui_menus.c
-msgctxt "NM_WHY_MEMBER"
-msgid "Not for this radio"
-msgstr "Pas pour cette radio"
-
-#: core/ui/ui_menus.c
 msgctxt "NM_REVOKED_T"
 msgid "Revoked: rekey now to lock it out"
 msgstr "Révoquée : changez la clé"
@@ -5636,11 +5661,6 @@ msgstr "Révoquée : changez la clé"
 msgctxt "NM_WHY_HIGHER"
 msgid "A higher net control: use Take over"
 msgstr "Contrôle supérieur : Prendre le contrôle"
-
-#: core/ui/ui_menus.c
-msgctxt "NM_INV_BUSY"
-msgid "Still asking"
-msgstr "Demande toujours en cours"
 
 #: core/ui/ui_menus.c
 msgctxt "NM_WIPE_SENT"

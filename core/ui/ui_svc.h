@@ -148,8 +148,14 @@ typedef struct {
 	bool removed;		// a net control revoked this radio: "Removed from the net"
 	uint8_t sched_days;	// a net control's rekey schedule: every this many days, 0 by hand
 	uint32_t sched_at;	// ... the next one, UTC minutes (0: none yet)
+	uint8_t hello;		// a member's request for keys (HELLO, otar.md 9): UI_HELLO_*
 } ui_net_view_t;
+// Asking (no answer yet), up to date (the net control's ACK), keys received (its REKEY)
+enum { UI_HELLO_NONE, UI_HELLO_ASKING, UI_HELLO_CURRENT, UI_HELLO_GOT };
 void ui_svc_net_view(ui_net_view_t *v);
+// A member: ask the net control for keys now (HELLO, otar.md 9), then again until it answers. UI_NET_OK, NO_MEMBER (not
+// a member, or removed), NOT_MANAGED, BUSY (asked within the last 10 s)
+uint8_t ui_svc_net_request_keys(const radio_view_t *v);
 // Start a net with this radio as net control 1: the pool fills first (ui_svc_net_tick makes the key pair, the net ID
 // and the roster's first record). own: this radio's DMR ID
 void ui_svc_net_start(uint32_t own);

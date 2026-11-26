@@ -2770,6 +2770,7 @@ static struct {
 	uint32_t sched_at;
 	uint32_t inv_id;
 	uint32_t wipe_id;
+	uint8_t hello;
 } net_sim;
 
 static void net_sim_add(uint32_t id, uint8_t rank)
@@ -2798,6 +2799,16 @@ void ui_svc_net_view(ui_net_view_t *v)
 	v->remote_wipe = net_sim.wipe;
 	v->sched_days = net_sim.sched;
 	v->sched_at = net_sim.sched_at;
+	v->hello = net_sim.hello;
+}
+// Request keys: the net control answers at once, up to date (the sim's member manages its keys whatever the view says)
+uint8_t ui_svc_net_request_keys(const radio_view_t *v)
+{
+	(void)v;
+	if (!net_sim.in || net_sim.rank != 0)
+		return UI_NET_NO_MEMBER;
+	net_sim.hello = UI_HELLO_CURRENT;
+	return UI_NET_OK;
 }
 void ui_svc_net_start(uint32_t own)
 {

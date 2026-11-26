@@ -5290,6 +5290,11 @@ msgid "Send the time"
 msgstr "发送时间"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_REQUEST"
+msgid "Request keys"
+msgstr "请求密钥"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_ON"
 msgid "On"
 msgstr "开"
@@ -5383,6 +5388,21 @@ msgstr ": 电台"
 msgctxt "NET_REMOVED"
 msgid "Removed from the net"
 msgstr "已移出网络"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_HELLO_ASKING"
+msgid "Asking for keys"
+msgstr "正在请求密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_HELLO_CURRENT"
+msgid "Keys up to date"
+msgstr "密钥已是最新"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_HELLO_GOT"
+msgid "Keys received"
+msgstr "已收到密钥"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_NOT_IN"
@@ -5510,6 +5530,16 @@ msgid "Sending the roster"
 msgstr "正在发送名单"
 
 #: core/ui/ui_menus.c
+msgctxt "NM_INV_BUSY"
+msgid "Still asking"
+msgstr "仍在查询"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WHY_MEMBER"
+msgid "Not for this radio"
+msgstr "本机不可用"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_TITLE"
 msgid "Net"
 msgstr "网络"
@@ -5625,11 +5655,6 @@ msgid "Only net control 1 sets ranks"
 msgstr "只有主台 1 能设级别"
 
 #: core/ui/ui_menus.c
-msgctxt "NM_WHY_MEMBER"
-msgid "Not for this radio"
-msgstr "本机不可用"
-
-#: core/ui/ui_menus.c
 msgctxt "NM_REVOKED_T"
 msgid "Revoked: rekey now to lock it out"
 msgstr "已撤销: 请更换密钥"
@@ -5638,11 +5663,6 @@ msgstr "已撤销: 请更换密钥"
 msgctxt "NM_WHY_HIGHER"
 msgid "A higher net control: use Take over"
 msgstr "更高的主台: 请用接任主台"
-
-#: core/ui/ui_menus.c
-msgctxt "NM_INV_BUSY"
-msgid "Still asking"
-msgstr "仍在查询"
 
 #: core/ui/ui_menus.c
 msgctxt "NM_WIPE_SENT"

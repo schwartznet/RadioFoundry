@@ -9187,7 +9187,7 @@ static void nk_enter(void)
 // Net status and Change over the net; a member's are Members and Leave the net
 // The fingerprint is the radio's public key's, which another radio's Members list shows for it
 enum { NET_START, NET_JOIN, NET_MEMBERS, NET_ADD, NET_REKEY, NET_RK_WHEN, NET_STATUS, NET_CHANGE_OVER, NET_ROSTER,
-       NET_TAKE_OVER, NET_WIPE_OK, NET_ACCEPT, NET_REFUSE, NET_LEAVE, NET_SCHED, NET_TIME, NET_ROWS };
+       NET_TAKE_OVER, NET_WIPE_OK, NET_ACCEPT, NET_REFUSE, NET_LEAVE, NET_SCHED, NET_TIME, NET_REQUEST, NET_ROWS };
 static const uint8_t net_sched_days[] = { 0, 1, 7, 30 };	// Rekey every (otar.md 9)
 static uint8_t net_rk_when = 1;	// Key change: index into nk_mins, 5 min each time Net opens
 static uint32_t net_typed;	// Add a member: the ID typed
@@ -9216,6 +9216,8 @@ static uint8_t net_rows(uint8_t out[NET_ROWS])
 		out[k++] = NET_REFUSE;
 	}
 	out[k++] = NET_MEMBERS;
+	if (n.rank == 0 && !n.removed)
+		out[k++] = NET_REQUEST;		// a member asks its net control for keys (HELLO, otar.md 9)
 	if (n.rank != 0) {
 		static const uint8_t nc[] = { NET_ADD, NET_REKEY, NET_RK_WHEN, NET_STATUS, NET_CHANGE_OVER, NET_ROSTER };
 		for (unsigned j = 0; j < sizeof nc; j++)
@@ -9250,7 +9252,8 @@ static void net_item(uint16_t i, ui_item_t *it)
 					 TRN(NET_ROSTER, "Send the roster"), TRN(NET_TAKE_OVER, "Take over"),
 					 TRN(NET_REMOTE_WIPE, "Remote wipe"), TRN(NET_ACCEPT, "Accept the take over"),
 					 TRN(NET_REFUSE, "Refuse the take over"), TRN(NET_LEAVE, "Leave the net"),
-					 TRN(NET_SCHED, "Rekey every"), TRN(NET_TIME, "Send the time") };
+					 TRN(NET_SCHED, "Rekey every"), TRN(NET_TIME, "Send the time"),
+					 TRN(NET_REQUEST, "Request keys") };
 	uint8_t row = net_row(i);
 	str_copy(it->label, sizeof it->label, tr(names[row]));
 	if (row == NET_RK_WHEN) {
@@ -9348,6 +9351,11 @@ static const char *net_body(void)
 		if (n.removed) {	// a net control revoked this radio (otar.md 7.5)
 			sb_chr(&b, '\n');
 			sb_str(&b, TR(NET_REMOVED, "Removed from the net"));
+		} else if (n.rank == 0 && n.hello != UI_HELLO_NONE) {	// its request for keys (otar.md 9)
+			sb_chr(&b, '\n');
+			sb_str(&b, n.hello == UI_HELLO_ASKING ? TR(NET_HELLO_ASKING, "Asking for keys") :
+				   n.hello == UI_HELLO_CURRENT ? TR(NET_HELLO_CURRENT, "Keys up to date") :
+				   TR(NET_HELLO_GOT, "Keys received"));
 		}
 	} else {
 		sb_str(&b, TR(NET_NOT_IN, "Not in a net"));
@@ -9504,6 +9512,14 @@ static void net_select(uint16_t i, bool hold)
 			net_ask = NET_CHANGE_OVER;
 		break;
 	case NET_LEAVE: net_ask = NET_LEAVE; break;
+	case NET_REQUEST:
+		switch (ui_svc_net_request_keys(v)) {
+		case UI_NET_OK: ui_toast(TR(NET_HELLO_ASKING, "Asking for keys")); break;
+		case UI_NET_NOT_MANAGED: ui_toast(TR(NET_WHY_MANAGE, "Manage this channel's keys first (Net keys)")); break;
+		case UI_NET_BUSY: ui_toast(TR(NM_INV_BUSY, "Still asking")); break;
+		default: ui_toast(TR(NM_WHY_MEMBER, "Not for this radio")); break;
+		}
+		break;
 	default: break;
 	}
 	ui_dirty();

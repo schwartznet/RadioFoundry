@@ -270,7 +270,9 @@ uint8_t ui_svc_net_member_flags(uint16_t i)
 #define CO_GAP_MS	2000u
 #define KEYSET_STEP_MAX	8u	// a REKEY's keyset at most this far above the active one (7.1)
 #define HELLO_GAP_MS	2000u	// a net control works on at most one HELLO this often
-#define CU_GAP_MS	120000u	// ... and sends one member the net's active key at most this often
+#define CU_GAP_MS	120000u	// ... and answers one member's HELLO at most this often
+#define HELLO_ANS_N	8u	// ... keeping the last members answered: at most this many answers per CU_GAP_MS
+#define HELLO_REQ_MS	10000u	// a member's Request keys: not again within this of its last HELLO
 
 typedef struct {
 	uint32_t id;
@@ -320,13 +322,20 @@ static struct {
 	uint32_t tek_ks;	// its keyset number, the net's
 	uint32_t tek_at;	// the changeover
 	uint32_t cu_to;		// a net control: the net's active key to send this member, which said HELLO without it
-	uint32_t cu_last, cu_last_at;	// ... the last member sent it, and when
+	struct {
+		uint32_t id, at;
+	} hans[HELLO_ANS_N];	// ... the members whose HELLO it answered last, and when (hello_slot)
 	uint32_t hello_at;	// a net control: when the last HELLO was worked on
 	otar_msg_t ack;		// the ACK to send once stored
 	uint32_t ack_to;
-	// HELLO
-	uint32_t started_ms;
-	bool hello_sent;
+	// A member's HELLO (9): said until its net control answers, with longer and longer gaps (hello_gap)
+	struct {
+		bool on;		// not answered yet
+		uint8_t state;		// UI_HELLO_*
+		uint8_t n;		// said this many times
+		uint32_t to, num;	// the net control it went to, its message number (the answer echoes it)
+		uint32_t due, sent_at;
+	} hello;
 	// CHANGEOVER copies to send
 	uint8_t co_left;
 	uint32_t co_next;
@@ -587,6 +596,10 @@ __attribute__((noinline)) static void on_rekey(const radio_view_t *v, const uint
 	if (!take_msgnum(src, m.msgnum, now)) {
 		crypto_wipe(&m, sizeof m);
 		return;
+	}
+	if (eng.hello.on && src == eng.hello.to) {	// the answer to its HELLO (9): asked no more
+		eng.hello.on = false;
+		eng.hello.state = UI_HELLO_GOT;
 	}
 	memset(&eng.ack, 0, sizeof eng.ack);
 	eng.ack.net_id = n->net_id;
@@ -989,6 +1002,65 @@ __attribute__((noinline)) static void on_changeover(const radio_view_t *v, const
 	}
 }
 
+// The net control: the slot of eng.hans for answering member src's HELLO now, -1 when it can't be: answered less than
+// CU_GAP_MS ago, or HELLO_ANS_N others were. This radio doesn't check a member's message numbers, so a recorded HELLO
+// played back (one, or several members' in turn) makes it answer at most HELLO_ANS_N times per CU_GAP_MS
+static int hello_slot(uint32_t src, uint32_t now)
+{
+	for (unsigned i = 0; i < HELLO_ANS_N; i++)
+		if (eng.hans[i].id == src)
+			return (uint32_t)(now - eng.hans[i].at) >= CU_GAP_MS ? (int)i : -1;
+	for (unsigned i = 0; i < HELLO_ANS_N; i++)
+		if (eng.hans[i].id == 0 || (uint32_t)(now - eng.hans[i].at) >= CU_GAP_MS)
+			return (int)i;
+	return -1;
+}
+
+// The net control: a member's HELLO (9) answered, always, within hello_slot's limit: the rekey run's REKEY when the
+// member hasn't its key yet; the net's active key flagged now when the member is behind it (outside a run, otar.md 9);
+// else an ACK, CURRENT with this radio's active keyset (NOT_MANAGED when it manages no keys), echoing the HELLO
+static __attribute__((noinline)) void hello_answer(const radio_view_t *v, const otar_msg_t *m, uint32_t src,
+						   const otar_net_t *n, const uint8_t kmac[OTAR_KEY_LEN], uint32_t now)
+{
+	int slot = hello_slot(src, now);
+	if (slot < 0)
+		return;
+	rekey_t *rk = eng.rk;
+	bool behind = v->otar.on && m->keyset < v->otar.keyset;
+	bool answered = false;
+	for (uint8_t i = 0; rk != NULL && i < rk->n; i++) {
+		rk_member_t *mm = &rk->m[i];
+		if (mm->id == src && mm->state != UI_RK_OK) {
+			mm->due = now;		// back on: its REKEY at once
+			if (mm->state == UI_RK_FAIL)
+				mm->state = UI_RK_WAIT;
+			answered = true;
+		}
+	}
+	if (!answered && behind && rk == NULL) {
+		eng.cu_to = src;	// sent by cu_send once the transport is free
+		answered = true;
+	}
+	if (!answered && !behind && eng.out_len == 0) {
+		otar_msg_t *a = &eng.ros_m;
+		memset(a, 0, sizeof *a);
+		a->net_id = n->net_id;
+		a->rank = n->rank;
+		a->keyset = v->otar.on ? v->otar.keyset : 0u;
+		a->result = v->otar.on ? OTAR_ACK_CURRENT : OTAR_ACK_NOT_MANAGED;
+		a->echo = m->msgnum;
+		a->msgnum = next_msgnum(now);
+		otar_addr_t back = { v->dmr.own_id, src };
+		out_set(src, false, otar_ack_build(eng.out, &back, kmac, a));
+		answered = eng.out_len != 0;
+	}
+	// Behind with a run going and its key held: nothing yet (the member asks again; the run's end lets it catch up)
+	if (answered) {
+		eng.hans[slot].id = src;
+		eng.hans[slot].at = now;
+	}
+}
+
 // The net control: an ACK or a HELLO from a member
 __attribute__((noinline)) static void on_member(const radio_view_t *v, const uint8_t *msg, int len, uint32_t src, const otar_net_t *n, uint32_t now)
 {
@@ -1011,8 +1083,10 @@ __attribute__((noinline)) static void on_member(const radio_view_t *v, const uin
 	otar_msg_t m;
 	bool ok = otar_open(msg, len, &a, NULL, kmac, &m) && m.net_id == n->net_id;
 	crypto_wipe(ukek, sizeof ukek);
+	if (ok && m.type == OTAR_HELLO)
+		hello_answer(v, &m, src, n, kmac, now);
 	crypto_wipe(kmac, sizeof kmac);
-	if (!ok)
+	if (!ok || m.type == OTAR_HELLO)
 		return;
 	// A ZEROIZE's: wiped, or refused (its Remote wipe off, or this radio not above it)
 	if (m.type == OTAR_ACK && eng.zz.waiting && src == eng.zz.id && m.echo == eng.zz.sent_num) {
@@ -1036,14 +1110,6 @@ __attribute__((noinline)) static void on_member(const radio_view_t *v, const uin
 	}
 	if (m.type == OTAR_ACK && src == eng.inv.id && eng.inv.state != UI_INV_NONE && m.echo == eng.inv.sent_num)
 		inv_got(v, &m);
-	// A member back on, or just joined, without the net's active key (it missed the changeover, or joined after the
-	// rekey): sent it, to change over to at once (otar.md 9). In a run, the run's REKEY comes first
-	if (m.type == OTAR_HELLO && rk == NULL && v->otar.on && m.keyset < v->otar.keyset &&
-	    (src != eng.cu_last || (uint32_t)(now - eng.cu_last_at) >= CU_GAP_MS)) {
-		eng.cu_to = src;	// at most once every CU_GAP_MS to one member: a replayed HELLO can't make it transmit at will
-		eng.cu_last = src;
-		eng.cu_last_at = now;
-	}
 	if (rk == NULL)
 		return;
 	for (uint8_t i = 0; i < rk->n; i++) {
@@ -1059,10 +1125,6 @@ __attribute__((noinline)) static void on_member(const radio_view_t *v, const uin
 				rk->cur = 0xFF;
 			if (mm->state == UI_RK_FAIL)
 				mm->due = now + RETRY_MS;
-		} else if (m.type == OTAR_HELLO && mm->state != UI_RK_OK) {
-			mm->due = now;		// back on: its REKEY at once (warm start)
-			if (mm->state == UI_RK_FAIL)
-				mm->state = UI_RK_WAIT;
 		}
 	}
 }
@@ -1332,10 +1394,20 @@ static void manage_joined(const radio_view_t *v)
 		radio_req_otar(RADIO_OTAR_START, (uint8_t)(v->ch.aes_ref - 1u));
 }
 
-// A member back on says HELLO to its net control (warm start, 9)
+// The wait before a member's next HELLO, after its n-th went unanswered: 1 min, 5 min, then every 15 min. A net
+// control away or off costs the channel one short message a quarter of an hour
+static uint32_t hello_gap(uint8_t n)
+{
+	return n <= 1u ? 60000u : n == 2u ? 300000u : 900000u;
+}
+
+// A member asks its net control for keys (rekey request, 9): HELLO with the keysets it holds
 static __attribute__((noinline)) void say_hello(const radio_view_t *v, const otar_net_t *n, uint32_t now)
 {
-	eng.hello_sent = true;
+	if (eng.hello.n < 0xFFu)
+		eng.hello.n++;
+	eng.hello.due = now + hello_gap(eng.hello.n);
+	eng.hello.state = UI_HELLO_ASKING;
 	// To the best-ranked net control not revoked (net control 1 when it is there): a backup net control's keys may be
 	// older
 	otar_member_t *nc = &eng.ros_d, *c = &eng.ros_e;
@@ -1358,6 +1430,49 @@ static __attribute__((noinline)) void say_hello(const radio_view_t *v, const ota
 	m.flags = v->otar.has_next ? 1u : 0u;
 	otar_addr_t a = { v->dmr.own_id, to };
 	out_set(to, false, otar_hello_build(eng.out, &a, eng.kmac, &m));
+	eng.hello.to = to;
+	eng.hello.num = m.msgnum;
+	eng.hello.sent_at = now;
+}
+
+// A member: its net control's ACK of its HELLO (9): up to date (or the net control manages no keys). Asked no more
+static __attribute__((noinline)) void on_hello_ack(const radio_view_t *v, const uint8_t *msg, int len, uint32_t src,
+						   const otar_net_t *n, uint32_t now)
+{
+	if (!eng.hello.on || src != eng.hello.to || eng.hello.num == 0)
+		return;
+	if (!eng.pair_ok || eng.pair_id != src) {
+		eng.pair_ok = pair_keys(v->dmr.own_id, src, n->net_id, eng.ukek, eng.kmac);
+		eng.pair_id = src;
+		if (!eng.pair_ok)
+			return;
+	}
+	otar_addr_t a = { src, v->dmr.own_id };
+	otar_msg_t *m = &eng.ros_m;
+	if (!otar_open(msg, len, &a, NULL, eng.kmac, m) || m->net_id != n->net_id || m->echo != eng.hello.num ||
+	    (m->result != OTAR_ACK_CURRENT && m->result != OTAR_ACK_NOT_MANAGED) || !take_msgnum(src, m->msgnum, now))
+		return;
+	eng.hello.on = false;
+	eng.hello.state = m->result == OTAR_ACK_CURRENT ? UI_HELLO_CURRENT : UI_HELLO_NONE;
+}
+
+uint8_t ui_svc_net_request_keys(const radio_view_t *v)
+{
+	otar_net_t n;
+	net_read(&n);
+	bool member = (n.flags & OTAR_NET_IN) && n.rank == 0 && !(n.flags & OTAR_NET_REMOVED);
+	crypto_wipe(&n, sizeof n);
+	if (!member)
+		return UI_NET_NO_MEMBER;
+	if (!v->otar.on)
+		return UI_NET_NOT_MANAGED;
+	uint32_t now = hal_millis();
+	if (eng.hello.n != 0 && (uint32_t)(now - eng.hello.sent_at) < HELLO_REQ_MS)
+		return UI_NET_BUSY;
+	eng.hello.on = true;
+	eng.hello.n = 0;
+	eng.hello.due = now;
+	return UI_NET_OK;
 }
 
 // The rekey schedule (settings_t.otar_sched, otar_sched_at): every this many days, and when the next is due
@@ -1422,8 +1537,10 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 	if (in != eng.open) {
 		otar_svc_open(in);
 		eng.open = in;
-		eng.started_ms = now;
-		eng.hello_sent = false;
+		memset(&eng.hello, 0, sizeof eng.hello);
+		eng.hello.on = true;
+		eng.hello.due = now + HELLO_AFTER_MS;
+		memset(eng.hans, 0, sizeof eng.hans);
 		eng.pair_ok = false;
 		memset(&eng.ros, 0, sizeof eng.ros);
 		eng.ros_due = false;
@@ -1516,6 +1633,8 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 				on_time(v, msg, len, src, &n, now);
 			else if ((h.type == OTAR_ACK || h.type == OTAR_HELLO) && !group && n.rank != 0)
 				on_member(v, msg, len, src, &n, now);
+			else if (h.type == OTAR_ACK && !group && n.rank == 0)
+				on_hello_ack(v, msg, len, src, &n, now);
 			changed = true;
 		}
 		crypto_wipe(msg, OTAR_MSG_MAX);
@@ -1528,10 +1647,13 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 	}
 	if (eng.manage_due && n.rank == 0)
 		manage_joined(v);
-	// A member back on says HELLO to its net control (warm start, 9); not once it is removed from the net
-	if (n.rank == 0 && !eng.hello_sent && v->otar.on && !(n.flags & OTAR_NET_REMOVED) && mn_ok &&
-	    (uint32_t)(now - eng.started_ms) >= HELLO_AFTER_MS && eng.out_len == 0 && !eng.sending)
+	// A member back on asks its net control for keys with HELLO (9), again until it is answered; not once it is
+	// removed from the net
+	if (n.rank == 0 && eng.hello.on && v->otar.on && !(n.flags & OTAR_NET_REMOVED) && mn_ok &&
+	    (int32_t)(now - eng.hello.due) >= 0 && eng.out_len == 0 && !eng.sending) {
 		say_hello(v, &n, now);
+		changed = true;
+	}
 	// A net control: TIME copies, an INVENTORY and its answer's wait, the rekey schedule
 	if (eng.tm_left > 0 && mn_ok && eng.out_len == 0 && !eng.sending && !eng.ros.waiting && (int32_t)(now - eng.tm_next) >= 0) {
 		tm_send(v, &n, now);
@@ -1741,6 +1863,7 @@ static void eng_view(ui_net_view_t *v)
 	v->pend = eng.pend.on;
 	v->pend_from = eng.pend.from_rank;
 	v->pend_lost = eng.pend.e.rank;
+	v->hello = eng.hello.state;
 	v->sched_days = sched_get(&v->sched_at);
 }
 

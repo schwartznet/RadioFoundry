@@ -197,15 +197,16 @@ static const radio_view_t *v_now(void)
 }
 
 // --- the transport
-typedef struct { uint32_t src, dst; bool group; int len; uint8_t m[OTAR_MSG_MAX]; } pkt_t;
+typedef struct { uint32_t src, dst; bool group; int len; uint8_t m[OTAR_MSG_MAX]; uint32_t at; } pkt_t;
 static pkt_t inbox[8], outbox[16];
 static int in_n, out_n;
 void otar_svc_open(bool open) { (void)open; }
 bool otar_send(uint32_t dst, bool group, const uint8_t *msg, int len)
 {
 	if (out_n < 16) {
-		outbox[out_n] = (pkt_t){ ENGINE_ID, dst, group, len, { 0 } };
+		outbox[out_n] = (pkt_t){ ENGINE_ID, dst, group, len, { 0 }, 0 };
 		memcpy(outbox[out_n].m, msg, (size_t)len);
+		outbox[out_n].at = now_ms;
 		out_n++;
 	}
 	return true;
@@ -227,7 +228,7 @@ int otar_take(uint8_t out[OTAR_MSG_MAX], uint32_t *src, uint32_t *dst, bool *gro
 }
 static void deliver(uint32_t src, uint32_t dst, bool group, const uint8_t *m, int len)
 {
-	inbox[in_n] = (pkt_t){ src, dst, group, len, { 0 } };
+	inbox[in_n] = (pkt_t){ src, dst, group, len, { 0 }, 0 };
 	memcpy(inbox[in_n].m, m, (size_t)len);
 	in_n++;
 }
@@ -840,6 +841,177 @@ static void test_zeroize_nc(void)
 	CHECK(ui_svc_net_wipe_state(PEER_ID) == UI_ZZ_REFUSED);
 }
 
+// A further member k of the engine's net: its ID, public key and pair MAC key with the engine
+static void other_member(int k, uint32_t *id, uint8_t pub[32], uint8_t km[32])
+{
+	x25519_ws_t ws;
+	uint8_t priv[32], uk[32];
+	for (int i = 0; i < 32; i++)
+		priv[i] = (uint8_t)(i * 5 + 11 + k * 17);
+	x25519_public(pub, priv, &ws);
+	*id = 4690000u + (uint32_t)k;
+	CHECK(otar_pair_keys(priv, eng_pub, NET_ID, *id, ENGINE_ID, uk, km, &ws));
+}
+
+static int hello_from(uint32_t id, const uint8_t km[32], uint32_t keyset, uint32_t msgnum, uint8_t *out)
+{
+	otar_msg_t m;
+	memset(&m, 0, sizeof m);
+	m.net_id = NET_ID;
+	m.msgnum = msgnum;
+	m.keyset = keyset;
+	otar_addr_t a = { id, ENGINE_ID };
+	return otar_hello_build(out, &a, km, &m);
+}
+
+static int sent_to(uint32_t id)
+{
+	int k = 0;
+	for (int i = 0; i < out_n; i++)
+		k += outbox[i].dst == id;
+	return k;
+}
+
+// ===================== HELLO always answered (otar.md 9): the engine net control 1, the test members
+static void test_hello_nc(void)
+{
+	setup(1);
+	roster_add(ENGINE_ID, 1, eng_pub);
+	roster_add(PEER_ID, 0, peer_pub);
+	uint32_t ids[10];
+	uint8_t pubs[10][32], kms[10][32];
+	for (int k = 0; k < 10; k++) {
+		other_member(k, &ids[k], pubs[k], kms[k]);
+		roster_add(ids[k], 0, pubs[k]);
+	}
+	otar_start(&keys, 0, 77);
+	tek[77].used = true;
+	keys.ks_active = 4;
+	run(3000);
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t m, r;
+
+	// Up to date: an ACK, CURRENT, echoing the HELLO, with the net control's active keyset, under the pair's keys
+	out_n = 0;
+	memset(&m, 0, sizeof m);
+	m.keyset = 4;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_HELLO, &m, buf));
+	run(1000);
+	CHECK(out_n == 1 && last_out(&r) && r.type == OTAR_ACK && r.result == OTAR_ACK_CURRENT && r.echo == m.msgnum &&
+	      r.keyset == 4 && r.ckr == 0);
+	// The same member again within 2 minutes (or its HELLO played back): nothing
+	run(30000);
+	memset(&m, 0, sizeof m);
+	m.keyset = 4;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_HELLO, &m, buf));
+	run(1000);
+	CHECK(out_n == 1);
+	// Behind, 2 minutes on: the catch-up REKEY is the answer
+	run(120000);
+	memset(&m, 0, sizeof m);
+	m.keyset = 3;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_HELLO, &m, buf));
+	run(1000);
+	CHECK(out_n == 2 && last_out(&r) && r.type == OTAR_REKEY && r.keyset == 4 && (r.flags & OTAR_RK_NOW));
+
+	// Two members' recorded HELLOs played back in turn, 3 s apart, for a minute: each answered once
+	run(130000);
+	out_n = 0;
+	int n0 = hello_from(ids[0], kms[0], 3, 500, buf);
+	uint8_t buf1[OTAR_MSG_MAX];
+	int n1 = hello_from(ids[1], kms[1], 3, 500, buf1);
+	for (int i = 0; i < 20; i++) {
+		if (i & 1)
+			deliver(ids[1], ENGINE_ID, false, buf1, n1);
+		else
+			deliver(ids[0], ENGINE_ID, false, buf, n0);
+		run(3000);
+	}
+	CHECK(sent_to(ids[0]) == 1 && sent_to(ids[1]) == 1);
+
+	// Ten members asking at once: no more than 8 answers in 2 minutes, whoever asks
+	run(130000);
+	out_n = 0;
+	for (int k = 0; k < 10; k++) {
+		deliver(ids[k], ENGINE_ID, false, buf, hello_from(ids[k], kms[k], 4, 600, buf));
+		run(3000);
+	}
+	CHECK(out_n == 8 && sent_to(ids[8]) == 0 && sent_to(ids[9]) == 0);
+	// ... and the last two once that time is past
+	run(120000);
+	for (int k = 8; k < 10; k++) {
+		deliver(ids[k], ENGINE_ID, false, buf, hello_from(ids[k], kms[k], 4, 601, buf));
+		run(3000);
+	}
+	CHECK(out_n == 10 && sent_to(ids[8]) == 1 && sent_to(ids[9]) == 1);
+}
+
+// ===================== HELLO said again until answered (otar.md 9): the engine a member, the test its net control
+static void test_hello_member(void)
+{
+	setup(0);
+	roster_add(PEER_ID, 1, peer_pub);
+	roster_add(ENGINE_ID, 0, eng_pub);
+	otar_start(&keys, 0, 77);
+	tek[77].used = true;
+	keys.ks_active = 4;
+	out_n = 0;
+	uint32_t t0 = now_ms;
+	// No answer: HELLO 20 s after start, then 1, 5 and 15 minutes on, then every 15 minutes
+	run(3082000u);		// to just past the 6th
+	otar_msg_t r;
+	CHECK(out_n == 6);
+	static const uint32_t want_s[] = { 20, 80, 380, 1280, 2180, 3080 };
+	for (int i = 0; i < 6 && i < out_n; i++) {
+		uint32_t s = (outbox[i].at - t0) / 1000u;
+		CHECK(s >= want_s[i] && s <= want_s[i] + 1u);
+		CHECK(out_open(i, &r) && r.type == OTAR_HELLO && r.keyset == 4);
+	}
+	ui_net_view_t nv;
+	ui_svc_net_view(&nv);
+	CHECK(nv.hello == UI_HELLO_ASKING);
+
+	// An ACK echoing an older HELLO doesn't answer it; one echoing the last does: up to date, asked no more
+	CHECK(out_open(out_n - 1, &r));
+	uint32_t last = r.msgnum;
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t m;
+	memset(&m, 0, sizeof m);
+	m.rank = 1;
+	m.result = OTAR_ACK_CURRENT;
+	m.echo = last - 1u;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &m, buf));
+	run(1000);
+	ui_svc_net_view(&nv);
+	CHECK(nv.hello == UI_HELLO_ASKING);
+	memset(&m, 0, sizeof m);
+	m.rank = 1;
+	m.result = OTAR_ACK_CURRENT;
+	m.echo = last;
+	m.keyset = 4;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &m, buf));
+	run(1000);
+	ui_svc_net_view(&nv);
+	CHECK(nv.hello == UI_HELLO_CURRENT);
+	int before = out_n;
+	run(3600000u);
+	CHECK(out_n == before);
+
+	// Request keys: a HELLO at once (not twice within 10 s); the net control's catch-up REKEY answers it
+	CHECK(ui_svc_net_request_keys(v_now()) == UI_NET_OK);
+	run(500);
+	CHECK(out_n == before + 1 && out_open(out_n - 1, &r) && r.type == OTAR_HELLO);
+	CHECK(ui_svc_net_request_keys(v_now()) == UI_NET_BUSY);
+	rekey_msg(&m, 5, 78, 0x58, OTAR_RK_NOW);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(2000);
+	ui_svc_net_view(&nv);
+	CHECK(nv.hello == UI_HELLO_GOT && keys.ks_active == 5);
+	before = out_n;
+	run(3600000u);
+	CHECK(out_n == before);
+}
+
 int main(void)
 {
 	test_msgnum();
@@ -849,6 +1021,8 @@ int main(void)
 	test_join_without_key();
 	test_zeroize_member();
 	test_zeroize_nc();
+	test_hello_nc();
+	test_hello_member();
 	printf("otarEngineTest: %d checks, %d failures\n", checks, failures);
 	return failures != 0;
 }

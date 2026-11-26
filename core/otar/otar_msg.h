@@ -31,9 +31,11 @@ enum { OTAR_REKEY = 1, OTAR_ACK = 2, OTAR_CHANGEOVER = 3, OTAR_HELLO = 4, OTAR_I
 #define OTAR_RK_CLOCK	0x01u	// change over at the changeover time by the member's clock
 #define OTAR_RK_NOW	0x02u	// the net's active key: change over to it once stored (a member that missed it, 9)
 
-// ACK results (7.2). WIPED: a ZEROIZE taken, the keys wiped once this ACK has gone (7.5); with CKR 0
+// ACK results (7.2). WIPED: a ZEROIZE taken, the keys wiped once this ACK has gone (7.5). CURRENT: a net control's
+// answer to a HELLO when it has nothing to send the member, keyset its own active one (9; NOT_MANAGED when it manages
+// no keys). Both with CKR 0
 enum { OTAR_ACK_STORED = 0, OTAR_ACK_HELD = 1, OTAR_ACK_OLD = 2, OTAR_ACK_STORE_FAILED = 3, OTAR_ACK_WRAP = 4,
-       OTAR_ACK_NOT_MANAGED = 5, OTAR_ACK_REFUSED = 6, OTAR_ACK_ASKED = 7, OTAR_ACK_WIPED = 8 };
+       OTAR_ACK_NOT_MANAGED = 5, OTAR_ACK_REFUSED = 6, OTAR_ACK_ASKED = 7, OTAR_ACK_WIPED = 8, OTAR_ACK_CURRENT = 9 };
 
 #define OTAR_REKEY_LEN		(OTAR_HDR + 4u + 1u + 1u + 4u + 1u + 40u + OTAR_MAC)	// 69
 #define OTAR_ACK_LEN		(OTAR_HDR + 4u + 1u + 1u + 3u + 4u + OTAR_MAC)		// 31
