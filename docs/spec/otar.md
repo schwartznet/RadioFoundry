@@ -26,11 +26,10 @@ built from a small set of parts. This design keeps each of them and changes only
 | Traffic encryption key (TEK) wrapped under the UKEK | The same: AES-256 TEKs wrapped with AES key wrap ([RFC 3394](https://www.rfc-editor.org/rfc/rfc3394), NIST SP 800-38F) |
 | Key ID (KID) and algorithm ID sent with each call | Unchanged: DMRA AES-256, ALG 0x25 and the KID in the PI header and late-entry signaling |
 | Keysets: active and inactive, switched at changeover | Two keysets, active and next, each up to 4 TEKs, one per common key reference (CKR) (8) |
-| Key management messages (KMM): rekey, acknowledge, hello, warm start, inventory, changeover, zeroize | The same set (7), plus roster, time and takeover for the serverless parts |
-| The KMM encrypted as a whole (the outer layer, under a key the radio holds), the TEKs in it wrapped again under the KEK | The same two layers: each message body encrypted with AES-256-CTR ([NIST SP 800-38A](https://csrc.nist.gov/pubs/sp/800/38/a/final)) under a key from that message's MAC key (7.6), the TEK inside wrapped under the UKEK. The outer key is the pair's (or, for a group message, the keyset's), never only the channel's, so a radio behind on keys can still be reached (23) |
+| Key management messages (KMM): P25 defines several dozen (rekey, acknowledgement, hello, inventory, changeover, zeroize, and many more) | A small set of our own with the same jobs for the parts used here (7), plus roster, time and takeover for the serverless parts. Not P25's formats, and not all of its messages (23) |
 | The KMM encrypted as a whole (the outer layer, under a key the radio holds), the TEKs in it wrapped again under the KEK | The same two layers: each message body encrypted with AES-256-CTR ([NIST SP 800-38A](https://csrc.nist.gov/pubs/sp/800/38/a/final)) under a key from that message's MAC key (7.6), the TEK inside wrapped under the UKEK. The outer key is the pair's (or, for a group message, the keyset's), never only the channel's, so a radio behind on keys can still be reached (23) |
 | Message authentication and message numbers against replay | AES-256-CMAC (NIST SP 800-38B; [RFC 4493](https://www.rfc-editor.org/rfc/rfc4493) is the same mode for AES-128) under keys from the UKEK; message numbers per sender (7) |
-| The KMF queues updates for radios that are off | NC retries every few minutes; a radio coming back sends hello (warm start) and NC answers at once (9) |
+| The KMF queues updates for radios that are off | NC retries every minute until the changeover; a radio coming back asks for keys with HELLO (a rekey request) until NC answers, and NC answers at once: its key, or "up to date" (9) |
 | Crypto period: TEKs changed daily, weekly or monthly | NC's rekey schedule: by hand, or every 1, 7 or 30 days (9) |
 
 It does not speak TIA-102.AACA's message formats: no P25 KMF can reach a DMR radio, and MOTOTRBO's OTAR is
@@ -61,7 +60,7 @@ its KID, still talks to the net.
 |---|---|
 | Rekey | NC makes new TEKs and sends each member a REKEY with each TEK wrapped under that member's UKEK |
 | Acknowledgement | Each member answers ACK with each new key's check value. NC shows who has it |
-| Retry and warm start | NC resends to members that haven't answered; a radio that was off sends HELLO when it comes back, and NC rekeys it |
+| Retry and rekey request | NC resends to members that haven't answered; a radio that was off asks for keys with HELLO when it comes back, again until answered, and NC rekeys it or says it is up to date (resynchronization) |
 | Scheduled changeover | Each keyset carries a UTC changeover time. Radios with a clock switch by themselves; NC's CHANGEOVER switches the rest |
 | Overlap | Receivers hold the active and next keysets and choose by each over's KID, so radios that switch a little apart still hear each other (8) |
 | Inventory | NC asks a member what it holds: keyset numbers, KIDs, check values. Never a key |
@@ -80,7 +79,7 @@ its KID, still talks to the net.
 | Service | `core/otar/otar_svc.c`: UDP port 4103, NC's rekey run, member answers, the changeover timer |
 | Keys in use | `core/radio/radio_aes.c`: the active, next and previous keysets for an OTAR system; `DMR_AES_KEY_SLOTS` 1 to 3 |
 | UI | Tools > Net keys (12), Settings > Privacy rows |
-| Tests | `tests/host/otarTest.c` with the RFC 3394 and NIST SP 800-38B AES-256 test vectors, `uiFlowTest` flows `O ...` |
+| Tests | `tests/host/otarCryptoTest.c` with the RFC 3394 and NIST SP 800-38B AES-256 test vectors, `otarEngineTest.c` (the engine's rules), `uiFlowTest` flows `O ...` |
 
 **Other modes later.** DMR only for now, but the code is split so P25 (or NXDN) can join without a rewrite:
 
@@ -156,18 +155,19 @@ every octet before the MAC, the encrypted body included (encrypt then MAC), trun
 | Type | Name | From, to | Carried | Body after the header | MAC key |
 |---|---|---|---|---|---|
 | 1 | REKEY | NC to a member | Individual, confirmed | keyset number (4), CKR (1), KID (1), changeover in UTC minutes (4), flags (1), TEK wrapped (40) | the pair's K_mac |
-| 2 | ACK | member to NC | Individual, confirmed | keyset number (4), CKR (1), result (1), check value (3), the message number of the message it answers (4) | the pair's K_mac |
-| 3 | CHANGEOVER | NC to the talkgroup | Group, 4 copies | keyset number (4) | from the next keyset (7.3) |
+| 2 | ACK | member to NC; NC to member, answering its HELLO | Individual, confirmed | keyset number (4), CKR (1), result (1), check value (3), the message number of the message it answers (4) | the pair's K_mac |
+| 3 | CHANGEOVER | NC to the talkgroup | Group, 3 copies 2 s apart | keyset number (4), KID (1) | from the next keyset (7.3) |
 | 4 | HELLO | member to its best-ranked NC | Individual, confirmed | active keyset number (4), next keyset number (4, 0 none), flags (1) | the pair's K_mac |
 | 5 | INVENTORY | NC to a member | Individual, confirmed | none: the member answers an ACK for each TEK it holds | the pair's K_mac |
 | 6 | ROSTER | NC to a member | Individual, confirmed | DMR ID (3), rank (1), flags (1: revoked), public key (32) | the pair's K_mac |
 | 7 | TIME | NC to each member in turn | Individual, confirmed | UTC seconds (4) | the pair's K_mac |
 | 8 | ZEROIZE | NC to a member | Individual, confirmed | the member's DMR ID (3) | the pair's K_mac |
-| 9 | TAKEOVER | NC to the talkgroup | Group, 4 copies | DMR ID of the NC it replaces (3), the keyset number it will rekey to (4) | from the active keyset; each member then gets a ROSTER (10) |
+| 9 | TAKEOVER | NC to the talkgroup (reserved, not built: 22) | Group | DMR ID of the NC it replaces (3), the keyset number it will rekey to (4) | from the active keyset; each member then gets a ROSTER (10) |
 
 A receiver drops and counts, and doesn't show, a message of another length, version or net, from a sender not on the
 roster or revoked, with a message number not above the last one taken from that sender, or whose MAC doesn't check
-(compared in constant time).
+(compared in constant time). Nothing is ever sent in answer to a bad MAC. A message whose MAC checks but whose number
+is old isn't acted on either; a member answers that one, at most once every few minutes, "old message number" (7.6).
 
 ### 7.1 REKEY
 
@@ -189,9 +189,26 @@ stored (a member that joined after the rekey or missed the changeover, 9).
 
 ### 7.2 ACK results
 
-0 stored, 1 already held, 2 older keyset refused, 3 couldn't store, 4 wrap check failed.
+| Result | Meaning | Answers |
+|---|---|---|
+| 0 | stored | REKEY, ROSTER |
+| 1 | already held (a resend, or INVENTORY's "I hold this keyset") | REKEY, ROSTER, INVENTORY |
+| 2 | older keyset refused | REKEY |
+| 3 | couldn't store | REKEY, ROSTER |
+| 4 | wrap check failed | REKEY |
+| 5 | not managed: the radio manages no keys | REKEY, INVENTORY, HELLO (from NC) |
+| 6 | refused | REKEY, ROSTER, ZEROIZE |
+| 7 | asked: the user is asked first (a take over, 10) | ROSTER |
+| 8 | wiped: taken, the wipe follows this ACK (7.5) | ZEROIZE |
+| 9 | up to date: NC has nothing to send; keyset is NC's active one (9) | HELLO (from NC) |
+| 10 | old message number: keyset carries the last number taken from that sender (7.6) | REKEY, ROSTER, INVENTORY, ZEROIZE, TIME |
 
-Each ACK echoes the message number of the REKEY, ROSTER or INVENTORY it answers, and the NC counts it only for the
+Results 8-10 have CKR 0 and came without a new protocol version: a version 4 radio from before ignores an ACK it isn't
+waiting for, and counts one it waits for with CKR 0 and an unknown result as a roster entry not taken. Mixed nets keep
+working during an update; the older radios just don't answer ZEROIZE, HELLO or an old number the new way. A new
+version would have cut such a net in two (any other version is dropped), so the version stays 4.
+
+Each ACK echoes the message number of the REKEY, ROSTER, INVENTORY, ZEROIZE or HELLO it answers, and the NC counts it only for the
 message it sent last to that member (and a REKEY's only with the sent key's check value). A recorded ACK of an earlier
 message doesn't count. A radio never sends a message numbered 0 (no saved reservation yet, 7.6): its answer waits for
 the sender's retry.
@@ -200,7 +217,8 @@ the sender's retry.
 
 A group message can't use a pair's key, so its MAC key comes from a keyset:
 `HKDF-Expand(HKDF-Extract("RFOTAR1 group", the keyset's CKR 1 TEK), label, 32)` with the label "co" for CHANGEOVER
-(the next keyset), "hello" and "time" (the active one). A revoked radio never gets the next keyset, so it can't make a
+(the next keyset), the only group message. HELLO and TIME went to the talkgroup under such keys once; both are now
+individual, under the pair's keys (7.4). A revoked radio never gets the next keyset, so it can't make a
 CHANGEOVER; a member can, but all it can do with that is bring the changeover forward.
 
 ### 7.4 Clocks and TIME
@@ -226,7 +244,19 @@ turn it Off. The reason: a net control is already trusted to rekey every member,
 (REKEY, CHANGEOVER, TIME, INVENTORY, ROSTER) is always taken from it, so it is trusted to wipe a lost radio too. A
 compromised net control is answered by revoking it (10), not by leaving every radio unwipeable; an owner who doesn't
 want it opts out. The
-member wipes its keys only ([zeroize.md](zeroize.md) 3.2) and answers nothing. A net control is wiped only by one of
+member wipes its keys only ([zeroize.md](zeroize.md) 3.2).
+
+It answers first, so NC learns the wipe happened: on a ZEROIZE it takes (MAC, fresh message number, its own ID) it
+builds an ACK with result 8 (wiped), under the pair keys, echoing the ZEROIZE. From then the engine holds nothing secret
+outside the flash: the pair keys, a TEK being stored and a rekey run's key are wiped in RAM, and the only thing kept is
+the ACK's ciphertext. It takes and sends nothing else. Once the transport has let the ACK go (sent or failed, at most
+10 s), or after 60 s whatever happens, the wipe starts. "Wiped" thus means "taken, wiping": a radio switched off in
+those few seconds keeps its keys, as it would after an emergency wipe cut short. With Remote wipe Off, or from a
+net control that doesn't rank above it, the member answers 6 (refused) and wipes nothing.
+
+NC tries a ZEROIZE up to 3 times, 20 s apart, and stops at the answer. The member screen shows "Wipe: sending", "wiped",
+"refused" or "no answer". No answer doesn't prove the radio kept its keys: it may be off, out of range, or wiped with
+its answer lost. A net control is wiped only by one of
 a better rank: NC 4 can't wipe NC 1 (the sender's menu refuses it too).
 
 ### 7.6 Body encryption
@@ -249,6 +279,39 @@ the DMR ID it belongs to (`settings_t.otar_seen_id`). A sender not yet counted t
 owner is no longer a net control here. Joining, starting or leaving a net clears them, safely, because the radio then
 has a new key pair: Start and Join make one, Leave wipes it.
 
+Design rule: a group message never moves a counter that guards individual messages. A key that many radios hold (a
+TEK, and so any group key from it) can be used by any of them to forge a group message; if such a message could raise
+the counter that individual REKEY, ROSTER and ZEROIZE are checked against, one holder could lock a net control out of
+every member (found and fixed 2026-11-24, 23.1). Today CHANGEOVER, the only group message, isn't checked against a
+counter at all (an old one fails under another keyset's key). If a group message ever needs replay numbers, it gets a
+counter of its own per sender, apart from the individual one. P25 keeps separate numbers per kind of destination for
+the same reason.
+
+**Old message number.** A message whose MAC checks under the pair keys but whose number isn't above the last taken from
+its sender is not acted on. The member answers it with an ACK, result 10, whose keyset field carries the last number it
+took from that sender and whose echo is the old message's number, at most once every 5 minutes per sender counter
+(RAM only: a restart may send one more). The legitimate case is a net control whose own numbers went back (its
+settings restored from an earlier copy): until now its members dropped it in silence, for good. NC takes the answer
+only for a message it is waiting on (a rekey run's REKEY, a ROSTER, an INVENTORY, a ZEROIZE), from that member, echoing
+that message's number. It then moves its own next number past the member's, if that is at most 65536 ahead, and sends
+again at once; numbers only need to be unique and rising, so skipping some is always safe. Further ahead, the member
+shows "Out of sync: rejoin" (a rejoin makes a new key pair, so counting starts again) and "out of sync" in Net
+status, and the run doesn't try it again. The skip is capped so even a member with valid pair keys can't use up NC's
+32-bit numbers.
+
+Can this answer be abused? Only a message whose MAC checks gets it, so an outsider needs a recording of a real message
+from a net control to this radio under the present key pair. Playing it back makes the member transmit one short ACK
+at most once every 5 minutes per net control, up to four, whatever the rate of the replay: bounded, and less than the
+HELLO retries a member sends on its own. The answer is encrypted and says nothing a listener can use: the message
+numbers in the headers are in the clear anyway. It confirms the radio is on and in range, which its own traffic shows
+too. A forged message (bad MAC) still gets no answer at all, so an attacker without a recording can't make the radio
+transmit, and each forged message still costs at most the X25519 the receiver already pays for any message. The
+counter isn't moved by an old number, and NC moves its own counter only forward, on an authenticated answer echoing a
+message it sent. One case it doesn't fix: a net control restored from an old copy reuses its numbers, so the first
+message after the restore to each member may repeat a counter block under that pair's key (its keystream) before the
+member's answer comes. Its body is mostly a wrapped key or public data, but avoiding that needs a restored radio to
+make a new key pair, left for later.
+
 ## 8. Keys in use
 
 On an OTAR system a channel names a CKR, not a key ID. The radio transmits with the active keyset's TEK for that CKR
@@ -256,7 +319,10 @@ and its KID. It receives with the active, next and, for 30 minutes after a chang
 the KID in the over's PI header or late-entry signaling. After those 30 minutes the previous TEKs are wiped: a radio
 captured later can't read traffic from before the last changeover.
 
-KIDs: NC picks them; by default from the keyset number so consecutive keysets never share one.
+KIDs: NC picks them: the first free key ID after the one in use, so consecutive keysets never share one.
+
+As built, a keyset holds one TEK, CKR 1: a rekey sends CKR 1 only and INVENTORY answers for CKR 1. The format and the
+keysets carry CKR 1-4, so CKR 2-4 can come without a format change.
 
 ## 9. Net control
 
@@ -265,11 +331,28 @@ keyset 7". OK on a row: inventory, resend, revoke, or (if that radio allows it) 
 
 **Rekey:** by hand (Rekey now) or on a schedule (every 1, 7 or 30 days). NC fills the pool, generates the TEKs, takes
 the changeover time (in 5 min, 1 h, 6 h, 24 h, at a time, or on command), then sends REKEY to every member one at a time. It
-retries unanswered members every 5 minutes until the changeover, in the background while NC stays on the net's
-channel. A HELLO from a member behind gets its REKEY at once (warm start). At the changeover time NC sends CHANGEOVER.
+retries unanswered members every 60 s until the changeover, in the background while NC stays on the net's
+channel. A HELLO from a member that hasn't the run's key gets its REKEY at once. At the changeover time NC sends
+CHANGEOVER.
 Outside a rekey run, a HELLO whose active keyset number is below NC's gets NC's active key as a REKEY with flag bit 1: a member that
 just joined, or that was off through a changeover, catches up and changes over to it at once. Its old key stays as the
 overlap ([key-fill.md](key-fill.md)) as after any changeover.
+
+**Rekey request (HELLO).** A member asks for keys 20 s after it starts or joins, and with Net > Request keys. NC answers
+every HELLO it works on: with the run's REKEY or the catch-up REKEY as above, or else with an ACK, result 9 (up to
+date, its own active keyset) or 5 (it manages no keys). A member behind while a run is going, holding the run's key,
+gets nothing yet; it asks again and catches up after the run. Unanswered, the member asks again after 1 minute, 5
+minutes, 15 minutes and then every 15 minutes, until NC's ACK echoing its last HELLO, or a REKEY from that NC, comes. So
+a member that came on while NC was off or out of range catches up when NC is back, without a restart, and a net
+whose NC stays away costs the channel one short message per member every quarter of an hour. Its Net screen shows
+"Asking for keys", "Keys up to date" or "Keys received".
+
+NC doesn't check members' message numbers (19), so a recorded HELLO played back is valid. NC therefore works on at most
+one HELLO every 2 s and answers each member at most once every 2 minutes, keeping the last 8 answered: at most 8
+answers in any 2 minutes, however many recordings are played in turn. A genuine HELLO caught by the limit is asked
+again by its member's next retry. P25 has the same pair: a radio's rekey request answered either by keys or by "nothing
+for you", and resynchronization of a radio's keys (23); P25's "warm start" is something else (a temporary key for a
+radio that can't decrypt management messages), which the pair keys make unnecessary here.
 
 ## 10. Succession
 
@@ -312,7 +395,7 @@ on voice.
 
 | Where | Rows |
 |---|---|
-| Tools > Net keys (member) | Status (net, keyset, KID, next changeover, rekeyed by), Request keys (HELLO), Join a net |
+| Net (member) | Members, Request keys (HELLO, 9; the status line under it), Remote wipe, Leave the net |
 | Tools > Net keys (NC adds) | Net status, Rekey now, Rekey schedule, Change over now, Add a member, Revoke a member, Take over, Send time |
 | Net | Remote wipe: On (default in a net) / Off |
 | Settings > Privacy | Clock source |
@@ -354,7 +437,7 @@ with keys loaded by key fill or group key fill.
 
 ## 16. Tests
 
-`otarTest`: AES-256 decryption against FIPS-197 C.3, AES-KW against RFC 3394 4.6 (a 256-bit key wrapped under a 256-bit KEK), AES-256-CMAC against the NIST SP 800-38B examples; UKEKs agree both ways and differ
+`otarCryptoTest`: AES-256 decryption against FIPS-197 C.3, AES-KW against RFC 3394 4.6 (a 256-bit key wrapped under a 256-bit KEK), AES-256-CMAC against the NIST SP 800-38B examples; UKEKs agree both ways and differ
 for every other pair; each message built and checked, every field and MAC octet altered, wrong net, wrong sender,
 revoked sender, replayed message number; REKEY rules (keyset numbers, ranks, resend); changeover by time, by message
 and with clock skew; the previous keyset's wipe; a revoked radio can't make a CHANGEOVER; takeover with and without
@@ -424,7 +507,7 @@ What succession needs before it can work, built on phase 3:
 | Revoke | Any net control: 2 Revoke on a member or a lower net control. Its entry, flagged revoked, goes to every other member (not to the revoked radio). A rekey leaves revoked radios out, and no radio takes REKEY, ROSTER, CHANGEOVER or ZEROIZE from a revoked sender, nor sends HELLO to one. A net control of the same or higher rank can't be revoked this way: Take over is for that |
 | Take over | Net control 2-4: Net > Take over takes the highest-ranked net control above it that isn't revoked as lost: revoked in its own roster and sent to every member. A member that gets a lower net control's ROSTER revoking a higher one (only the revoked flag changed) doesn't store it: it answers ACK result 7 (asked) and its Net screen shows "NC 2 says NC 1 is lost" with Accept the take over and Refuse the take over. The net control's Net screen counts these ("asked 2"). Then the net control rekeys without the lost one. The TAKEOVER group message (7, type 9) is not built: the per-member ROSTER carries it |
 | Backup net controls | A net control takes REKEY and CHANGEOVER from another net control like any member, so a backup holds the net's keys; it doesn't while its own rekey run is going |
-| Remote wipe | Net > Remote wipe: On (the default, and set again at each join or start, 7.5) or Off, per radio (`settings_t.otar_wipe`). ZEROIZE (type 8, 21 octets: the target's DMR ID, under the pair's MAC key) from a net control on the roster, not revoked, with a fresh message number and this radio's ID wipes its keys as Clear all keys does ([zeroize.md](zeroize.md)) and restarts; no answer. With Remote wipe off it is dropped. A net control sends it with 3 Wipe its keys on a member |
+| Remote wipe | Net > Remote wipe: On (the default, and set again at each join or start, 7.5) or Off, per radio (`settings_t.otar_wipe`). ZEROIZE (type 8, 21 octets: the target's DMR ID, under the pair's MAC key) from a net control on the roster, not revoked, with a fresh message number and this radio's ID wipes its keys as Clear all keys does ([zeroize.md](zeroize.md)) and restarts, after its ACK "wiped" has gone (7.5). With Remote wipe off it is answered "refused". A net control sends it with 3 Wipe its keys on a member, up to 3 times until answered |
 | Member screen | Net > Members > OK on a radio (a net control only): 1 Rank, 2 Revoke, 3 Wipe its keys, and the radio's ID and fingerprint. Members shows "revoked" after a revoked radio's ID |
 
 Checked on air 2026-11-23/24 with three radios: net control 1 made 4678512 net control 2, which wiped net control 1's
@@ -437,7 +520,7 @@ the revoked radio out ("Key 38: 1 of 1 have it"), and changed the net over: both
 |---|---|
 | Rekey schedule | Net > Rekey every: Off (default), 1 day, 7 days, 30 days, on each net control (`settings_t.otar_sched` and `otar_sched_at`, [settings-store.md](settings-store.md)); it needs a clock. The Net screen shows "Next rekey: 2026-11-30 14:05". When it is due and no rekey, roster run or next key is under way, the net control starts a rekey whose changeover is 60 minutes later by the clocks, and sets the next one. Its key is made when the pool is full: the radio's own key presses fill it, as for Rekey now |
 | CHANGEOVER at the changeover | A rekey run that changes over by the clocks ends with the net control's own changeover; it then sends CHANGEOVER (3 copies) for members without a clock. Not after Change over the net, which sent its own |
-| TIME | Type 7 (22 octets: UTC seconds since 2026-01-01) to the talkgroup, 2 copies, under the active TEK's group key "time" (7.3). Net > Send the time, and at the start of every rekey that changes over by the clocks. Sent only from a clock that isn't the net's (GPS, the board's clock, or set by hand). A member takes it from a net control on its roster, not revoked, with a fresh message number, and the radio task keeps it only when the radio has no clock or only the net's (clock source "net"), moving that one at most 48 hours (7.4). It isn't written to the board's clock |
+| TIME | Type 7 (22 octets: UTC seconds since 2026-01-01) to each member in turn, under the pair's keys (7.4; it went to the talkgroup under a group key before 23.1). Net > Send the time, and at the start of every rekey that changes over by the clocks. Sent only from a clock that isn't the net's (GPS, the board's clock, or set by hand). A member takes it from a net control on its roster, not revoked, with a fresh message number, and the radio task keeps it only when the radio has no clock or only the net's (clock source "net"), moving that one at most 48 hours (7.4). It isn't written to the board's clock |
 | INVENTORY | Type 5 (18 octets, no body) from a net control: Net > Members > OK on a radio > 4 Ask its keys. The member answers an ACK (result 1, CKR 1) for its active keyset and one for its next, each with that key's check value; never a key. The member screen shows "Keys: keyset 7 OK, keyset 8 OK" (the key matches this radio's of that keyset), "differs", "asking" or "no answer" |
 | Removed from the net | Revoke now tells the revoked radio too: its own entry, revoked. It takes it from a net control above its own rank (any net control, for a member), stores it, ACKs, and its Net screen shows "Removed from the net"; it says no HELLO after that. Leave the net clears it. A take over still doesn't tell the lost net control |
 | Joining after a rekey | Key fill goes in the clear on the AES channel ([dmr-data.md](dmr-data.md) 13.5), so a radio whose codeplug holds only an older key can still join. Found on air: before, the joining radio dropped the net control's key fill under the new key and the join failed. The join itself carries no key: on air the joined radio stayed on its old key, its HELLO and the net control's REKEYs each dropped under the other's channel key. Section 23 fixes that |
@@ -461,9 +544,9 @@ HELLO under key 77 (`data.privacy_rx_dropped`). A member switched off through a 
 | Message numbers | Reserved 64 at a time and used only once the reservation is in the flash (7.6) |
 | Joining unmanaged | A radio that joins without managing keys starts managing the AES channel it is on (6). Found on air: a fresh radio joined, answered Ask its keys with "Keys: none", and said no HELLO, so it never caught up |
 
-**Compared with P25 OTAR.** Public descriptions of TIA-102.AACA's KMM give it three protections: the TEKs inside wrapped
-under the radio's KEK, the KMM body encrypted again under a traffic key (the outer layer), and a MAC with message
-numbers against replay (TIA-102.AACA-1). Each has its counterpart here:
+**Compared with P25 OTAR.** A P25 key management message has three protections: the TEKs inside wrapped under the
+radio's KEK, the message body encrypted again under a traffic key (the outer layer), and a MAC with message numbers
+against replay. Each has its counterpart here:
 
 | P25 KMM | Here |
 |---|---|
@@ -475,8 +558,21 @@ numbers against replay (TIA-102.AACA-1). Each has its counterpart here:
 
 What it is not: it doesn't speak TIA-102.AACA's formats (1), and no part is certified (no P25 CAP testing, no FIPS 140
 validated module). The algorithms are the published ones above, each checked against its standard's test vectors in
-`otarCryptoTest`. The KMM text of TIA-102.AACA itself wasn't read for this; the comparison is with its public
-descriptions.
+`otarCryptoTest`.
+
+Checked against the standard (TIA-102.AACA-D, 2026-11-26, compared section by section, nothing taken from its text):
+the inner layer is the same key wrap with the same key field (AACA-D 13.3); the MAC is the same AES-256 CMAC truncated
+to 8 octets (13.5.2.2); and sending the messages self-protected over UDP with no link-layer encryption is the
+standard's own model for IP delivery (12.3). The differences are deliberate: the outer layer's key here comes from the
+pair (or the keyset for CHANGEOVER), where P25 uses a traffic key the radios share, so another radio holding that key
+can neither read nor forge an individual message here; the outer mode is CTR with an implied counter block where P25
+uses OFB with a sent MI; and the MAC key comes from HKDF over the pair secret, where P25 derives one per message from a
+traffic key with an SP 800-108 KDF. Message numbers are 32-bit and only rise, where P25 uses 16 bits with a window.
+The comparison also found the gaps this design now closes: ZEROIZE answered before the wipe (7.5), HELLO always
+answered and retried (9), and an authenticated answer to an old message number (7.6); and the rule that group and
+individual messages don't share a replay counter (7.6). Still open from it: NC checking members' message numbers,
+a key-pair change after a restore, withdrawing or rescheduling a next keyset over the air, and an algorithm ID and
+16-bit key ID in the format.
 
 Checked on air 2026-11-24, net 8B16: both radios flashed with this build; the member, joined after the rekey and
 still on key 77, restarted, said HELLO and got key 78 from the net control as a REKEY flagged now. 45 s after start its
@@ -577,7 +673,7 @@ fixed:
 
 Left, documented: a roster change from a lower NC isn't held for NC 1's user (it is limited to revocations); a fifth
 NC (after demotions) finds no counter while four NCs are on the roster; a TIME delivered up to 48 h late can move a
-clockless member's clock back; replaying two members' HELLOs in turn still makes the NC answer once per 2 minutes each;
+clockless member's clock back; replaying members' HELLOs in turn still makes the NC answer (this said once per 2 minutes each; the single slot it kept really let two members' HELLOs in turn through every 2 s, bounded since 2026-11-26 to 8 answers per 2 minutes, 9);
 the noise grab blocks the radio task for about 120 ms; a Leave cut off by a power loss leaves the old roster for the
 next join. `otarEngineTest` covers each new rule (56 checks, each rule disabled in turn fails it); the wipe's rank
 check and the noise gate's signal reading are checked by reading the code and on air, not by host tests.
@@ -617,7 +713,7 @@ The review's lower findings, then fixed:
 |---|---|
 | An ACK counted for the keyset number alone: an old ACK of the same keyset (a run stopped and started again) or another NC's key under that number marked a member done | The NC counts an ACK only with the check value of the key its run sent |
 | Message numbers were saved within 2 s but not before use: a power loss with more than 1024 unsaved could repeat a counter block | Reserved 64 at a time, used only once the reservation is in the flash (7.6) |
-| A replayed REKEY still got an ACK, a replayed HELLO a catch-up REKEY each time, and any forged source made the NC work out X25519 before the MAC check | A member drops a REKEY with an old message number without answering; the NC sends one member the active key at most every 2 minutes, and works on an ACK only from a member it waits for and on at most one HELLO every 2 s |
+| A replayed REKEY still got an ACK, a replayed HELLO a catch-up REKEY each time, and any forged source made the NC work out X25519 before the MAC check | A member drops a REKEY with an old message number without ACKing it (since 2026-11-26 it answers "old message number" at most once every 5 minutes, 7.6); the NC sends one member the active key at most every 2 minutes, and works on an ACK only from a member it waits for and on at most one HELLO every 2 s |
 | Key fill and OTAR went in the clear by port number alone, so a host could send its own traffic on those ports unencrypted through the gateway; and on an AES channel a clear packet reached every service, so anyone could inject a clear text | Clear only for the two services' own packets (`DMR_IPS_SELF_PROTECTED`); on a channel that encrypts data a clear packet is taken only on those ports ([dmr-data.md](dmr-data.md) 13.5) |
 
 On air the same evening, all four radios on this build: a rekey to key 82 "in 5 min" from NC 1, with the ACK counted
@@ -632,8 +728,29 @@ measured. Open: the randomness credit per key press is generous and the pool sta
 receiver's noise is the planned source, [key-fill.md](key-fill.md) 6). The engine's rules are host-tested in
 `otarEngineTest`: the real engine, roster, messages and crypto, with the radio core, codeplug, settings and transport
 faked, the test playing the other radio with real messages. It checks keyset order (an older keyset refused, a resend
-HELD only with the same key, a REKEY flagged now changing over at once), a replayed REKEY getting no answer, TIME taken
+HELD only with the same key, a REKEY flagged now changing over at once), a replayed REKEY getting no ACK, TIME taken
 under the pair's keys and a forged group TIME ignored (with the counter attack after it), HELLO to the best-ranked net
 control, each ROSTER rank rule on its own, counters per sender, the net control's catch-up and its 2-minute limit,
 an ACK counted only with the sent key's check value, and nothing sent before a message number reservation is saved.
 Each of those rules, disabled in turn, fails the test.
+
+## 24. After the P25 comparison (as built, 2026-11-26)
+
+| Part | What it does |
+|---|---|
+| ZEROIZE answered | The member's ACK "wiped" (or "refused") under the pair keys, handed to the transport before the wipe starts; NC's 3 tries and the member screen's "Wipe:" line (7.5) |
+| HELLO answered and retried | NC answers every HELLO it works on, "up to date" when it has nothing to send; the member asks again after 1, 5, 15 minutes and every 15 minutes until answered; Net > Request keys (9) |
+| Old message number | A rate-limited, authenticated answer with the last number taken; NC skips past it or shows "Out of sync: rejoin" (7.6) |
+| HELLO limit | NC answers at most 8 members per 2 minutes, each at most once (9). The single slot before let two recorded HELLOs played in turn bring a catch-up REKEY every 2 s |
+| Remote wipe | On by default in a net, set again at each join or start (7.5) |
+| Protocol version | Still 4: the new ACK results are ignored or counted as "not taken" by version 4 radios (7.2) |
+
+Tests: `otarEngineTest` (170 checks) adds the ZEROIZE ACK built and handed over before the wipe and nothing else
+answered meanwhile, the wipe after 60 s when the transport never finishes, NC's tries and its stop at the answer;
+HELLO answered "up to date", behind answered by the catch-up, a member not answered twice in 2 minutes, two recorded
+HELLOs in turn answered once each, ten at once answered 8 and the others later; the member's HELLO schedule, its stop
+at the answer, and Request keys; an old number answered once with the last number taken, not again within 5 minutes,
+a bad MAC never answered; NC skipping its numbers and resending, and "out of sync" beyond the skip; Remote wipe on
+after joining. Each fails against the engine from before (the behavior wasn't there); the old-number limit, the
+ZEROIZE's order and the 8-member HELLO limit were also taken out one at a time, and the test fails each time. Not
+checked on air yet.
