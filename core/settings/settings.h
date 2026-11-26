@@ -270,7 +270,7 @@ typedef struct {
 	// a net's keysets (which key IDs are active, next, previous), not the keys, which stay in the codeplug
 	otar_keys_t otar;
 	uint8_t otar_rtc;		// 1: the board's real-time clock holds RadioFoundry's UTC (otar.md 7.4); 0 not trusted
-	uint8_t otar_wipe;		// 1: a net control may wipe this radio's keys (ZEROIZE, otar.md 7.5); 0 off
+	uint8_t otar_wipe;		// 1: a net control may wipe this radio's keys (ZEROIZE, otar.md 7.5; the default, and set again at each join or start); 0 off
 	uint8_t otar_sched;		// a net control's rekey schedule (otar.md 9): every this many days, 0 by hand
 	uint8_t otar_sched_at[3];	// ... the next one due, UTC minutes since 2026-01-01 (big-endian, 24 bits); 0 none
 	uint8_t reserved_otar[6];	// 0: otar_net starts page 2

@@ -164,6 +164,7 @@ static void start_now(uint32_t now)
 	st->otar_net.net_id = id != 0 ? id : 1u;
 	st->otar_net.rank = 1;
 	st->otar_net.flags = OTAR_NET_IN;
+	st->otar_wipe = 1u;	// Remote wipe on in a net (otar.md 7.5): a backup net control may be wiped by net control 1
 	otar_seen_clear(st);
 	otar_net_t n = st->otar_net;
 	settings_end(now);
@@ -1374,9 +1375,13 @@ static __attribute__((noinline)) void cu_send(const radio_view_t *v, const otar_
 	crypto_wipe(kmac, sizeof kmac);
 }
 
+// Joined: Remote wipe on (otar.md 7.5), as every net control's other remote controls are; the user may turn it off
 void ui_svc_net_joined(void)
 {
 	eng.manage_due = true;
+	settings_t *st = settings_begin();
+	st->otar_wipe = 1u;
+	settings_end(hal_millis());
 }
 
 // A member just joined that doesn't manage keys: it starts on the AES channel it is on, with that channel's key as

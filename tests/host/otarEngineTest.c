@@ -696,7 +696,10 @@ static void test_join_without_key(void)
 	view.ch.mode = RADIO_MODE_DMR;
 	view.ch.kind = CODEPLUG_KIND_DMR_AES;
 	view.ch.aes_ref = 78;
+	CHECK(live.otar_wipe == 0);
 	ui_svc_net_joined();
+	// Remote wipe on in a net (otar.md 7.5), whatever the radio had
+	CHECK(live.otar_wipe == 1 && saved.otar_wipe == 1);
 	out_n = 0;
 	run(25000);
 	CHECK(otar_on(&keys));

@@ -69,7 +69,7 @@ its KID, still talks to the net.
 | Succession | Any NC can act. If NC 1 is lost, NC 2 takes over, revokes NC 1 and rekeys (10) |
 | Roster changes | NC adds, ranks and revokes members over the air; a new member joins in person (6) |
 | Time | NC broadcasts UTC for radios without a clock |
-| Zeroize | Optional and off by default on each radio: NC tells one member to wipe its keys ([zeroize.md](zeroize.md)) |
+| Zeroize | On by default in a net, and each radio's user may turn it off: NC tells one member to wipe its keys ([zeroize.md](zeroize.md)) |
 
 ## 4. Switches, files and size
 
@@ -220,7 +220,12 @@ refused as old, so the lost radio could stop the very rekey meant to shut it out
 ROSTER adds a member, changes a rank or a public key, or revokes. Revoking an NC of higher rank than the sender asks
 the member's user first (10). A radio told it is revoked shows "Removed from the net".
 
-ZEROIZE is taken only when the member's Settings > Privacy > **Remote wipe** is "From net control" (default Off). The
+ZEROIZE is taken only when the member's Net > **Remote wipe** is On. It is On by default, and set On again whenever
+the radio joins or starts a net, so a radio updated from an older build gets it at its next join; the radio's user can
+turn it Off. The reason: a net control is already trusted to rekey every member, and every other remote control
+(REKEY, CHANGEOVER, TIME, INVENTORY, ROSTER) is always taken from it, so it is trusted to wipe a lost radio too. A
+compromised net control is answered by revoking it (10), not by leaving every radio unwipeable; an owner who doesn't
+want it opts out. The
 member wipes its keys only ([zeroize.md](zeroize.md) 3.2) and answers nothing. A net control is wiped only by one of
 a better rank: NC 4 can't wipe NC 1 (the sender's menu refuses it too).
 
@@ -290,6 +295,7 @@ on voice.
 | A listener without keys | Every KMM body is encrypted under a key from its pair's (or keyset's) secret (7.6), and each TEK inside REKEY is wrapped again under a UKEK. A listener sees the DMR IDs, the message types and their times: that a rekey happened and which radios took part, not a key or the roster |
 | A lost member | Revoked and left out of the next rekey. Until the changeover it can still read the net; after it, not |
 | A lost NC | The next NC takes over (10). Until members accept, the lost NC can still rekey: the confirmation on each radio and the voice check are the guard |
+| A net control wiping radios | Remote wipe is on by default in a net (7.5): an NC is trusted with every member's keys already, so with their wipe too. A lost or captured NC could wipe the members until it is revoked (10), which it could make unable to talk by a rekey all the same. Only a better-ranked NC wipes an NC. A radio's owner can turn it off |
 | A captured NC's database | There is none: an NC holds only its own private key. It can rekey until revoked, but can't impersonate other members to each other |
 | A forged REKEY, ROSTER or ZEROIZE | Needs the pair's K_mac, which only that NC and that member can derive |
 | A forged CHANGEOVER | Needs the next keyset, which a radio left out of the rekey doesn't have; a revoked sender is refused |
@@ -308,7 +314,8 @@ on voice.
 |---|---|
 | Tools > Net keys (member) | Status (net, keyset, KID, next changeover, rekeyed by), Request keys (HELLO), Join a net |
 | Tools > Net keys (NC adds) | Net status, Rekey now, Rekey schedule, Change over now, Add a member, Revoke a member, Take over, Send time |
-| Settings > Privacy | Remote wipe: Off / From net control; clock source |
+| Net | Remote wipe: On (default in a net) / Off |
+| Settings > Privacy | Clock source |
 | Home | The AES256 badge as today; the KID on the chips line |
 
 As built, Change over the net and Leave the net ask first: only OK says yes, Back says no, a digit never does. Change
@@ -340,7 +347,7 @@ with keys loaded by key fill or group key fill.
 ## 15. Open decisions
 
 1. Roster size: 64 proposed.
-2. Remote zeroize: in (off by default on each radio), or left out.
+2. Remote zeroize: in, on by default in a net, each radio may opt out (decided 2026-11-26, 7.5).
 3. Grace time after a changeover: 30 minutes proposed.
 4. Members change over by their own clock by default when they have GPS or a kept RTC: proposed yes.
 5. Upstream: propose it to RadioFoundry as an issue first, since it goes beyond ETSI and DMRA.
@@ -417,7 +424,7 @@ What succession needs before it can work, built on phase 3:
 | Revoke | Any net control: 2 Revoke on a member or a lower net control. Its entry, flagged revoked, goes to every other member (not to the revoked radio). A rekey leaves revoked radios out, and no radio takes REKEY, ROSTER, CHANGEOVER or ZEROIZE from a revoked sender, nor sends HELLO to one. A net control of the same or higher rank can't be revoked this way: Take over is for that |
 | Take over | Net control 2-4: Net > Take over takes the highest-ranked net control above it that isn't revoked as lost: revoked in its own roster and sent to every member. A member that gets a lower net control's ROSTER revoking a higher one (only the revoked flag changed) doesn't store it: it answers ACK result 7 (asked) and its Net screen shows "NC 2 says NC 1 is lost" with Accept the take over and Refuse the take over. The net control's Net screen counts these ("asked 2"). Then the net control rekeys without the lost one. The TAKEOVER group message (7, type 9) is not built: the per-member ROSTER carries it |
 | Backup net controls | A net control takes REKEY and CHANGEOVER from another net control like any member, so a backup holds the net's keys; it doesn't while its own rekey run is going |
-| Remote wipe | Net > Remote wipe: Off (default) or On, per radio (`settings_t.otar_wipe`). ZEROIZE (type 8, 21 octets: the target's DMR ID, under the pair's MAC key) from a net control on the roster, not revoked, with a fresh message number and this radio's ID wipes its keys as Clear all keys does ([zeroize.md](zeroize.md)) and restarts; no answer. With Remote wipe off it is dropped. A net control sends it with 3 Wipe its keys on a member |
+| Remote wipe | Net > Remote wipe: On (the default, and set again at each join or start, 7.5) or Off, per radio (`settings_t.otar_wipe`). ZEROIZE (type 8, 21 octets: the target's DMR ID, under the pair's MAC key) from a net control on the roster, not revoked, with a fresh message number and this radio's ID wipes its keys as Clear all keys does ([zeroize.md](zeroize.md)) and restarts; no answer. With Remote wipe off it is dropped. A net control sends it with 3 Wipe its keys on a member |
 | Member screen | Net > Members > OK on a radio (a net control only): 1 Rank, 2 Revoke, 3 Wipe its keys, and the radio's ID and fingerprint. Members shows "revoked" after a revoked radio's ID |
 
 Checked on air 2026-11-23/24 with three radios: net control 1 made 4678512 net control 2, which wiped net control 1's
