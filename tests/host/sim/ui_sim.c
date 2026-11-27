@@ -3026,6 +3026,7 @@ static struct {
 	uint32_t ids[8];
 	uint8_t state[8];
 	uint32_t changeover;
+	bool cancel;		// Cancel the change (otar.md 7.9): rk:ack is then the next member's "dropped"
 } rk_sim;
 
 uint8_t ui_svc_net_rekey(const radio_view_t *v, uint16_t mins)
@@ -3034,7 +3035,7 @@ uint8_t ui_svc_net_rekey(const radio_view_t *v, uint16_t mins)
 		return UI_NET_NOT_NC;
 	if (!v->otar.on)
 		return UI_NET_NOT_MANAGED;
-	if (rk_sim.on)
+	if (rk_sim.on && !rk_sim.cancel)
 		return UI_NET_BUSY;
 	memset(&rk_sim, 0, sizeof rk_sim);
 	rk_sim.on = true;
@@ -3057,12 +3058,38 @@ uint8_t ui_svc_net_change_over(const radio_view_t *v)
 	rk_sim.on = false;
 	return UI_NET_OK;
 }
+// Move the change and Cancel the change (otar.md 7.9): every member waiting again
+uint8_t ui_svc_net_move(const radio_view_t *v, uint16_t mins)
+{
+	if (!net_sim.in || net_sim.rank == 0)
+		return UI_NET_NOT_NC;
+	if (!rk_sim.on || rk_sim.cancel || !v->otar.has_next)
+		return UI_NET_NO_NEXT;
+	if (mins != 0 && !v->otar.clock_ok)
+		return UI_NET_NO_CLOCK;
+	rk_sim.changeover = mins != 0 ? v->otar.now_min + mins : 0;
+	radio_req_otar(RADIO_OTAR_NEXT, 2u | ((uint32_t)mins << 8));
+	memset(rk_sim.state, UI_RK_WAIT, sizeof rk_sim.state);
+	return UI_NET_OK;
+}
+uint8_t ui_svc_net_cancel_change(const radio_view_t *v)
+{
+	if (!net_sim.in || net_sim.rank == 0)
+		return UI_NET_NOT_NC;
+	if (!rk_sim.on || rk_sim.cancel || !v->otar.has_next)
+		return UI_NET_NO_NEXT;
+	rk_sim.cancel = true;
+	radio_req_otar(RADIO_OTAR_CLEAR_NEXT, 0);
+	memset(rk_sim.state, UI_RK_WAIT, sizeof rk_sim.state);
+	return UI_NET_OK;
+}
 void ui_svc_net_rekey_view(ui_rekey_view_t *r)
 {
 	memset(r, 0, sizeof *r);
 	if (!rk_sim.on)
 		return;
 	r->on = true;
+	r->cancel = rk_sim.cancel;
 	r->kid = 2;
 	r->members = rk_sim.n;
 	r->changeover = rk_sim.changeover;

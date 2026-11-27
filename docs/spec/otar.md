@@ -167,6 +167,7 @@ every octet before the MAC, the encrypted body included (encrypt then MAC), trun
 | 10 | LOCATE | NC to a member | Individual, confirmed | none: the member answers POSITION (7.7) | the pair's K_mac |
 | 11 | POSITION | member to the NC that asked | Individual, confirmed | the LOCATE's message number (4), result (1), latitude and longitude in 1e-7 degree (4 + 4, signed), altitude in meters (2, signed; 0x8000 unknown), the fix's age in seconds (2, at most 65535) | the pair's K_mac |
 | 12 | NETCHAN | NC to a member | Individual, confirmed | the net's channel (7.8): receive and transmit frequencies in Hz (4 + 4), color code and timeslot (1), name (16) | the pair's K_mac |
+| 13 | WITHDRAW | NC to a member | Individual, confirmed | keyset number (4), KID (1): the next keyset to drop (7.9) | the pair's K_mac |
 
 A receiver drops and counts, and doesn't show, a message of another length, version or net, from a sender not on the
 roster or revoked, with a message number not above the last one taken from that sender, or whose MAC doesn't check
@@ -394,6 +395,56 @@ a net control alike. Leave the net clears it.
 
 A radio from before NETCHAN drops type 12 unread (`otar_peek`): its net control sees "no answer" for it and nothing
 else changes. The protocol version stays 4.
+
+### 7.9 Moving or cancelling a planned change (WITHDRAW)
+
+A rekey sends the next keyset ahead of its changeover (7.1), so a net control can change its mind before the key goes
+live: a changeover set for the wrong time, or a key that shouldn't be used at all (made in a hurry, or the radio that
+made it lost). Without a way back, the only fix was another rekey on top and a changeover at a time nobody planned.
+
+**Move the change.** While a rekey run has its key made, the net control's Net screen shows Move the change and Cancel
+the change after Send the roster (rows 8 and 9: Change over the net stays 6). It takes the Key change row's choice (by hand, in 5 min, 1 h, 6 h, 24 h, counted from now) and asks "Key 90:
+change over in 1 h? Every member is told". On OK the net control's own next keyset takes the new changeover,
+every member is marked waiting again and is sent the REKEY again (a new message number, the same keyset, key ID and
+key, the new changeover and its flag), and TIME goes out first when it is by the clocks, as at a rekey (7.4). A member
+that holds that keyset as its next, with the same key ID and key (its check value), answers HELD as before and now also
+takes the changeover from it; a different key under that number is still refused (7.1). Net status counts them again,
+"Key 90: 2 of 3 have it".
+
+**Cancel the change.** Cancel the change asks "Key 90: cancel it? Every member drops it". On OK the net
+control drops its own next keyset and erases its key from the codeplug (the radio task's `RADIO_OTAR_DROP_NEXT`: only
+the next keyset named by that key ID, never the active or previous one), wipes the key from the run, keeps the keyset's
+number and key ID in its settings (`otar_cut`, [settings-store.md](settings-store.md)), and turns the run into a cancel
+run: each member is sent WITHDRAW (type 13, 23 octets: keyset number and key ID, under the pair keys, its body
+encrypted) in turn, waiting for the ACK and trying again after a minute, as REKEY is. Net status shows "Key 90
+cancelled: 1 of 2 dropped it".
+
+A member takes WITHDRAW only from a net control on its roster, not revoked, with a fresh message number (7.6), and
+answers with an ACK (CKR 1, the keyset's number, echoing the WITHDRAW):
+
+| The member holds | It does | ACK result |
+|---|---|---|
+| That keyset as its next, under that key ID | Drops it and erases its key (`RADIO_OTAR_DROP_NEXT`) | 11 dropped |
+| That keyset as its next, under another key ID | Nothing (another net control's key) | 6 refused |
+| That keyset as its active one | Nothing: it changed over already, too late | 2 old |
+| Neither (never got it, or dropped it already) | Nothing | 11 dropped |
+
+The net control counts "dropped" as done; "old" shows the member out of sync and isn't tried again (it changed over
+alone: it is back with the net at the next rekey's catch-up, which takes a number above it, below). The cancel run ends
+once every member is done, or after 10 minutes. A member that was off meanwhile is told when it comes back: its HELLO
+carries its next keyset (9), and a net control that withdrew that number (and isn't above it yet) answers with WITHDRAW
+before anything else. That works after the net control's restart too, the number being in its settings.
+
+**The next rekey.** The withdrawn number is never used again for another key: a member that missed the WITHDRAW still
+holds it with the old key and would refuse a different one under it. Rekey now numbers its keyset above it (the step
+limit of 7.1 still applies) and tells its own radio that number (`RADIO_OTAR_NEXT_KS`). A member holding the withdrawn
+keyset takes the new one as its next in its place. Rekey now during a cancel run ends the run: the new keyset reaches
+the members still holding the withdrawn one. Change over the net sends CHANGEOVER for the next keyset's own number.
+Leaving, starting or joining a net forgets the withdrawn number.
+
+A radio from before WITHDRAW drops type 13 unread (`otar_peek`): its net control sees "no answer" for it, and the
+radio keeps the withdrawn keyset until the next rekey replaces it. It does take a moved changeover's REKEY, answering
+HELD, but keeps its old changeover. The protocol version stays 4.
 
 ## 8. Keys in use
 
@@ -658,9 +709,8 @@ uses OFB with a sent MI; and the MAC key comes from HKDF over the pair secret, w
 traffic key with an SP 800-108 KDF. Message numbers are 32-bit and only rise, where P25 uses 16 bits with a window.
 The comparison also found the gaps this design now closes: ZEROIZE answered before the wipe (7.5), HELLO always
 answered and retried (9), and an authenticated answer to an old message number (7.6); and the rule that group and
-individual messages don't share a replay counter (7.6). Still open from it: NC checking members' message numbers,
-a key-pair change after a restore, withdrawing or rescheduling a next keyset over the air, and an algorithm ID and
-16-bit key ID in the format.
+individual messages don't share a replay counter (7.6). What the comparison left open is settled in 26: withdrawing or
+rescheduling a next keyset over the air is built (7.9); the other three aren't, for the reasons given there.
 
 Checked on air 2026-11-24, net 8B16: both radios flashed with this build; the member, joined after the rekey and
 still on key 77, restarted, said HELLO and got key 78 from the net control as a REKEY flagged now. 45 s after start its
@@ -864,3 +914,41 @@ negative coordinates, altitude unknown, the body not in the clear, a MAC the oth
 or a latitude past the pole refused. `uiFlowTest` covers the row, asking, each answer, Back to the member screen, one
 at a time, and Share location On after joining and Off once chosen; `uiSim --layout` checks the screens at every
 display size. Not checked on air yet.
+
+## 26. Moving or cancelling a planned change (as built, 2026-11-27)
+
+| Part | What it does |
+|---|---|
+| Move the change | Net control, with a rekey run's key made: the Key change choice becomes the changeover, here and on every member (the REKEY sent again; a member holding it answers HELD and takes the new changeover) (7.9) |
+| Cancel the change | Net control: its next keyset dropped and its key erased, then WITHDRAW (type 13) to each member, which drops it and erases its key, answering ACK 11 dropped (7.9) |
+| A member that was off | Told at its HELLO: the withdrawn keyset is kept in the net control's settings (`otar_cut`, offsets 467-469) |
+| Numbering | The next rekey takes a keyset number above the withdrawn one, so a member that still holds it never sees two keys under one number |
+| Protocol version | Still 4: a radio from before drops WITHDRAW (net control: "no answer") |
+
+The P25 comparison's other open items (23), and why they aren't built:
+
+- **The net control checking members' message numbers.** Every message a member sends a net control answers one the
+  net control sent (an ACK or POSITION echoes its message number, 7.2, 7.7), and the net control takes only an answer
+  to a message it is still waiting for, so a recording of an old answer is never taken. The one exception, HELLO, is
+  answered at most once per 2 minutes per member, at once only for a newer HELLO (9), and the answer goes under that
+  member's pair keys, so a recording only brings the member a key it may already hold. A counter per member would cost a
+  settings slot per member for no attack it stops.
+- **A key-pair change after a restore.** The key pair lives in the radio's settings record, which no backup or
+  codeplug tool writes back (a codeplug restore leaves it as it was, as on the bench 2026-11-26), and every join or start
+  makes a new one (23.1). A radio whose settings went back anyway is caught by the message numbers: its net control's
+  messages answer "old message number" and it shows "Out of sync: rejoin" (7.6).
+- **An algorithm ID and a 16-bit key ID in the format.** The net carries one algorithm, AES-256, and DMR's privacy
+  header names an 8-bit key ID, so the fields would always hold the same values. A second algorithm would be a new
+  protocol version: the version byte already makes an older radio drop what it can't read.
+
+Tests: `otarEngineTest` (305 checks) adds the member's side (a moved changeover by the clocks and back to by hand, a
+moved changeover with another key refused, WITHDRAW of another key ID refused, the right one dropped with its key
+erased, a replay not answered, not held answered "dropped", the active keyset answered "old", a WITHDRAW from a radio
+that isn't a net control ignored) and the net control's (nothing to move or cancel without a run, the move here and in
+the REKEY sent again, the cancel here with its key erased and the number kept, a late answer to the REKEY not counted,
+"dropped" ending the run, a HELLO holding the withdrawn keyset answered by WITHDRAW and one holding another answered
+"up to date", the next rekey numbered past it, Rekey now replacing a cancel run, and Leave forgetting it).
+`settingsTest` pins the new offsets. `uiFlowTest` covers both rows: each asks first, a digit never says yes, Back
+keeps the change, a move by the clocks needs one, the cancelled run in Net status and a member's answer counted, and
+a cancelled change can't be changed over. Eighteen parts of the change were each taken out in turn, and the test fails
+every time.

@@ -9235,7 +9235,7 @@ static uint8_t net_rows(uint8_t out[NET_ROWS])
 		ui_svc_net_rekey_view(&r);
 		for (unsigned j = 0; j < sizeof nc; j++) {
 			out[k++] = nc[j];
-			if (nc[j] == NET_STATUS && r.on && !r.cancel && r.presses == 0) {
+			if (nc[j] == NET_ROSTER && r.on && !r.cancel && r.presses == 0) {
 				out[k++] = NET_MOVE;
 				out[k++] = NET_CANCEL;
 			}
@@ -9378,7 +9378,7 @@ static const char *net_body(void)
 		if (net_ask == NET_MOVE) {
 			sb_str(&b, TR(NET_ASK_MOVE, ": change over "));
 			nk_when_text(&b, nk_mins[net_rk_when]);
-			sb_str(&b, TR(NET_ASK_MOVE_END, " instead? Every member is told"));
+			sb_str(&b, TR(NET_ASK_MOVE_END, "? Every member is told"));
 		} else {
 			sb_str(&b, TR(NET_ASK_CANCEL, ": cancel it? Every member drops it"));
 		}

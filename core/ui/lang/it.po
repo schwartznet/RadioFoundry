@@ -5318,6 +5318,16 @@ msgid "Net channel"
 msgstr "Canale della rete"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_MOVE"
+msgid "Move the change"
+msgstr "Sposta il cambio"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_CANCEL"
+msgid "Cancel the change"
+msgstr "Annulla il cambio"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_ON"
 msgid "On"
 msgstr "Sì"
@@ -5371,6 +5381,26 @@ msgstr "Chiavi dei membri non verificate"
 msgctxt "NET_ASK_LEAVE"
 msgid "Leave the net? Rejoining needs a key fill"
 msgstr "Lasciare la rete? Rientrare richiede un carica chiave"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_REKEY_TO"
+msgid "Key "
+msgstr "Chiave "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ASK_MOVE"
+msgid ": change over "
+msgstr ": cambiare "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ASK_MOVE_END"
+msgid "? Every member is told"
+msgstr "? Ogni membro viene avvisato"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ASK_CANCEL"
+msgid ": cancel it? Every member drops it"
+msgstr ": annullarla? Ogni membro la scarta"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_ASK_CHAN"
@@ -5526,6 +5556,11 @@ msgstr "Rete lasciata"
 msgctxt "NET_CHAN_SENDING"
 msgid "Telling every member"
 msgstr "Avviso a ogni membro"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_NO_REKEY"
+msgid "No rekey running"
+msgstr "Nessun cambio chiave in corso"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_WHY_CHAN_DMR"
@@ -5818,14 +5853,14 @@ msgid "out of sync"
 msgstr "non sincronizzata"
 
 #: core/ui/ui_menus.c
-msgctxt "NET_NO_REKEY"
-msgid "No rekey running"
-msgstr "Nessun cambio chiave in corso"
+msgctxt "NET_CANCELLED"
+msgid " cancelled: "
+msgstr " annullata: "
 
 #: core/ui/ui_menus.c
-msgctxt "NET_REKEY_TO"
-msgid "Key "
-msgstr "Chiave "
+msgctxt "NET_DROPPED_IT"
+msgid " dropped it"
+msgstr " l'hanno scartata"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_REKEY_HAVE"

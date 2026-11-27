@@ -5320,6 +5320,16 @@ msgid "Net channel"
 msgstr "网络信道"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_MOVE"
+msgid "Move the change"
+msgstr "更改切换时间"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_CANCEL"
+msgid "Cancel the change"
+msgstr "取消切换"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_ON"
 msgid "On"
 msgstr "开"
@@ -5373,6 +5383,26 @@ msgstr "未检查电台密钥"
 msgctxt "NET_ASK_LEAVE"
 msgid "Leave the net? Rejoining needs a key fill"
 msgstr "退出网络？重新加入需密钥注入"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_REKEY_TO"
+msgid "Key "
+msgstr "密钥 "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ASK_MOVE"
+msgid ": change over "
+msgstr "：改为 "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ASK_MOVE_END"
+msgid "? Every member is told"
+msgstr "？所有网络电台都会更新"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ASK_CANCEL"
+msgid ": cancel it? Every member drops it"
+msgstr "：取消？所有网络电台都会删除"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_ASK_CHAN"
@@ -5528,6 +5558,11 @@ msgstr "已退出网络"
 msgctxt "NET_CHAN_SENDING"
 msgid "Telling every member"
 msgstr "正在发给全部电台"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_NO_REKEY"
+msgid "No rekey running"
+msgstr "未在更换密钥"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_WHY_CHAN_DMR"
@@ -5820,14 +5855,14 @@ msgid "out of sync"
 msgstr "不同步"
 
 #: core/ui/ui_menus.c
-msgctxt "NET_NO_REKEY"
-msgid "No rekey running"
-msgstr "未在更换密钥"
+msgctxt "NET_CANCELLED"
+msgid " cancelled: "
+msgstr " 已取消： "
 
 #: core/ui/ui_menus.c
-msgctxt "NET_REKEY_TO"
-msgid "Key "
-msgstr "密钥 "
+msgctxt "NET_DROPPED_IT"
+msgid " dropped it"
+msgstr " 已删除"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_REKEY_HAVE"
