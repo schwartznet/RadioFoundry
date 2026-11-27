@@ -5855,6 +5855,11 @@ msgid "out of sync"
 msgstr "不同步"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_ST_REFUSED"
+msgid "refused"
+msgstr "已拒绝"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_CANCELLED"
 msgid " cancelled: "
 msgstr " 已取消： "

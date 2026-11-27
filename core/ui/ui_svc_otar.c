@@ -112,17 +112,18 @@ static bool has_key(const otar_net_t *n)
 	return !crypto_equal(n->priv, zero, X25519_LEN);
 }
 
+// X25519's workspace (640 bytes), reserved rather than from the heap: a net control's check of a member's ACK needs it,
+// and a heap short of one such block would drop the ACK silently, the member showing "no answer" (suspected on the
+// bench, 2026-11-27, gone after a restart). Only the UI task uses it, one call at a time; x25519 wipes it before return
+static x25519_ws_t x_ws;
+
 // The fingerprint of this radio's public key, worked out once per key (X25519 takes a moment)
 static void fingerprint(const otar_net_t *n)
 {
 	if (net.fp_ok && memcmp(net.fp_of, n->priv, sizeof net.fp_of) == 0)
 		return;
-	x25519_ws_t *ws = pvPortMalloc(sizeof *ws);
-	if (ws == NULL)
-		return;
 	uint8_t pub[X25519_LEN];
-	x25519_public(pub, n->priv, ws);
-	vPortFree(ws);
+	x25519_public(pub, n->priv, &x_ws);
 	otar_fingerprint(pub, net.fp);
 	memcpy(net.fp_of, n->priv, sizeof net.fp_of);
 	net.fp_ok = true;
@@ -217,16 +218,12 @@ static void start_now(uint32_t now)
 	otar_net_t n = st->otar_net;
 	settings_end(now);
 	crypto_wipe(rnd, sizeof rnd);
-	x25519_ws_t *ws = pvPortMalloc(sizeof *ws);
-	if (ws != NULL) {
-		memset(&net.member, 0, sizeof net.member);
-		net.member.id = net.own;
-		net.member.rank = 1;
-		x25519_public(net.member.pub, n.priv, ws);
-		vPortFree(ws);
-		net.want_clear = true;	// a roster from an earlier net goes first
-		net.want_put = true;
-	}
+	memset(&net.member, 0, sizeof net.member);
+	net.member.id = net.own;
+	net.member.rank = 1;
+	x25519_public(net.member.pub, n.priv, &x_ws);
+	net.want_clear = true;	// a roster from an earlier net goes first
+	net.want_put = true;
 	crypto_wipe(&n, sizeof n);
 	net.starting = false;
 	net.page_ok = false;
@@ -651,14 +648,10 @@ __attribute__((noinline)) static bool pair_keys(uint32_t own, uint32_t id, uint1
 	otar_member_t m;
 	if (!otar_roster_find(id, &m))
 		return false;
-	x25519_ws_t *ws = pvPortMalloc(sizeof *ws);
-	if (ws == NULL)
-		return false;
 	otar_net_t n;
 	net_read(&n);
-	bool ok = has_key(&n) && otar_pair_keys(n.priv, m.pub, net_id, own, id, ukek, kmac, ws);
+	bool ok = has_key(&n) && otar_pair_keys(n.priv, m.pub, net_id, own, id, ukek, kmac, &x_ws);
 	crypto_wipe(&n, sizeof n);
-	vPortFree(ws);
 	return ok;
 }
 
@@ -1414,7 +1407,7 @@ static __attribute__((noinline)) void hello_answer(const radio_view_t *v, const 
 		rk_member_t *mm = &rk->m[i];
 		if (mm->id == src && mm->state != UI_RK_OK && mm->state != UI_RK_SYNC) {
 			mm->due = now;		// back on: its REKEY at once
-			if (mm->state == UI_RK_FAIL)
+			if (mm->state == UI_RK_FAIL || mm->state == UI_RK_REFUSED)
 				mm->state = UI_RK_WAIT;
 			answered = true;
 		}
@@ -1603,12 +1596,12 @@ __attribute__((noinline)) static void on_member(const radio_view_t *v, const uin
 			bool same = memcmp(m.kcv, rk->kcv, sizeof rk->kcv) == 0;
 			otar_note_ack(OTAR_AN_COUNTED, (uint8_t)(m.result | (same ? 0u : 0x80u)));	// 0x80: another key's check value
 			if (rk->cancel)
-				mm->state = m.result == OTAR_ACK_DROPPED ? UI_RK_OK : m.result == OTAR_ACK_OLD ? UI_RK_SYNC : UI_RK_FAIL;
+				mm->state = m.result == OTAR_ACK_DROPPED ? UI_RK_OK : m.result == OTAR_ACK_OLD ? UI_RK_SYNC : UI_RK_REFUSED;
 			else
-				mm->state = (m.result == OTAR_ACK_STORED || m.result == OTAR_ACK_HELD) && same ? UI_RK_OK : UI_RK_FAIL;
+				mm->state = (m.result == OTAR_ACK_STORED || m.result == OTAR_ACK_HELD) && same ? UI_RK_OK : UI_RK_REFUSED;
 			if (rk->cur == i)
 				rk->cur = 0xFF;
-			if (mm->state == UI_RK_FAIL)
+			if (mm->state == UI_RK_REFUSED)
 				mm->due = now + RETRY_MS;
 		}
 	}

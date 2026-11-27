@@ -1226,6 +1226,7 @@ static const flow_t flows[] = {
 	  false },
 	{ "O a member's ACK", NET_ADDED " 3", "rk:ack", "shows=Key_2:_1_of_1_have_it shows=OK", 0, false },
 	{ "O a member that doesn't answer", NET_ADDED " 3", "rk:fail", "shows=no_answer shows=0_of_1", 0, false },
+	{ "O a member that refuses the key", NET_ADDED " 3", "rk:refuse", "shows=refused shows=0_of_1", 0, false },
 	{ "O a second rekey waits for the first", NET_ADDED " 3 back", "3", "toast=A_rekey_is_running", 1, false },
 	{ "O net status with no rekey", NET_STARTED, "5", "screen=net-status shows=No_rekey_running", 1, false },
 	// Change over the net asks first, with how many members have the key (a stray press changed a net over on air)

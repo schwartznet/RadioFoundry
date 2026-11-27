@@ -3148,7 +3148,7 @@ static bool rk_sim_token(const char *arg)
 		return false;
 	for (uint8_t i = 0; i < rk_sim.n; i++) {
 		if (rk_sim.state[i] == UI_RK_WAIT) {
-			rk_sim.state[i] = strcmp(arg, "ack") == 0 ? UI_RK_OK : UI_RK_FAIL;
+			rk_sim.state[i] = strcmp(arg, "ack") == 0 ? UI_RK_OK : strcmp(arg, "refuse") == 0 ? UI_RK_REFUSED : UI_RK_FAIL;
 			changed();
 			return true;
 		}

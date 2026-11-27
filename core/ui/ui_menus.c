@@ -10034,7 +10034,8 @@ static uint16_t status_count(void)
 static void status_item(uint16_t i, ui_item_t *it)
 {
 	static const tr_id_t states[] = { TRN(NET_ST_WAIT, "waiting"), TRN(NET_ST_SENT, "sent"), TRN(NET_ST_OK, "OK"),
-					  TRN(NET_ST_FAIL, "no answer"), TRN(NET_ST_SYNC, "out of sync") };
+					  TRN(NET_ST_FAIL, "no answer"), TRN(NET_ST_SYNC, "out of sync"),
+					  TRN(NET_ST_REFUSED, "refused") };
 	uint32_t id;
 	uint8_t state, tries;
 	if (!ui_svc_net_rekey_member(i, &id, &state, &tries))
@@ -10042,7 +10043,7 @@ static void status_item(uint16_t i, ui_item_t *it)
 	sbuf_t b;
 	sb_init(&b, it->label, sizeof it->label);
 	sb_u32(&b, id, 1);
-	str_copy(it->value, sizeof it->value, tr(states[state <= UI_RK_SYNC ? state : 0]));
+	str_copy(it->value, sizeof it->value, tr(states[state <= UI_RK_REFUSED ? state : 0]));
 }
 
 static const char *status_body(void)

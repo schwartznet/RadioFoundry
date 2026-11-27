@@ -684,7 +684,8 @@ static void test_nc(void)
 	run(500);
 	uint32_t id;
 	uint8_t state, tries;
-	CHECK(ui_svc_net_rekey_member(0, &id, &state, &tries) && id == PEER_ID && state != UI_RK_OK);
+	// It answered: "refused", not "no answer"
+	CHECK(ui_svc_net_rekey_member(0, &id, &state, &tries) && id == PEER_ID && state == UI_RK_REFUSED);
 	// The retry, then the right check value at once: OK
 	int sent = out_n;
 	for (int i = 0; i < 400 && out_n == sent; i++)
@@ -700,7 +701,7 @@ static void test_nc(void)
 	memcpy(m.kcv, right, 3);
 	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &m, buf));
 	run(300);
-	CHECK(ui_svc_net_rekey_member(0, &id, &state, &tries) && state != UI_RK_OK);
+	CHECK(ui_svc_net_rekey_member(0, &id, &state, &tries) && state == UI_RK_SENT);
 	memset(&m, 0, sizeof m);
 	m.keyset = 5;
 	m.ckr = 1;

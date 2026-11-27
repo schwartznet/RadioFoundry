@@ -5853,6 +5853,11 @@ msgid "out of sync"
 msgstr "non sincronizzata"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_ST_REFUSED"
+msgid "refused"
+msgstr "rifiutato"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_CANCELLED"
 msgid " cancelled: "
 msgstr " annullata: "

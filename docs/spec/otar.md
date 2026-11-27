@@ -461,7 +461,10 @@ keysets carry CKR 1-4, so CKR 2-4 can come without a format change.
 ## 9. Net control
 
 **Net status** (NC only): a row per member, "4670501 OK 7", "4670502 waiting", "4670511 revoked", and "18 of 20 have
-keyset 7". OK on a row: inventory, resend, revoke, or (if that radio allows it) zeroize.
+keyset 7". OK on a row: inventory, resend, revoke, or (if that radio allows it) zeroize. A member that answered a
+REKEY without taking the key (refused, an older keyset, keys not managed, another key's check value) shows "refused",
+one whose ACK didn't come "no answer"; both are tried again after a minute. Found on the bench 2026-11-27: a member
+that answered each REKEY showed "no answer", and nothing told the two apart.
 
 **Rekey:** by hand (Rekey now) or on a schedule (every 1, 7 or 30 days). NC fills the pool, generates the TEKs, takes
 the changeover time (in 5 min, 1 h, 6 h, 24 h, at a time, or on command), then sends REKEY to every member one at a time. It
@@ -619,7 +622,7 @@ air (phase 3); revoking, succession and remote zeroize (phase 4).
 |---|---|
 | Messages | `core/otar/otar_msg.c`: REKEY, ACK, HELLO and CHANGEOVER as in 7, header 10 octets, MAC the first 8 octets of AES-256-CMAC over both DMR IDs and the message. REKEY's TEK wrapped with AES key wrap under the pair's UKEK. HELLO goes to the net control alone (under the pair's MAC key), not the talkgroup. INVENTORY, TIME, ROSTER and TAKEOVER are not built |
 | Transport | `core/otar/otar_svc.c`: UDP port 4103 through the air queue (owner `AIRQ_OWNER_OTAR`); REKEY, ACK and HELLO individual and confirmed, CHANGEOVER to the channel's talkgroup unconfirmed, 3 copies 2 s apart. Up to 4 received messages held for the UI task while the radio is in a net. On an AES channel the data layer encrypts each packet under the active TEK as well |
-| Net control | Net > Rekey now: random key presses, then a new TEK under the first free key ID after the one in use, stored in the managed system and made this radio's next keyset; the changeover by Net > Key change (in 5 min, 1 h, 6 h, 24 h, or by hand; 5 min first), by hand when the radio has no clock. A member's Net menu is Members and Leave the net. Then REKEY to each roster member in turn: an ACK within 20 s, else "no answer" and again after 60 s; a member's HELLO brings its REKEY at once. Net status lists each member (waiting, sent, OK, no answer) and "Key 34: 1 of 2 have it". Net > Change over the net: CHANGEOVER to the talkgroup, then this radio's own changeover. The run ends when this radio has changed over |
+| Net control | Net > Rekey now: random key presses, then a new TEK under the first free key ID after the one in use, stored in the managed system and made this radio's next keyset; the changeover by Net > Key change (in 5 min, 1 h, 6 h, 24 h, or by hand; 5 min first), by hand when the radio has no clock. A member's Net menu is Members and Leave the net. Then REKEY to each roster member in turn: an ACK within 20 s, else "no answer" and again after 60 s; a member's HELLO brings its REKEY at once. Net status lists each member (waiting, sent, OK, no answer, refused) and "Key 34: 1 of 2 have it". Net > Change over the net: CHANGEOVER to the talkgroup, then this radio's own changeover. The run ends when this radio has changed over |
 | Member | A REKEY from a net control on its roster, checked (MAC, unwrap, a message number above the last one taken), stores the TEK in the managed system (a storage job), makes it the next keyset with the REKEY's changeover time, and ACKs with its check value; a resend of a key it holds is ACKed "held". A member not managing keys answers "not managed". A CHANGEOVER checked under the next TEK changes over at once. 20 s after start (and after joining) a member says HELLO to its net control |
 | Message numbers | `settings_t.otar_msgnum` (this radio's, one up per message) and `otar_seen` (the last taken from net control 1); 20 adds net controls 2-4 |
 | Not yet | ACK and HELLO replay checks at the net control (their worst effect is a resend), several net controls, revocation, INVENTORY, TIME (radios use GPS or a hand-set clock) |

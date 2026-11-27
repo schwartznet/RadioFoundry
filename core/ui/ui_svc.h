@@ -195,7 +195,9 @@ typedef struct {
 	uint32_t changeover;	// UTC minutes, 0 by hand
 } ui_rekey_view_t;
 // SYNC: it said this radio's message numbers are behind its own, too far to skip (otar.md 7.6): not tried again
-enum { UI_RK_WAIT, UI_RK_SENT, UI_RK_OK, UI_RK_FAIL, UI_RK_SYNC };
+// FAIL: no answer (tried again). REFUSED: it answered without taking the key (refused, an older keyset, keys not
+// managed, another key's check value), tried again as FAIL
+enum { UI_RK_WAIT, UI_RK_SENT, UI_RK_OK, UI_RK_FAIL, UI_RK_SYNC, UI_RK_REFUSED };
 void ui_svc_net_rekey_view(ui_rekey_view_t *r);
 bool ui_svc_net_rekey_member(uint16_t i, uint32_t *id, uint8_t *state, uint8_t *tries);
 // Net control: send the roster (otar.md 7.5): only == 0 every entry to every member; else that member's entry to every
