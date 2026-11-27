@@ -396,6 +396,7 @@ static void added(uint32_t now)
 	if (kf->job == JOB_DONE) {
 		kf->job = JOB_NONE;
 		kf->added = true;
+		ui_svc_net_member_added(kf->dst);	// a radio joined again: what it answered before isn't shown
 		(void)ui_svc_net_roster_send(kf->dst);	// its entry to the net, the net's to it (otar.md 7.5)
 		return;
 	}

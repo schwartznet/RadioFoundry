@@ -30,7 +30,10 @@
 
 enum { OTAR_REKEY = 1, OTAR_ACK = 2, OTAR_CHANGEOVER = 3, OTAR_HELLO = 4, OTAR_INVENTORY = 5, OTAR_ROSTER = 6,
        OTAR_TIME = 7, OTAR_ZEROIZE = 8, OTAR_LOCATE = 10, OTAR_POSITION = 11, OTAR_NETCHAN = 12,
-       OTAR_WITHDRAW = 13 };	// 9: TAKEOVER, reserved (otar.md 22)
+       OTAR_WITHDRAW = 13, OTAR_SILENCE = 14, OTAR_WIPE = 15 };	// 9: TAKEOVER, reserved (otar.md 22)
+// WIPE (otar.md 7.10): ZEROIZE's body, the whole radio wiped (keys and codeplug). A type of its own so a radio of an
+// older build, which drops a type it doesn't know, never takes it for a wipe of its keys only. SILENCE (7.11): on (1)
+// or off (0)
 
 // POSITION results (7.7)
 enum { OTAR_POS_OK = 0, OTAR_POS_NO_FIX = 1, OTAR_POS_REFUSED = 2 };
@@ -39,6 +42,8 @@ enum { OTAR_POS_OK = 0, OTAR_POS_NO_FIX = 1, OTAR_POS_REFUSED = 2 };
 // REKEY flags (7.1)
 #define OTAR_RK_CLOCK	0x01u	// change over at the changeover time by the member's clock
 #define OTAR_RK_NOW	0x02u	// the net's active key: change over to it once stored (a member that missed it, 9)
+#define OTAR_RK_DROP	0x04u	// with NOW: the keyset changed over from dropped and its key erased at once, no
+				// overlap (a silent revoke, 7.12)
 
 // ACK results (7.2). WIPED: a ZEROIZE taken, the keys wiped once this ACK has gone (7.5). CURRENT: a net control's
 // answer to a HELLO when it has nothing to send the member, keyset its own active one (9; NOT_MANAGED when it manages
@@ -46,7 +51,9 @@ enum { OTAR_POS_OK = 0, OTAR_POS_NO_FIX = 1, OTAR_POS_REFUSED = 2 };
 // keyset carries (7.6); sent at most once per few minutes per sender. All three with CKR 0
 enum { OTAR_ACK_STORED = 0, OTAR_ACK_HELD = 1, OTAR_ACK_OLD = 2, OTAR_ACK_STORE_FAILED = 3, OTAR_ACK_WRAP = 4,
        OTAR_ACK_NOT_MANAGED = 5, OTAR_ACK_REFUSED = 6, OTAR_ACK_ASKED = 7, OTAR_ACK_WIPED = 8, OTAR_ACK_CURRENT = 9,
-       OTAR_ACK_MSGNUM = 10, OTAR_ACK_DROPPED = 11 };	// DROPPED: a WITHDRAW's, the keyset not held (any more, 7.9)
+       OTAR_ACK_MSGNUM = 10, OTAR_ACK_DROPPED = 11, OTAR_ACK_SILENT = 12, OTAR_ACK_SPEAKING = 13 };
+// DROPPED: a WITHDRAW's, the keyset not held (any more, 7.9). SILENT, SPEAKING: a SILENCE's, radio silence on or off
+// (7.11); a SILENCE refused is REFUSED
 
 #define OTAR_REKEY_LEN		(OTAR_HDR + 4u + 1u + 1u + 4u + 1u + 40u + OTAR_MAC)	// 69
 #define OTAR_ACK_LEN		(OTAR_HDR + 4u + 1u + 1u + 3u + 4u + OTAR_MAC)		// 31
@@ -61,6 +68,8 @@ enum { OTAR_ACK_STORED = 0, OTAR_ACK_HELD = 1, OTAR_ACK_OLD = 2, OTAR_ACK_STORE_
 #define OTAR_POSITION_LEN	(OTAR_HDR + 4u + 1u + 4u + 4u + 2u + 2u + OTAR_MAC)	// 35
 #define OTAR_NETCHAN_LEN	(OTAR_HDR + 4u + 4u + 1u + OTAR_CHAN_NAME + OTAR_MAC)	// 43
 #define OTAR_WITHDRAW_LEN	(OTAR_HDR + 4u + 1u + OTAR_MAC)				// 23
+#define OTAR_SILENCE_LEN	(OTAR_HDR + 1u + OTAR_MAC)				// 19
+#define OTAR_WIPE_LEN		OTAR_ZEROIZE_LEN
 
 typedef struct {
 	uint8_t type;
@@ -84,8 +93,10 @@ typedef struct {
 	uint32_t echo;		// the message number of the message it answers (7.2)
 	// HELLO: the active keyset's number in keyset, the next one's here (0 none)
 	uint32_t next_keyset;
-	// ZEROIZE: the DMR ID of the radio told to wipe its keys
+	// ZEROIZE, WIPE: the DMR ID of the radio told to wipe its keys (the whole radio)
 	uint32_t target;
+	// SILENCE: radio silence on (1) or off (0)
+	uint8_t on;
 	// TIME: UTC seconds since 2026-01-01
 	uint32_t time_s;
 	// POSITION (result OTAR_POS_* in result, the LOCATE's number in echo): 1e-7 degree, meters (OTAR_ALT_NONE), and
@@ -107,7 +118,11 @@ int otar_hello_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTA
 int otar_changeover_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m);
 // ROSTER (otar.md 7.5): a net control to a member, one roster entry under the pair's MAC key
 int otar_roster_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m);
-// ZEROIZE (otar.md 7.5): a net control tells one member to wipe its keys, under the pair's MAC key
+// ZEROIZE (otar.md 7.5): a net control tells one member to wipe its keys, under the pair's MAC key. WIPE (7.10): the
+// whole radio; the same body
+int otar_wipe_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m);
+// SILENCE (7.11): a net control turns one member's radio silence on or off, under the pair's MAC key
+int otar_silence_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m);
 int otar_zeroize_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m);
 // INVENTORY (otar.md 7, 9): a net control asks a member what it holds; no body. The member answers an ACK per keyset
 int otar_inventory_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m);

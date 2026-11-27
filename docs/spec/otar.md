@@ -168,6 +168,8 @@ every octet before the MAC, the encrypted body included (encrypt then MAC), trun
 | 11 | POSITION | member to the NC that asked | Individual, confirmed | the LOCATE's message number (4), result (1), latitude and longitude in 1e-7 degree (4 + 4, signed), altitude in meters (2, signed; 0x8000 unknown), the fix's age in seconds (2, at most 65535) | the pair's K_mac |
 | 12 | NETCHAN | NC to a member | Individual, confirmed | the net's channel (7.8): receive and transmit frequencies in Hz (4 + 4), color code and timeslot (1), name (16) | the pair's K_mac |
 | 13 | WITHDRAW | NC to a member | Individual, confirmed | keyset number (4), KID (1): the next keyset to drop (7.9) | the pair's K_mac |
+| 14 | SILENCE | NC to a member | Individual, confirmed | on (1): 1 radio silence on, 0 off (7.11) | the pair's K_mac |
+| 15 | WIPE | NC to a member | Individual, confirmed | the member's DMR ID (3): wipe the whole radio (7.10) | the pair's K_mac |
 
 A receiver drops and counts, and doesn't show, a message of another length, version or net, from a sender not on the
 roster or revoked, with a message number not above the last one taken from that sender, or whose MAC doesn't check
@@ -190,7 +192,8 @@ keyset the member holds as its next (it missed a changeover by hand) is HELD and
 
 Changeover time: whole UTC minutes since 2026-01-01; 0 = on NC's CHANGEOVER only. Flags: bit 0 change over at the
 changeover time by the member's clock; bit 1 the net's active key, which the member changes over to as soon as it is
-stored (a member that joined after the rekey or missed the changeover, 9).
+stored (a member that joined after the rekey or missed the changeover, 9); bit 2, with bit 1, drop the keyset changed
+over from at once and erase its key, with no overlap (a silent revoke, 7.12).
 
 ### 7.2 ACK results
 
@@ -207,6 +210,9 @@ stored (a member that joined after the rekey or missed the changeover, 9).
 | 8 | wiped: taken, the wipe follows this ACK (7.5) | ZEROIZE |
 | 9 | up to date: NC has nothing to send; keyset is NC's active one (9) | HELLO (from NC) |
 | 10 | old message number: keyset carries the last number taken from that sender (7.6) | REKEY, ROSTER, INVENTORY, ZEROIZE, TIME |
+| 11 | dropped: the next keyset named isn't held (7.9) | WITHDRAW |
+| 12 | silent: radio silence on once this ACK has gone (7.11) | SILENCE |
+| 13 | speaking: radio silence off (7.11) | SILENCE |
 
 Results 8-10 have CKR 0 and came without a new protocol version: a version 4 radio from before ignores an ACK it isn't
 waiting for, and counts one it waits for with CKR 0 and an unknown result as a roster entry not taken. Mixed nets keep
@@ -445,6 +451,59 @@ Leaving, starting or joining a net forgets the withdrawn number.
 A radio from before WITHDRAW drops type 13 unread (`otar_peek`): its net control sees "no answer" for it, and the
 radio keeps the withdrawn keyset until the next rekey replaces it. It does take a moved changeover's REKEY, answering
 HELD, but keeps its old changeover. The protocol version stays 4.
+
+### 7.10 Wiping the whole radio (WIPE)
+
+Net > Members > a member > **Wipe the radio** (asks first: "Wipe the whole radio? Keys and channels"). WIPE is ZEROIZE's
+message under a type of its own, and takes ZEROIZE's path in every other way (7.5): only with the member's Remote wipe
+on, only from a net control that ranks above it, WIPED answered first and the wipe after it (or a minute on), REFUSED
+otherwise, 3 tries 20 s apart, the member screen showing "Radio wipe: sending, wiped, refused, no answer". The
+member wipes its keys and its codeplug: the emergency wipe's Keys + codeplug scope ([zeroize.md](zeroize.md) 4),
+whatever its own Wipe what says, then restarts on the built-in channels.
+
+A type of its own, not a scope octet in ZEROIZE: a radio from before drops type 15 unread (its net control sees "no
+answer"), and keeps taking ZEROIZE as it did. A wipe of the keys can't be read as a wipe of the radio, or the other way
+round, by a radio of another build. The protocol version stays 4.
+
+### 7.11 Radio silence from the net control (SILENCE)
+
+Net > Members > a member > **Radio silence** turns that member's radio silence ([radio-silence.md](radio-silence.md))
+on, or off when the last answer was on. It is taken only when the member's Net > **Remote silence** is On (the
+default, set On again at each join or start, Off by the user's choice, as Remote wipe: the user's rule for remote
+controls) and from a net control that ranks above it; otherwise REFUSED.
+
+- **On:** the member answers SILENT first, then turns silence on once the transport has let the ACK go (or a minute
+  on): nothing is answered under silence (radio-silence.md 3). The silence is saved as the user's own is, and marked
+  as the net control's (settings `otar_sil`).
+- **Off:** only a silence a net control turned on ends here, then SPEAKING. The user's own silence stays, and the
+  radio can't answer under it: the net control sees "no answer". A silence the net control turned on that the user
+  turned off is the user's from then on.
+- **Already silent:** no answer, as under any silence. The net control shows "no answer"; it can't tell a silent
+  radio from one that is off.
+
+The member's user can always turn silence off themselves. The net control's screen shows "Silence: sending, On, Off,
+refused, no answer". A radio from before drops type 14 unread.
+
+### 7.12 Silent revoke
+
+Net > Members > a member > **Silent revoke** (asks first: "Silent revoke? It isn't told. Can't be undone") takes a
+radio out of the net without telling it:
+
+1. The net control makes a throwaway key from the randomness pool and never stores it (with the pool short, as after a
+   key fill, the receiver's noise is gathered first, as for a rekey's key). It sends it to that member
+   alone as a REKEY flagged now and drop (7.1): a keyset number above every number of the net's (its active, its next
+   and a withdrawn one), a key ID none of the net's keysets uses (a new one each try).
+2. The member stores it, changes over to it at once and erases the key it held: no overlap. It answers STORED as for
+   any REKEY. From then it can neither hear nor be heard on the net, and its screen shows nothing new.
+3. The net control revokes it on its roster and the net's (a ROSTER to every other member), but sends the radio
+   itself no ROSTER: it never shows "Removed from the net". Its HELLOs are dropped (a revoked sender), and no later
+   rekey reaches it.
+
+Tried 3 times 20 s apart. With no answer (off, out of range, or lost) the radio is revoked all the same, and the
+screen says "Revoked, no key taken: rekey now": only a rekey of the net locks out a radio that still holds the key.
+A rekey is also the answer when the radio's key may have been copied before the revoke. Nothing else runs meanwhile
+(Revoke, Rekey now and the roster wait). Silent only in that the radio isn't told: its user will notice that the net
+went quiet.
 
 ## 8. Keys in use
 
@@ -1009,6 +1068,32 @@ bits refused, an INVENTORY and a REKEY interleaved, a WITHDRAW from a backup net
 for Request keys under silence. `radioCoreTest` adds the withdrawn key erased while the overlap's erase runs, the
 pending erase saved and cleared, and a replaced next key erased. Every fix was taken out in turn, and a test fails each
 time.
+
+## 29. Every action on one member (as built, 2026-11-27)
+
+The member screen (Net > Members > a member) now holds everything the net does to one radio: Rank, Revoke, Wipe its
+keys, Ask its keys, Get location, **Wipe the radio** (7.10), **Radio silence** (7.11) and **Silent revoke** (7.12).
+Revoke, Silent revoke and both wipes wait for OK. The Net screen gains **Remote silence**, after Share location.
+
+New: messages 14 (SILENCE) and 15 (WIPE), ACK results 12 and 13, the REKEY flag drop (bit 2), the radio request
+`RADIO_OTAR_DROP_PREV` (`radio_aes.c`: the previous keyset ended at once, its key erased), `ui_svc_wipe_all_start`
+(`ui_svc_zeroize.c`: keys and codeplug whatever Wipe what says) and the settings byte `otar_sil`
+([settings-store.md](settings-store.md)).
+
+Found on the bench (four DM-32UVs, 2026-11-27): radio silence on and off from net control 1 to a member, and Wipe the
+radio (the member came back on the built-in channels, out of the net), then the radio joined again by key fill. Two
+fixes came of it: a silent revoke right after a key fill, which had emptied the pool, waited for randomness without
+asking for the receiver's noise (`pool_wanted`), so it stayed "sending"; and a radio joined again still showed what it
+answered before ("Radio wipe: wiped"): a member added by key fill now clears those lines (`ui_svc_net_member_added`).
+
+Tests: `otarEngineTest` (513 checks) adds WIPE refused and taken (the whole radio wiped after its ACK, not Clear all
+keys) and sent as WIPE; SILENCE on answered before silence starts, no answer while silent, off ending only the net
+control's silence and never the user's own, a silence the user ended becoming theirs, Remote silence off refused and
+set on again at a join, and the net control's tries, answers and "no answer"; a REKEY flagged drop changing over and
+erasing the old key at once (and without drop keeping the overlap); a silent revoke's throwaway key (to the member
+alone, above the net's number, a key ID the net doesn't use, never stored), the member revoked with no ROSTER to it,
+nothing else allowed meanwhile, revoked all the same after three tries with no answer, the noise asked for while the
+pool is short, and a radio joined again shown without its old answers.
 
 ## 30. Asking for keys by itself, and Check all members (as built, 2026-11-27)
 

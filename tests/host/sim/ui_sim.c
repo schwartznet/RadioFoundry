@@ -2773,6 +2773,11 @@ static struct {
 	uint32_t sched_at;
 	uint32_t inv_id;
 	uint32_t wipe_id;
+	bool wipe_whole;	// the last wipe was of the whole radio (WIPE)
+	bool sil_off;		// Remote silence off
+	uint32_t sil_id;	// a member's radio silence asked: answered at once, as asked
+	bool sil_on;
+	uint32_t sr_id;		// a silent revoke: done at once, the member revoked
 	uint8_t hello;
 	bool share;		// Share location
 	uint32_t loc_id;	// the member asked where it is: asking until loc:pos, loc:nofix, loc:refused or loc:none
@@ -2817,6 +2822,7 @@ void ui_svc_net_view(ui_net_view_t *v)
 	v->starting = net_sim.starting;
 	v->presses = net_sim.starting ? net_sim.left : 0;
 	v->remote_wipe = net_sim.wipe;
+	v->remote_silence = !net_sim.sil_off;
 	v->share_location = net_sim.share;
 	v->sched_days = net_sim.sched;
 	v->sched_at = net_sim.sched_at;
@@ -2908,14 +2914,45 @@ uint8_t ui_svc_net_take_over(const radio_view_t *v, uint8_t *lost)
 	return net_sim.rank < 2 ? UI_NET_NOT_NC : UI_NET_NO_LOST;
 }
 // A wipe is answered at once: wiped
-uint8_t ui_svc_net_wipe(const radio_view_t *v, uint32_t id)
+uint8_t ui_svc_net_wipe(const radio_view_t *v, uint32_t id, bool whole)
 {
 	int i = sim_member(id);
 	if (i < 0 || id == v->dmr.own_id)
 		return UI_NET_NO_MEMBER;
 	net_sim.wipe_id = id;
+	net_sim.wipe_whole = whole;
 	return UI_NET_OK;
 }
+bool ui_svc_net_wipe_whole(uint32_t id) { return id != 0 && id == net_sim.wipe_id && net_sim.wipe_whole; }
+// Radio silence: answered at once, as asked
+uint8_t ui_svc_net_silence(const radio_view_t *v, uint32_t id, bool on)
+{
+	int i = sim_member(id);
+	if (i < 0 || id == v->dmr.own_id)
+		return UI_NET_NO_MEMBER;
+	net_sim.sil_id = id;
+	net_sim.sil_on = on;
+	return UI_NET_OK;
+}
+uint8_t ui_svc_net_silence_state(uint32_t id, bool *on)
+{
+	*on = net_sim.sil_on;
+	return id != 0 && id == net_sim.sil_id ? (net_sim.sil_on ? UI_SIL_ON : UI_SIL_OFF) : UI_SIL_NONE;
+}
+void ui_svc_net_set_remote_silence(bool on) { net_sim.sil_off = !on; }
+// A silent revoke: the throwaway key taken at once, the member revoked
+uint8_t ui_svc_net_silent_revoke(const radio_view_t *v, uint32_t id)
+{
+	int i = sim_member(id);
+	if (i < 0 || id == v->dmr.own_id)
+		return UI_NET_NO_MEMBER;
+	if (net_sim.flags[i] & UI_NET_M_REVOKED)
+		return UI_NET_NO_MEMBER;
+	net_sim.sr_id = id;
+	net_sim.flags[i] |= UI_NET_M_REVOKED;
+	return UI_NET_OK;
+}
+uint8_t ui_svc_net_silent_revoke_state(uint32_t id) { return id != 0 && id == net_sim.sr_id ? UI_SR_DONE : UI_SR_NONE; }
 bool ui_svc_net_out_of_sync(uint32_t id) { (void)id; return false; }
 uint8_t ui_svc_net_wipe_state(uint32_t id)
 {
@@ -3174,6 +3211,7 @@ bool ui_svc_net_rekey_member(uint16_t i, uint32_t *id, uint8_t *state, uint8_t *
 }
 // Send the roster: on at once, nothing sent (the simulator has no air)
 static ui_roster_view_t ros_sim;
+void ui_svc_net_member_added(uint32_t id) { (void)id; }
 uint8_t ui_svc_net_roster_send(uint32_t only)
 {
 	(void)only;

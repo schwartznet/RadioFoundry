@@ -150,6 +150,8 @@ void ui_svc_net_view(ui_net_view_t *v)
 		(uint8_t)((ENTROPY_FULL - bits + ENTROPY_KEY_BITS - 1u) / ENTROPY_KEY_BITS) : 0;
 	v->remote_wipe = SETTINGS_FIELD(otar_wipe) == 1u;
 	v->share_location = SETTINGS_FIELD(otar_loc_off) == 0u;
+	v->remote_silence = (SETTINGS_FIELD(otar_sil) & SETTINGS_OSIL_OFF) == 0u;
+	v->silenced_by_nc = radio_silent() && (SETTINGS_FIELD(otar_sil) & SETTINGS_OSIL_BY_NC) != 0u;
 	v->removed = (n.flags & OTAR_NET_REMOVED) != 0;
 	if (v->in_net)
 		chan_get(&v->chan);
@@ -214,6 +216,7 @@ static void start_now(uint32_t now)
 	st->otar_net.flags = OTAR_NET_IN;
 	st->otar_wipe = 1u;	// Remote wipe on in a net (otar.md 7.5): a backup net control may be wiped by net control 1
 	st->otar_loc_off = 0u;	// ... and Share location (7.7)
+	st->otar_sil &= (uint8_t)~SETTINGS_OSIL_OFF;	// ... and Remote silence (7.11)
 	otar_seen_clear(st);
 	otar_net_t n = st->otar_net;
 	settings_end(now);
@@ -417,6 +420,7 @@ static struct {
 	uint8_t tek[OTAR_KEY_LEN];
 	uint8_t tek_system, tek_kid;
 	bool tek_now;		// OTAR_RK_NOW: the net's active key, changed over to once stored
+	bool tek_drop;		// ... OTAR_RK_DROP too: the keyset changed over from dropped at once (a silent revoke, 7.12)
 	uint32_t tek_ks;	// its keyset number, the net's
 	uint32_t tek_at;	// the changeover
 	uint32_t cu_to;		// a net control: the net's active key to send this member, which said HELLO without it
@@ -486,12 +490,39 @@ static struct {
 		uint32_t id;		// the member (0 none)
 		uint8_t state;		// UI_ZZ_*
 		bool send, waiting;	// a try to send; one sent, its ACK awaited
+		bool whole;		// WIPE, the whole radio (7.10), not ZEROIZE
 		uint8_t tries;
 		uint32_t sent_num, ack_by;
 	} zz;
-	// A member: a ZEROIZE taken, its ACK built; the wipe starts once the transport has let the ACK go, or by this time
-	bool zz_wipe;
+	// A member: a ZEROIZE (WIPE: zz_whole) taken, its ACK built; the wipe starts once the transport has let the ACK
+	// go, or by this time
+	bool zz_wipe, zz_whole;
 	uint32_t zz_wipe_by;
+	// A net control: the SILENCE asked for (ui_svc_net_silence, 7.11), sent up to SIL_TRIES times until its ACK comes
+	struct {
+		uint32_t id;		// the member (0 none)
+		uint8_t state;		// UI_SIL_*
+		bool on;		// what was asked
+		bool send, waiting;
+		uint8_t tries;
+		uint32_t sent_num, ack_by;
+	} sil;
+	// A member: a SILENCE on taken, its ACK built; silence starts once the transport has let the ACK go (nothing is
+	// sent under it), or by this time
+	bool sil_due;
+	uint32_t sil_by;
+	// A net control: the silent revoke asked for (ui_svc_net_silent_revoke, 7.12): its throwaway REKEY, sent up to
+	// SR_TRIES times until its ACK comes, then the member revoked without being told
+	struct {
+		uint32_t id;		// the member (0 none)
+		uint8_t state;		// UI_SR_*
+		bool send, waiting;
+		bool revoke_due;	// the roster entry still to write (a roster write was under way)
+		uint8_t tries;
+		uint8_t kid;		// the throwaway key's ID (a new one each try)
+		uint32_t keyset;	// ... and its keyset number: above every number of the net's
+		uint32_t sent_num, ack_by;
+	} sr;
 	// A member: when it last told each net control counter's sender its number was old (fresh_or_tell; mask: ever)
 	uint8_t oos_mask;
 	uint32_t oos_at[4];
@@ -546,11 +577,13 @@ static struct {
 // A rekey's key or a new net's key pair still waits for randomness
 static bool pool_wanted(void)
 {
-	return (eng.rk != NULL && !eng.rk->keyed) || net.starting;
+	return (eng.rk != NULL && !eng.rk->keyed) || net.starting || (eng.sr.state == UI_SR_SENDING && eng.sr.send);
 }
 
 #define ROS_TRIES	3u	// a roster entry no ACK came for is sent this many times, then counted as failed
 #define ZZ_TRIES	3u	// ... and a ZEROIZE, then shown as no answer
+#define SIL_TRIES	3u	// ... and a SILENCE
+#define SR_TRIES	3u	// ... and a silent revoke's REKEY
 #define LOC_TRIES	3u	// ... and a LOCATE
 #define LOC_GAP_MS	10000u	// a member answers one net control's LOCATE at most this often (on_locate)
 #define ZZ_SEND_MS	60000u	// a member wiping: its ACK's send given this long (the transport's own limit is 10 s)
@@ -560,6 +593,9 @@ static bool pool_wanted(void)
 #define SCHED_LOOK_MS	10000u	// the rekey schedule is looked at this often
 #define SCHED_CO_MIN	60u	// a scheduled rekey's changeover: this many minutes after it starts, by the clocks
 static void ros_start(uint32_t only, bool one, bool to_it);
+static void sil_set(bool on);
+static void sr_end(uint8_t state);
+static void put_and_tell(const otar_member_t *m, bool to_it);
 static void rk_free(void);
 static bool co_start(const radio_view_t *v, uint8_t kid, uint32_t keyset, uint16_t net_id, uint8_t rank, bool then_local);
 
@@ -874,6 +910,7 @@ __attribute__((noinline)) static void on_rekey(const radio_view_t *v, const uint
 		eng.tek_at = m.changeover;
 		eng.tek_ks = m.keyset;
 		eng.tek_now = now_ks;
+		eng.tek_drop = now_ks && (m.flags & OTAR_RK_DROP) != 0;
 		eng.tek_due = true;
 		crypto_wipe(&m, sizeof m);
 		return;
@@ -1126,7 +1163,7 @@ static __attribute__((noinline)) void ros_stored(const radio_view_t *v, uint32_t
 // its Remote wipe is on and the sender ranks above it. Answered either way: WIPED, built and sent first, then the wipe
 // (engine_tick, once the transport has let it go); REFUSED when the wipe is off or the sender doesn't rank above it
 static __attribute__((noinline)) void on_zeroize(const radio_view_t *v, const uint8_t *msg, int len, uint32_t src,
-						 const otar_net_t *n, uint32_t now)
+						 const otar_net_t *n, uint32_t now, bool whole)
 {
 	otar_member_t nc;
 	if (eng.zz_wipe || !otar_roster_find(src, &nc) || nc.rank == 0 || (nc.flags & OTAR_M_REVOKED))
@@ -1170,7 +1207,58 @@ static __attribute__((noinline)) void on_zeroize(const radio_view_t *v, const ui
 	crypto_wipe(&eng.ack, sizeof eng.ack);
 	rk_free();
 	eng.zz_wipe = true;
+	eng.zz_whole = whole;	// WIPE (7.10): the codeplug too
 	eng.zz_wipe_by = now + ZZ_SEND_MS;
+}
+
+// SILENCE (7.11) from a net control on the roster: radio silence on or off, only when its Remote silence is on and the
+// sender ranks above it. On: SILENT answered first, then silence (engine_tick, once the transport has let it go: an
+// answer isn't sent under silence). Off: only a silence a net control turned on ends here, then SPEAKING; the user's
+// own silence stays, and the radio can't answer under it. A radio already silent answers nothing (radio-silence.md 3)
+static __attribute__((noinline)) void on_silence(const radio_view_t *v, const uint8_t *msg, int len, uint32_t src,
+						 const otar_net_t *n, uint32_t now)
+{
+	otar_member_t nc;
+	if (eng.zz_wipe || eng.sil_due || !otar_roster_find(src, &nc) || nc.rank == 0 || (nc.flags & OTAR_M_REVOKED))
+		return;
+	if (!eng.pair_ok || eng.pair_id != src) {
+		eng.pair_ok = pair_keys(v->dmr.own_id, src, n->net_id, eng.ukek, eng.kmac);
+		eng.pair_id = src;
+		if (!eng.pair_ok)
+			return;
+	}
+	otar_addr_t a = { src, v->dmr.own_id };
+	otar_msg_t *m = &eng.ros_m;
+	if (!otar_open(msg, len, &a, NULL, eng.kmac, m) || m->net_id != n->net_id || !fresh_or_tell(v, n, src, m->msgnum, now))
+		return;
+	bool may = CONFIG_RADIO_SILENCE && (SETTINGS_FIELD(otar_sil) & SETTINGS_OSIL_OFF) == 0u &&
+		   !(n->rank != 0 && nc.rank >= n->rank);
+	bool on = m->on != 0;
+	uint8_t result = OTAR_ACK_REFUSED;
+	if (may && on) {
+		result = OTAR_ACK_SILENT;
+	} else if (may) {
+		if (radio_silent() && (SETTINGS_FIELD(otar_sil) & SETTINGS_OSIL_BY_NC) != 0u)
+			sil_set(false);
+		result = OTAR_ACK_SPEAKING;
+	}
+	if (radio_silent())
+		return;		// silent (the user's own, or already the net control's): nothing goes out
+	uint32_t echo = m->msgnum;
+	memset(m, 0, sizeof *m);
+	m->net_id = n->net_id;
+	m->rank = n->rank;
+	m->result = result;
+	m->echo = echo;
+	m->msgnum = next_msgnum(now);
+	otar_addr_t back = { v->dmr.own_id, src };
+	if (eng.out_len != 0)
+		return;		// another message waits: the net control asks again
+	out_set(src, false, otar_ack_build(eng.out, &back, eng.kmac, m));
+	if (result == OTAR_ACK_SILENT) {
+		eng.sil_due = true;
+		eng.sil_by = now + ZZ_SEND_MS;
+	}
 }
 
 // A net control: a try of the ZEROIZE asked for (ui_svc_net_wipe), once the transport is free; its ACK within
@@ -1194,7 +1282,8 @@ static __attribute__((noinline)) void zz_send(const radio_view_t *v, const otar_
 	m->msgnum = next_msgnum(now);
 	m->target = to;
 	otar_addr_t a = { v->dmr.own_id, to };
-	out_set(to, false, otar_zeroize_build(eng.out, &a, eng.kmac, m));
+	out_set(to, false, eng.zz.whole ? otar_wipe_build(eng.out, &a, eng.kmac, m) :
+			   otar_zeroize_build(eng.out, &a, eng.kmac, m));
 	eng.zz.sent_num = m->msgnum;
 	eng.zz.waiting = true;
 	eng.zz.tries++;
@@ -1665,6 +1754,95 @@ static __attribute__((noinline)) void oos_got(const otar_msg_t *m, uint32_t src,
 }
 
 // The net control: an ACK or a HELLO from a member
+// A net control: the silent revoke ends (7.12): the member revoked on this radio's roster and the net's, never told
+// (no ROSTER to it, no "Removed from the net"); a roster write under way: written at the next tick (sr.revoke_due)
+static void sr_end(uint8_t state)
+{
+	eng.sr.state = state;
+	eng.sr.waiting = false;
+	eng.sr.send = false;
+	eng.sr.revoke_due = true;
+}
+
+static void sr_revoke(void)
+{
+	otar_member_t m;
+	if (net.want_put || net.job_running || eng.ros.on)
+		return;		// asked again next tick
+	eng.sr.revoke_due = false;
+	if (!otar_roster_find(eng.sr.id, &m) || (m.flags & OTAR_M_REVOKED))
+		return;
+	m.flags |= OTAR_M_REVOKED;
+	put_and_tell(&m, false);
+}
+
+// A net control: a try of the silent revoke (7.12): a throwaway key, never stored here, to the member alone, flagged
+// now and drop, under a keyset number above every one of the net's and a key ID the net doesn't use
+static __attribute__((noinline)) void sr_send(const radio_view_t *v, const otar_net_t *n, uint32_t now)
+{
+	uint32_t to = eng.sr.id;
+	if (entropy_bits() < ENTROPY_FULL)
+		return;		// the randomness for the key first (asked again next tick)
+	eng.sr.send = false;
+	uint8_t ukek[OTAR_KEY_LEN], kmac[OTAR_KEY_LEN];
+	if (!pair_keys(v->dmr.own_id, to, n->net_id, ukek, kmac)) {
+		sr_end(UI_SR_NO_ANSWER);
+		return;
+	}
+	uint8_t kid;
+	do {
+		entropy_take(&kid, 1);
+	} while (kid == 0 || (v->otar.has_kid && kid == v->otar.kid) || (v->otar.has_next && kid == v->otar.next_kid) ||
+		 (v->otar.has_prev && kid == v->otar.prev_kid) || kid == eng.sr.kid);
+	eng.sr.kid = kid;
+	otar_msg_t *m = &eng.ros_m;
+	memset(m, 0, sizeof *m);
+	m->net_id = n->net_id;
+	m->rank = n->rank;
+	m->msgnum = next_msgnum(now);
+	m->keyset = eng.sr.keyset;
+	m->ckr = 1;
+	m->kid = kid;
+	m->flags = OTAR_RK_NOW | OTAR_RK_DROP;
+	entropy_take(m->tek, OTAR_KEY_LEN);
+	otar_addr_t a = { v->dmr.own_id, to };
+	out_set(to, false, otar_rekey_build(eng.out, &a, ukek, kmac, m));
+	eng.sr.sent_num = m->msgnum;
+	eng.sr.waiting = true;
+	eng.sr.tries++;
+	eng.sr.ack_by = now + ACK_WAIT_MS;
+	crypto_wipe(m, sizeof *m);
+	crypto_wipe(ukek, sizeof ukek);
+	crypto_wipe(kmac, sizeof kmac);
+}
+
+// A net control: a try of the SILENCE asked for (ui_svc_net_silence, 7.11)
+static __attribute__((noinline)) void sil_send(const radio_view_t *v, const otar_net_t *n, uint32_t now)
+{
+	uint32_t to = eng.sil.id;
+	eng.sil.send = false;
+	if (!eng.pair_ok || eng.pair_id != to) {
+		eng.pair_ok = pair_keys(v->dmr.own_id, to, n->net_id, eng.ukek, eng.kmac);
+		eng.pair_id = to;
+	}
+	if (!eng.pair_ok) {
+		eng.sil.state = UI_SIL_NO_ANSWER;
+		return;
+	}
+	otar_msg_t *m = &eng.ros_m;
+	memset(m, 0, sizeof *m);
+	m->net_id = n->net_id;
+	m->rank = n->rank;
+	m->msgnum = next_msgnum(now);
+	m->on = eng.sil.on ? 1u : 0u;
+	otar_addr_t a = { v->dmr.own_id, to };
+	out_set(to, false, otar_silence_build(eng.out, &a, eng.kmac, m));
+	eng.sil.sent_num = m->msgnum;
+	eng.sil.waiting = true;
+	eng.sil.tries++;
+	eng.sil.ack_by = now + ACK_WAIT_MS;
+}
+
 __attribute__((noinline)) static void on_member(const radio_view_t *v, const uint8_t *msg, int len, uint32_t src, const otar_net_t *n, uint32_t now)
 {
 	rekey_t *rk = eng.rk;
@@ -1673,6 +1851,7 @@ __attribute__((noinline)) static void on_member(const radio_view_t *v, const uin
 	bool want = msg[2] == OTAR_ACK &&
 		    ((rk != NULL && rk->cur != 0xFF && rk->m[rk->cur].id == src) || (eng.ros.waiting && eng.ros.dst == src) ||
 		     (eng.inv.state != UI_INV_NONE && eng.inv.id == src) || (eng.zz.waiting && eng.zz.id == src) ||
+		     (eng.sil.waiting && eng.sil.id == src) || (eng.sr.waiting && eng.sr.id == src) ||
 	     (eng.loc.waiting && eng.loc.id == src));	// a LOCATE's "old message number"
 	bool ack = msg[2] == OTAR_ACK;
 	if (ack)
@@ -1713,6 +1892,25 @@ __attribute__((noinline)) static void on_member(const radio_view_t *v, const uin
 	if (m.type == OTAR_ACK && eng.zz.waiting && src == eng.zz.id && m.echo == eng.zz.sent_num) {
 		eng.zz.waiting = false;
 		eng.zz.state = m.result == OTAR_ACK_WIPED ? UI_ZZ_WIPED : UI_ZZ_REFUSED;
+		return;
+	}
+	// A SILENCE's: on, off, or refused (its Remote silence off, or this radio not above it)
+	if (m.type == OTAR_ACK && eng.sil.waiting && src == eng.sil.id && m.echo == eng.sil.sent_num) {
+		eng.sil.waiting = false;
+		eng.sil.state = m.result == OTAR_ACK_SILENT ? UI_SIL_ON : m.result == OTAR_ACK_SPEAKING ? UI_SIL_OFF :
+				UI_SIL_REFUSED;
+		return;
+	}
+	// A silent revoke's REKEY: stored (or held), then the member revoked; refused: another key ID, another try
+	if (m.type == OTAR_ACK && eng.sr.waiting && src == eng.sr.id && m.echo == eng.sr.sent_num &&
+	    m.keyset == eng.sr.keyset) {
+		eng.sr.waiting = false;
+		if (m.result == OTAR_ACK_STORED || m.result == OTAR_ACK_HELD)
+			sr_end(UI_SR_DONE);
+		else if (eng.sr.tries < SR_TRIES)
+			eng.sr.send = true;
+		else
+			sr_end(UI_SR_REFUSED);
 		return;
 	}
 	if (m.type == OTAR_ACK && m.ckr == 0) {		// a roster entry's
@@ -2065,8 +2263,11 @@ static __attribute__((noinline)) void tek_stored(const radio_view_t *v, uint32_t
 		radio_req_otar(RADIO_OTAR_NEXT_KS, eng.tek_ks);	// the net's number, not this radio's own count
 		if (eng.tek_now)
 			radio_req_otar(RADIO_OTAR_NOW, 0);	// the net's active key: this radio catches up (otar.md 9)
+		if (eng.tek_drop)
+			radio_req_otar(RADIO_OTAR_DROP_PREV, 0);	// ... and the key it held goes at once (7.12)
 	}
 	eng.tek_now = false;
+	eng.tek_drop = false;
 	eng.ack.msgnum = next_msgnum(now);
 	otar_addr_t a = { v->dmr.own_id, eng.ack_to };
 	out_set(eng.ack_to, false, otar_ack_build(eng.out, &a, eng.kmac, &eng.ack));
@@ -2154,6 +2355,7 @@ void ui_svc_net_joined(void)
 	settings_t *st = settings_begin();
 	st->otar_wipe = 1u;
 	st->otar_loc_off = 0u;	// Share location the same (7.7)
+	st->otar_sil &= (uint8_t)~SETTINGS_OSIL_OFF;	// ... and Remote silence (7.11)
 	settings_end(hal_millis());
 }
 
@@ -2324,6 +2526,22 @@ static __attribute__((noinline)) bool sched_tick(const radio_view_t *v, uint32_t
 	return true;
 }
 
+// A member: radio silence turned on or off by a net control (7.11), saved as the user's own is (radio-silence.md), and
+// marked as the net control's so that only its SILENCE off, never the user's own, is ended by one
+static void sil_set(bool on)
+{
+#if CONFIG_RADIO_SILENCE
+	settings_t *st = settings_begin();
+	st->otar_sil = on ? (uint8_t)(st->otar_sil | SETTINGS_OSIL_BY_NC) : (uint8_t)(st->otar_sil & ~SETTINGS_OSIL_BY_NC);
+	settings_end(hal_millis());
+	ui_svc_setting_set(UI_SET_SILENCE, on);
+	ui_svc_apply(UI_SET_SILENCE, on);
+	radio_silence_set(on);	// at once: the radio task takes the setting at its next turn
+#else
+	(void)on;
+#endif
+}
+
 // A member: the wipe a ZEROIZE asked for, its ACK gone first (on_zeroize)
 static void zz_wipe_start(void)
 {
@@ -2331,8 +2549,12 @@ static void zz_wipe_start(void)
 	crypto_wipe(eng.out, sizeof eng.out);
 	eng.out_len = 0;
 #if CONFIG_ZEROIZE
-	(void)ui_svc_clear_keys_start();
+	if (eng.zz_whole)
+		(void)ui_svc_wipe_all_start();	// WIPE (7.10): keys and codeplug, whatever Wipe what says
+	else
+		(void)ui_svc_clear_keys_start();
 #endif
+	eng.zz_whole = false;
 }
 
 // Check all members: member mm's INVENTORY answered (eng.inv), against this radio's keysets. OK: its active keyset is
@@ -2522,8 +2744,10 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 				on_rekey(v, msg, len, src, &n, now);
 			else if (h.type == OTAR_CHANGEOVER && group && src != v->dmr.own_id)
 				on_changeover(v, msg, len, src, dst, &n, now);
-			else if (h.type == OTAR_ZEROIZE && !group)
-				on_zeroize(v, msg, len, src, &n, now);
+			else if ((h.type == OTAR_ZEROIZE || h.type == OTAR_WIPE) && !group)
+				on_zeroize(v, msg, len, src, &n, now, h.type == OTAR_WIPE);
+			else if (h.type == OTAR_SILENCE && !group && src != v->dmr.own_id)
+				on_silence(v, msg, len, src, &n, now);
 			else if (h.type == OTAR_ROSTER && !group)
 				on_roster(v, msg, len, src, &n, now);
 			else if (h.type == OTAR_INVENTORY && !group && src != v->dmr.own_id)
@@ -2615,6 +2839,47 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 	if (n.rank != 0 && (uint32_t)(now - eng.sched_ms) >= SCHED_LOOK_MS) {
 		eng.sched_ms = now;
 		changed = sched_tick(v, now) || changed;
+	}
+	// A member: radio silence a net control turned on, once its ACK has gone (on_silence). A silence the net control
+	// turned on that the user ended meanwhile isn't the net control's any more
+	if (eng.sil_due && ((eng.out_len == 0 && !eng.sending) || (int32_t)(now - eng.sil_by) >= 0)) {
+		eng.sil_due = false;
+		sil_set(true);
+		changed = true;
+	} else if (!eng.sil_due && !radio_silent() && (SETTINGS_FIELD(otar_sil) & SETTINGS_OSIL_BY_NC) != 0u) {
+		settings_t *st = settings_begin();
+		st->otar_sil &= (uint8_t)~SETTINGS_OSIL_BY_NC;
+		settings_end(now);
+	}
+	// A SILENCE asked for: a try, its ACK's wait, the next try
+	if (eng.sil.waiting && (int32_t)(now - eng.sil.ack_by) >= 0) {
+		eng.sil.waiting = false;
+		if (eng.sil.tries < SIL_TRIES)
+			eng.sil.send = true;
+		else
+			eng.sil.state = UI_SIL_NO_ANSWER;
+		changed = true;
+	}
+	if (eng.sil.send && n.rank != 0 && mn_ok && eng.out_len == 0 && !eng.sending && !eng.ros.waiting && eng.rk == NULL) {
+		sil_send(v, &n, now);
+		changed = true;
+	}
+	// A silent revoke asked for: the same, then the revoke (also after no answer: the radio may be lost)
+	if (eng.sr.waiting && (int32_t)(now - eng.sr.ack_by) >= 0) {
+		eng.sr.waiting = false;
+		if (eng.sr.tries < SR_TRIES)
+			eng.sr.send = true;
+		else
+			sr_end(UI_SR_NO_ANSWER);
+		changed = true;
+	}
+	if (eng.sr.send && n.rank != 0 && mn_ok && eng.out_len == 0 && !eng.sending && !eng.ros.waiting && eng.rk == NULL) {
+		sr_send(v, &n, now);
+		changed = true;
+	}
+	if (eng.sr.revoke_due && n.rank != 0) {
+		sr_revoke();
+		changed = true;
 	}
 	// A ZEROIZE asked for: a try, its ACK's wait, the next try
 	if (eng.zz.waiting && (int32_t)(now - eng.zz.ack_by) >= 0) {
@@ -2911,6 +3176,23 @@ bool ui_svc_net_rekey_member(uint16_t i, uint32_t *id, uint8_t *state, uint8_t *
 	*tries = rk->m[i].tries;
 	return true;
 }
+// A member added (again) by key fill: what was asked of the radio before (a wipe, silence, a silent revoke, its keys,
+// its location) is no longer shown on its screen; one still under way is left to finish. Found on the bench: a radio
+// wiped and joined again still showed "Radio wipe: wiped"
+void ui_svc_net_member_added(uint32_t id)
+{
+	if (id == eng.zz.id && eng.zz.state != UI_ZZ_SENDING)
+		memset(&eng.zz, 0, sizeof eng.zz);
+	if (id == eng.sil.id && eng.sil.state != UI_SIL_SENDING)
+		memset(&eng.sil, 0, sizeof eng.sil);
+	if (id == eng.sr.id && eng.sr.state != UI_SR_SENDING && !eng.sr.revoke_due)
+		memset(&eng.sr, 0, sizeof eng.sr);
+	if (id == eng.inv.id && eng.inv.state != UI_INV_ASKING)
+		memset(&eng.inv, 0, sizeof eng.inv);
+	if (id == eng.loc.id && eng.loc.state != UI_LOC_ASKING)
+		memset(&eng.loc, 0, sizeof eng.loc);
+}
+
 uint8_t ui_svc_net_roster_send(uint32_t only)
 {
 	otar_net_t n;
@@ -2979,7 +3261,8 @@ static uint8_t own_rank(void)
 
 static bool net_busy(void)
 {
-	return eng.rk != NULL || eng.ros.on || net.want_put || net.job_running;
+	return eng.rk != NULL || eng.ros.on || net.want_put || net.job_running || eng.sr.state == UI_SR_SENDING ||
+	       eng.sr.revoke_due;
 }
 
 static void ros_start(uint32_t only, bool one, bool to_it)
@@ -3064,7 +3347,7 @@ uint8_t ui_svc_net_take_over(const radio_view_t *v, uint8_t *lost)
 	return UI_NET_OK;
 }
 
-uint8_t ui_svc_net_wipe(const radio_view_t *v, uint32_t id)
+uint8_t ui_svc_net_wipe(const radio_view_t *v, uint32_t id, bool whole)
 {
 	if (own_rank() == 0)
 		return UI_NET_NOT_NC;
@@ -3077,8 +3360,75 @@ uint8_t ui_svc_net_wipe(const radio_view_t *v, uint32_t id)
 	memset(&eng.zz, 0, sizeof eng.zz);
 	eng.zz.id = id;
 	eng.zz.state = UI_ZZ_SENDING;
+	eng.zz.whole = whole;
 	eng.zz.send = true;
 	return UI_NET_OK;
+}
+
+bool ui_svc_net_wipe_whole(uint32_t id)
+{
+	return id != 0 && id == eng.zz.id && eng.zz.whole;
+}
+
+uint8_t ui_svc_net_silence(const radio_view_t *v, uint32_t id, bool on)
+{
+	if (own_rank() == 0)
+		return UI_NET_NOT_NC;
+	otar_member_t m;
+	if (id == v->dmr.own_id || !otar_roster_find(id, &m) || (m.flags & OTAR_M_REVOKED) ||
+	    (m.rank != 0 && m.rank <= own_rank()))
+		return UI_NET_NO_MEMBER;	// as a wipe: a net control only of a lower rank (7.11)
+	if (eng.sil.state == UI_SIL_SENDING)
+		return UI_NET_BUSY;
+	memset(&eng.sil, 0, sizeof eng.sil);
+	eng.sil.id = id;
+	eng.sil.on = on;
+	eng.sil.state = UI_SIL_SENDING;
+	eng.sil.send = true;
+	return UI_NET_OK;
+}
+
+uint8_t ui_svc_net_silence_state(uint32_t id, bool *on)
+{
+	*on = eng.sil.on;
+	return id != 0 && id == eng.sil.id ? eng.sil.state : (uint8_t)UI_SIL_NONE;
+}
+
+uint8_t ui_svc_net_silent_revoke(const radio_view_t *v, uint32_t id)
+{
+	uint8_t own = own_rank();
+	if (own == 0)
+		return UI_NET_NOT_NC;
+	if (!v->otar.on)
+		return UI_NET_NOT_MANAGED;
+	if (net_busy())
+		return UI_NET_BUSY;
+	otar_member_t m;
+	if (id == v->dmr.own_id || !otar_roster_find(id, &m) || (m.flags & OTAR_M_REVOKED))
+		return UI_NET_NO_MEMBER;
+	if (m.rank != 0 && m.rank <= own)
+		return UI_NET_HIGHER;
+	// Above the net's every number, a withdrawn one too: the member may hold any of them, and takes only a higher one
+	uint8_t ckid;
+	uint32_t ks = v->otar.keyset;
+	if (v->otar.has_next && v->otar.next_keyset > ks)
+		ks = v->otar.next_keyset;
+	uint32_t cut = cut_get(&ckid);
+	if (cut > ks)
+		ks = cut;
+	if (ks >= 0xFFFFu)
+		return UI_NET_BUSY;
+	memset(&eng.sr, 0, sizeof eng.sr);
+	eng.sr.id = id;
+	eng.sr.keyset = ks + 1u;
+	eng.sr.state = UI_SR_SENDING;
+	eng.sr.send = true;
+	return UI_NET_OK;
+}
+
+uint8_t ui_svc_net_silent_revoke_state(uint32_t id)
+{
+	return id != 0 && id == eng.sr.id ? eng.sr.state : (uint8_t)UI_SR_NONE;
 }
 
 bool ui_svc_net_out_of_sync(uint32_t id)
@@ -3117,6 +3467,13 @@ void ui_svc_net_set_share_location(bool on)
 {
 	settings_t *st = settings_begin();
 	st->otar_loc_off = on ? 0u : 1u;
+	settings_end(hal_millis());
+}
+
+void ui_svc_net_set_remote_silence(bool on)
+{
+	settings_t *st = settings_begin();
+	st->otar_sil = on ? (uint8_t)(st->otar_sil & ~SETTINGS_OSIL_OFF) : (uint8_t)(st->otar_sil | SETTINGS_OSIL_OFF);
 	settings_end(hal_millis());
 }
 

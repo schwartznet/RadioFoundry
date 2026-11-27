@@ -17,6 +17,7 @@ static volatile uint8_t state;		// UI_WIPE_*: set by the UI task, then by the jo
 static volatile uint8_t failed;
 static volatile bool posted;		// the job is in the slot or running
 static volatile bool keys_req;		// this wipe erases the keys only, whatever the scope setting (Clear all keys)
+static volatile bool all_req;		// ... the keys and the codeplug, whatever the scope setting (a net control's WIPE)
 
 bool ui_svc_wipe_code_set(const char code[4])
 {
@@ -31,7 +32,7 @@ bool ui_svc_wipe_code_check(const char code[4])
 static void wipe_job(void *ctx)
 {
 	(void)ctx;
-	uint8_t f = zeroize_run(keys_req || zeroize_keys_only());
+	uint8_t f = zeroize_run(keys_req || (!all_req && zeroize_keys_only()));
 	failed = f;
 	if (f == 0) {
 		state = UI_WIPE_DONE;
@@ -52,10 +53,11 @@ static void post(void)
 	}
 }
 
-static bool start(bool keys_only)
+static bool start(bool keys_only, bool all)
 {
 	if (!posted) {
 		keys_req = keys_only;
+		all_req = all;
 		failed = 0;
 		state = UI_WIPE_RUNNING;
 		post();
@@ -65,12 +67,17 @@ static bool start(bool keys_only)
 
 bool ui_svc_wipe_start(void)
 {
-	return start(false);
+	return start(false, false);
 }
 
 bool ui_svc_clear_keys_start(void)
 {
-	return start(true);
+	return start(true, false);
+}
+
+bool ui_svc_wipe_all_start(void)
+{
+	return start(false, true);
 }
 
 uint8_t ui_svc_wipe_state(uint8_t *out)

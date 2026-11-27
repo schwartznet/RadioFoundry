@@ -5368,6 +5368,11 @@ msgid "Check all members"
 msgstr "Verifica tutti"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_REMOTE_SILENCE"
+msgid "Remote silence"
+msgstr "Silenzio remoto"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_ON"
 msgid "On"
 msgstr "Sì"
@@ -5743,6 +5748,21 @@ msgid "Get location"
 msgstr "Chiedi la posizione"
 
 #: core/ui/ui_menus.c
+msgctxt "NM_WIPE_ALL"
+msgid "Wipe the radio"
+msgstr "Cancella la radio"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_SILENCE"
+msgid "Radio silence"
+msgstr "Silenzio radio"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_SREVOKE"
+msgid "Silent revoke"
+msgstr "Revoca silenziosa"
+
+#: core/ui/ui_menus.c
 msgctxt "NM_MEMBER"
 msgid "member"
 msgstr "membro"
@@ -5793,6 +5813,16 @@ msgid "Revoke it? This can't be undone"
 msgstr "Revocarla? Non si può annullare"
 
 #: core/ui/ui_menus.c
+msgctxt "NM_ASK_SREVOKE"
+msgid "Silent revoke? It isn't told. Can't be undone"
+msgstr "Revoca silenziosa? Non viene avvisata. Irreversibile"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_ASK_WIPE_ALL"
+msgid "Wipe the whole radio? Keys and channels"
+msgstr "Cancellare tutta la radio? Chiavi e canali"
+
+#: core/ui/ui_menus.c
 msgctxt "NM_ASK_WIPE"
 msgid "Wipe its keys? It leaves the net"
 msgstr "Cancellare le sue chiavi? Esce dalla rete"
@@ -5801,6 +5831,11 @@ msgstr "Cancellare le sue chiavi? Esce dalla rete"
 msgctxt "NM_SYNC"
 msgid "Out of sync: rejoin"
 msgstr "Non sincronizzata: riunire"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WIPE_ALL_IS"
+msgid "Radio wipe: "
+msgstr "Cancellazione radio: "
 
 #: core/ui/ui_menus.c
 msgctxt "NM_WIPE_IS"
@@ -5816,6 +5851,26 @@ msgstr "invio in corso"
 msgctxt "NM_WIPE_DONE"
 msgid "wiped"
 msgstr "fatta"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_SIL_IS"
+msgid "Silence: "
+msgstr "Silenzio: "
+
+#: core/ui/ui_menus.c
+msgctxt "NM_SR_SENDING"
+msgid "Silent revoke: sending"
+msgstr "Revoca silenziosa: invio"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_SR_DONE"
+msgid "Silent revoke: done"
+msgstr "Revoca silenziosa: fatta"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_SR_UNSURE"
+msgid "Revoked, no key taken: rekey now"
+msgstr "Revocata senza chiave nuova: cambia le chiavi ora"
 
 #: core/ui/ui_menus.c
 msgctxt "NM_KEYS"
@@ -5861,6 +5916,26 @@ msgstr "Revocata: cambia chiave ora"
 msgctxt "NM_WHY_HIGHER"
 msgid "A higher net control: use Take over"
 msgstr "Controllo superiore: Prendi il controllo"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_SIL_ON_SENT"
+msgid "Silence on sent"
+msgstr "Silenzio attivo inviato"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_SIL_OFF_SENT"
+msgid "Silence off sent"
+msgstr "Silenzio disattivo inviato"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_SR_SENT"
+msgid "Sending it a throwaway key"
+msgstr "Invio di una chiave usa e getta"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WHY_NO_KEYS"
+msgid "This radio manages no keys"
+msgstr "Questa radio non gestisce chiavi"
 
 #: core/ui/ui_menus.c
 msgctxt "NM_WIPE_SENT"
