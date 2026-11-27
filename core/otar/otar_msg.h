@@ -44,6 +44,8 @@ enum { OTAR_POS_OK = 0, OTAR_POS_NO_FIX = 1, OTAR_POS_REFUSED = 2 };
 #define OTAR_RK_NOW	0x02u	// the net's active key: change over to it once stored (a member that missed it, 9)
 #define OTAR_RK_DROP	0x04u	// with NOW: the keyset changed over from dropped and its key erased at once, no
 				// overlap (a silent revoke, 7.12)
+#define OTAR_RK_RESET	0x08u	// with NOW, from the authority: the net's active keyset, taken whatever its number by a
+				// radio that joined in the last OTAR_RESET_MS; its keysets start again from it (7.12)
 
 // ACK results (7.2). WIPED: a ZEROIZE taken, the keys wiped once this ACK has gone (7.5). CURRENT: a net control's
 // answer to a HELLO when it has nothing to send the member, keyset its own active one (9; NOT_MANAGED when it manages

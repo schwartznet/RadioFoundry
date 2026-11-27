@@ -400,6 +400,9 @@ static struct {
 	uint8_t tek_system, tek_kid;
 	bool tek_now;		// OTAR_RK_NOW: the net's active key, changed over to once stored
 	bool tek_drop;		// ... OTAR_RK_DROP too: the keyset changed over from dropped at once (a silent revoke, 7.12)
+	bool tek_reset;		// ... OTAR_RK_RESET: the keysets start again from this one (a radio that joined again, 7.12)
+	bool cu_reset;		// a net control: the catch-up to cu_to flagged reset (its HELLO named a keyset this net never had)
+	uint32_t joined_at;	// a member: when it last joined by key fill (0 never): a reset is taken OTAR_RESET_MS after
 	uint32_t tek_ks;	// its keyset number, the net's
 	uint32_t tek_at;	// the changeover
 	uint32_t cu_to;		// a net control: the net's active key to send this member, which said HELLO without it
@@ -557,6 +560,7 @@ static bool pool_wanted(void)
 #define ZZ_TRIES	3u	// ... and a ZEROIZE, then shown as no answer
 #define SIL_TRIES	3u	// ... and a SILENCE
 #define SR_TRIES	3u	// ... and a silent revoke's REKEY
+#define OTAR_RESET_MS	600000u	// a radio takes the authority's reset this long after it joined by key fill (7.12)
 #define LOC_TRIES	3u	// ... and a LOCATE
 #define LOC_GAP_MS	10000u	// a member answers one net control's LOCATE at most this often (on_locate)
 #define ZZ_SEND_MS	60000u	// a member wiping: its ACK's send given this long (the transport's own limit is 10 s)
@@ -849,6 +853,11 @@ __attribute__((noinline)) static void on_rekey(const radio_view_t *v, const uint
 	(void)kcv_traffic(CODEPLUG_SYSTYPE_DMR_AES, DMR_AES_ALG_AES256, m.tek, OTAR_KEY_LEN, eng.ack.kcv);
 	// A resend of the keyset this radio holds: the same key ID and the same key (its check value), else refused
 	bool now_ks = (m.flags & OTAR_RK_NOW) != 0;
+	// The authority's reset (7.12): this radio joined by key fill a few minutes ago, so its own keyset numbers belong to
+	// an earlier membership (a silent revoke's throwaway key, numbered above the net's); the net's active keyset is
+	// taken whatever its number. Never later: an older keyset can't be pushed on a radio that is a member
+	bool reset = now_ks && (m.flags & OTAR_RK_RESET) != 0 && src == authority() && eng.joined_at != 0 &&
+		     (uint32_t)(now - eng.joined_at) < OTAR_RESET_MS && m.keyset != 0 && m.keyset <= 0xFFFFu;
 	bool is_next = v->otar.has_next && m.keyset == v->otar.next_keyset && v->otar.next_kid == m.kid;
 	bool is_active = now_ks && m.keyset == v->otar.keyset && v->otar.kid == m.kid;
 	uint8_t have[KCV_LEN];
@@ -856,7 +865,7 @@ __attribute__((noinline)) static void on_rekey(const radio_view_t *v, const uint
 		eng.ack.result = OTAR_ACK_NOT_MANAGED;
 	} else if (m.changeover >= 0x1000000u) {
 		eng.ack.result = OTAR_ACK_REFUSED;	// past the radio's 24-bit changeover (31 years): it would wrap
-	} else if (is_next || is_active) {
+	} else if (!reset && (is_next || is_active)) {
 		eng.ack.result = key_kcv(v->otar.system, m.kid, have) && memcmp(have, eng.ack.kcv, KCV_LEN) == 0 ?
 				 OTAR_ACK_HELD : OTAR_ACK_REFUSED;
 		// The net's active key flagged now, and this radio holds it as its next: it missed the changeover by hand.
@@ -866,10 +875,11 @@ __attribute__((noinline)) static void on_rekey(const radio_view_t *v, const uint
 		// The next keyset sent again with another changeover: the net control moved the change (Move the change, 7.9)
 		else if (eng.ack.result == OTAR_ACK_HELD && is_next && m.changeover != v->otar.changeover)
 			radio_req_otar(RADIO_OTAR_NEXT_AT, m.kid | (m.changeover << 8));
-	} else if (m.keyset <= v->otar.keyset || (v->otar.has_next && m.keyset < v->otar.next_keyset)) {
+	} else if (!reset && (m.keyset <= v->otar.keyset || (v->otar.has_next && m.keyset < v->otar.next_keyset))) {
 		eng.ack.result = OTAR_ACK_OLD;	// keyset numbers only go up (7.1): never back to an older key
-	} else if ((m.keyset > (uint32_t)v->otar.keyset + KEYSET_STEP_MAX && !(now_ks && src == authority())) ||
-		   m.keyset > 0xFFFFu || m.kid == v->otar.kid || (v->otar.has_prev && m.kid == v->otar.prev_kid)) {
+	} else if (!reset &&
+		   ((m.keyset > (uint32_t)v->otar.keyset + KEYSET_STEP_MAX && !(now_ks && src == authority())) ||
+		    m.keyset > 0xFFFFu || m.kid == v->otar.kid || (v->otar.has_prev && m.kid == v->otar.prev_kid))) {
 		// Too far ahead (one sender could park the net on a number nobody else reaches), or a key ID in use: the
 		// active key's record would be overwritten (7.1). The authority's catch-up (flagged now) is the net's own
 		// number however far: a radio off through many rekeys, or cleared and joined again, takes it (found on air: a
@@ -884,6 +894,7 @@ __attribute__((noinline)) static void on_rekey(const radio_view_t *v, const uint
 		eng.tek_ks = m.keyset;
 		eng.tek_now = now_ks;
 		eng.tek_drop = now_ks && (m.flags & OTAR_RK_DROP) != 0;
+		eng.tek_reset = reset;
 		eng.tek_due = true;
 		crypto_wipe(&m, sizeof m);
 		return;
@@ -1605,6 +1616,13 @@ static __attribute__((noinline)) void hello_answer(const radio_view_t *v, const 
 		return;
 	rekey_t *rk = eng.rk;
 	bool behind = v->otar.on && m->keyset < v->otar.keyset;
+	// Ahead on a keyset this net never had (above the active one, not the next one, not one withdrawn): a silent
+	// revoke's throwaway, held by a radio joined again (7.12). The authority sends the active key flagged reset, which
+	// that radio takes for a while after joining; any other radio refuses it
+	uint8_t ckid;
+	uint32_t cut_ks = cut_get(&ckid);
+	bool ahead = v->otar.on && v->dmr.own_id == authority() && m->keyset > v->otar.keyset &&
+		     !(v->otar.has_next && m->keyset == v->otar.next_keyset) && m->keyset != cut_ks;
 	bool answered = false;
 	for (uint8_t i = 0; rk != NULL && i < rk->n; i++) {
 		rk_member_t *mm = &rk->m[i];
@@ -1622,11 +1640,12 @@ static __attribute__((noinline)) void hello_answer(const radio_view_t *v, const 
 		eng.wd_to = src;
 		answered = true;
 	}
-	if (!answered && behind && rk == NULL) {
+	if (!answered && (behind || ahead) && rk == NULL) {
 		eng.cu_to = src;	// sent by cu_send once the transport is free
+		eng.cu_reset = ahead;
 		answered = true;
 	}
-	if (!answered && !behind && eng.out_len == 0) {
+	if (!answered && !behind && !ahead && eng.out_len == 0) {
 		otar_msg_t *a = &eng.ros_m;
 		memset(a, 0, sizeof *a);
 		a->net_id = n->net_id;
@@ -2221,7 +2240,10 @@ static __attribute__((noinline)) void tek_stored(const radio_view_t *v, uint32_t
 	eng.tek_done = false;
 	crypto_wipe(eng.tek, sizeof eng.tek);
 	eng.ack.result = eng.tek_ok ? OTAR_ACK_STORED : OTAR_ACK_STORE_FAILED;
-	if (eng.tek_ok) {
+	if (eng.tek_ok && eng.tek_reset) {
+		// The net's active keyset, this radio's keysets started again from it (7.12)
+		radio_req_otar(RADIO_OTAR_RESET, eng.tek_kid | ((uint32_t)eng.tek_ks << 8));
+	} else if (eng.tek_ok) {
 		radio_req_otar(RADIO_OTAR_NEXT_AT, eng.tek_kid | (eng.tek_at << 8));
 		radio_req_otar(RADIO_OTAR_NEXT_KS, eng.tek_ks);	// the net's number, not this radio's own count
 		if (eng.tek_now)
@@ -2231,6 +2253,7 @@ static __attribute__((noinline)) void tek_stored(const radio_view_t *v, uint32_t
 	}
 	eng.tek_now = false;
 	eng.tek_drop = false;
+	eng.tek_reset = false;
 	eng.ack.msgnum = next_msgnum(now);
 	otar_addr_t a = { v->dmr.own_id, eng.ack_to };
 	out_set(eng.ack_to, false, otar_ack_build(eng.out, &a, eng.kmac, &eng.ack));
@@ -2256,7 +2279,7 @@ static __attribute__((noinline)) void cu_send(const radio_view_t *v, const otar_
 		m->keyset = v->otar.keyset;
 		m->ckr = 1;
 		m->kid = v->otar.kid;
-		m->flags = OTAR_RK_NOW;
+		m->flags = (uint8_t)(OTAR_RK_NOW | (eng.cu_reset ? OTAR_RK_RESET : 0u));
 		otar_addr_t a = { v->dmr.own_id, to };
 		out_set(to, false, otar_rekey_build(eng.out, &a, ukek, kmac, m));
 	}
@@ -2314,6 +2337,8 @@ static __attribute__((noinline)) void ch_send(const radio_view_t *v, const otar_
 void ui_svc_net_joined(void)
 {
 	eng.manage_due = true;
+	uint32_t now = hal_millis();
+	eng.joined_at = now != 0 ? now : 1u;	// the authority's reset taken for a while (7.12)
 	net.chan_due = true;	// the net's channel: the one it joined on, until its net control says another (7.8)
 	settings_t *st = settings_begin();
 	st->otar_wipe = 1u;
@@ -2503,6 +2528,8 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 	if (in != eng.open) {
 		otar_svc_open(in);
 		eng.open = in;
+		if (!in)
+			eng.joined_at = 0;	// out of the net: a reset is taken only after the next join (7.12)
 		memset(&eng.hello, 0, sizeof eng.hello);
 		eng.hello.on = true;
 		eng.hello.due = now + HELLO_AFTER_MS;

@@ -306,6 +306,23 @@ bool radio_aes_otar_request(uint8_t op, uint32_t value, const channel_t *ch, uin
 			return false;
 		change_over(now_ms);
 		return true;	// saved by change_over
+	case RADIO_OTAR_RESET: {
+		// A radio that joined again after a silent revoke (otar.md 7.12): the net's active keyset, whatever this radio's
+		// numbers were, and every other key it held erased (a throwaway among them)
+		uint8_t kid = (uint8_t)value, old;
+		uint16_t ks = (uint16_t)(value >> 8);
+		if (!otar_on(&otar) || ks == 0)
+			return false;
+		static const uint8_t which[] = { OTAR_ACTIVE, OTAR_NEXT, OTAR_PREV };
+		for (unsigned i = 0; i < sizeof which; i++)
+			if (otar_kid(&otar, which[i], 1, &old) && old != kid)
+				erase_later(old);
+		uint8_t system = otar_system(&otar);
+		prev_live = false;
+		otar_start(&otar, system, kid);
+		otar.ks_active = ks;
+		break;
+	}
 	case RADIO_OTAR_DROP_PREV:
 		// A silent revoke (otar.md 7.12): the key this radio changed over from goes at once, not after the overlap
 		if (!(otar.flags & OTAR_F_PREV))

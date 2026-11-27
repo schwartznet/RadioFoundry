@@ -475,8 +475,11 @@ typedef struct {
 } radio_otar_view_t;
 // radio_req_otar's operations
 enum { RADIO_OTAR_START, RADIO_OTAR_STOP, RADIO_OTAR_NEXT, RADIO_OTAR_CLEAR_NEXT, RADIO_OTAR_NOW, RADIO_OTAR_CLOCK,
-       RADIO_OTAR_NEXT_AT, RADIO_OTAR_TIME, RADIO_OTAR_NEXT_KS, RADIO_OTAR_DROP_NEXT, RADIO_OTAR_DROP_PREV };
-// DROP_PREV: the previous keyset's overlap ended now, its keys erased (a REKEY flagged DROP, otar.md 7.12)	// NEXT_KS: the next keyset's number, from the net (above the active one)	// TIME: a net control's UTC (unix seconds), kept only without a better clock
+       RADIO_OTAR_NEXT_AT, RADIO_OTAR_TIME, RADIO_OTAR_NEXT_KS, RADIO_OTAR_DROP_NEXT, RADIO_OTAR_DROP_PREV,
+       RADIO_OTAR_RESET };
+// DROP_PREV: the previous keyset's overlap ended now, its keys erased (a REKEY flagged DROP, otar.md 7.12). RESET:
+// the keysets start again on key ID value bits 0-7 as keyset value bits 8-23, every other key erased (a REKEY flagged
+// RESET, 7.12)	// NEXT_KS: the next keyset's number, from the net (above the active one)	// TIME: a net control's UTC (unix seconds), kept only without a better clock
 #endif
 
 typedef struct {

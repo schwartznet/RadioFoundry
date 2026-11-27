@@ -193,7 +193,9 @@ keyset the member holds as its next (it missed a changeover by hand) is HELD and
 Changeover time: whole UTC minutes since 2026-01-01; 0 = on NC's CHANGEOVER only. Flags: bit 0 change over at the
 changeover time by the member's clock; bit 1 the net's active key, which the member changes over to as soon as it is
 stored (a member that joined after the rekey or missed the changeover, 9); bit 2, with bit 1, drop the keyset changed
-over from at once and erase its key, with no overlap (a silent revoke, 7.12).
+over from at once and erase its key, with no overlap (a silent revoke, 7.12); bit 3, with bit 1, reset: from the
+authority, taken whatever its number by a radio that joined in the last 10 minutes, its keysets started again from it
+(7.12).
 
 ### 7.2 ACK results
 
@@ -501,7 +503,18 @@ radio out of the net without telling it:
 
 Tried 3 times 20 s apart. With no answer (off, out of range, or lost) the radio is revoked all the same, and the
 screen says "Revoked, no key taken: rekey now": only a rekey of the net locks out a radio that still holds the key.
-A rekey is also the answer when the radio's key may have been copied before the revoke. Nothing else runs meanwhile
+A rekey is also the answer when the radio's key may have been copied before the revoke.
+
+**Joining again.** The radio keeps its keyset numbers when it leaves (Leave the net keeps them, so a member that joins
+again works at once), and after a silent revoke those are the throwaway's: a number above the net's, which the net's
+key, an older number, never replaces (7.1). Net control 1 (the authority) tells such a radio by its HELLO: a keyset
+above its own active one that isn't its next one or a withdrawn one is one this net never had. It answers with its
+active key as the catch-up REKEY flagged now and **reset** (bit 3). A radio takes a reset only from the authority and
+only within 10 minutes of joining by key fill (the moment its user stands at net control 1, which is current then): its
+keysets start again from the net's active one (`RADIO_OTAR_RESET`) and every other key it held is erased, the
+throwaway too. At any other time, and from any other net control, a reset is an older keyset and refused (OLD): no net
+control can push an older key on a radio that is a member. Found on the bench: the radio silently revoked and joined
+again answered "keyset 17 differs", and its texts didn't reach the net. Nothing else runs meanwhile
 (Revoke, Rekey now and the roster wait). Silent only in that the radio isn't told: its user will notice that the net
 went quiet.
 
@@ -1085,12 +1098,16 @@ radio (the member came back on the built-in channels, out of the net), then the 
 fixes came of it: a silent revoke right after a key fill, which had emptied the pool, waited for randomness without
 asking for the receiver's noise (`pool_wanted`), so it stayed "sending"; and a radio joined again still showed what it
 answered before ("Radio wipe: wiped"): a member added by key fill now clears those lines (`ui_svc_net_member_added`).
+Then the silent revoke worked (the radio, not told, still showed "member"; the net no longer read its texts nor it the
+net's, while the others went on), but the radio joined again stayed on the throwaway's keyset 17: the reset (7.12).
 
-Tests: `otarEngineTest` (513 checks) adds WIPE refused and taken (the whole radio wiped after its ACK, not Clear all
+Tests: `otarEngineTest` (536 checks) adds WIPE refused and taken (the whole radio wiped after its ACK, not Clear all
 keys) and sent as WIPE; SILENCE on answered before silence starts, no answer while silent, off ending only the net
 control's silence and never the user's own, a silence the user ended becoming theirs, Remote silence off refused and
 set on again at a join, and the net control's tries, answers and "no answer"; a REKEY flagged drop changing over and
 erasing the old key at once (and without drop keeping the overlap); a silent revoke's throwaway key (to the member
 alone, above the net's number, a key ID the net doesn't use, never stored), the member revoked with no ROSTER to it,
 nothing else allowed meanwhile, revoked all the same after three tries with no answer, the noise asked for while the
-pool is short, and a radio joined again shown without its old answers.
+pool is short, a radio joined again shown without its old answers, and the reset: taken from net control 1 just after
+a join (the throwaway erased, normal rekeys after it), refused before a join, past 10 minutes and from another net
+control, and sent only for a keyset the net never had (not for one behind, nor the net's next).
