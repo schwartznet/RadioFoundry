@@ -383,6 +383,7 @@ static struct {
 	uint32_t ch_to;		// ... and the net's channel to this member, whose HELLO it answered (7.8)
 	struct {
 		uint32_t id, at;
+		uint32_t num;	// the message number of the HELLO answered: a newer one is answered at once
 	} hans[HELLO_ANS_N];	// ... the members whose HELLO it answered last, and when (hello_slot)
 	uint32_t hello_at;	// a net control: when the last HELLO was worked on
 	otar_msg_t ack;		// the ACK to send once stored
@@ -1304,14 +1305,16 @@ __attribute__((noinline)) static void on_changeover(const radio_view_t *v, const
 	}
 }
 
-// The net control: the slot of eng.hans for answering member src's HELLO now, -1 when it can't be: answered less than
-// CU_GAP_MS ago, or HELLO_ANS_N others were. This radio doesn't check a member's message numbers, so a recorded HELLO
-// played back (one, or several members' in turn) makes it answer at most HELLO_ANS_N times per CU_GAP_MS
-static int hello_slot(uint32_t src, uint32_t now)
+// The net control: the slot of eng.hans for answering member src's HELLO (message number num, its MAC checked) now, -1
+// when it can't be: answered less than CU_GAP_MS ago with a HELLO at least as new, or HELLO_ANS_N others were. A HELLO
+// newer than the one answered is answered at once: the member said it again after its answer was lost (it restarted,
+// or was off air; found on the bench: a member restarted during the answer waited 5 min for its next try). A recorded
+// HELLO played back is never newer, so it still makes this radio answer at most HELLO_ANS_N times per CU_GAP_MS
+static int hello_slot(uint32_t src, uint32_t num, uint32_t now)
 {
 	for (unsigned i = 0; i < HELLO_ANS_N; i++)
 		if (eng.hans[i].id == src)
-			return (uint32_t)(now - eng.hans[i].at) >= CU_GAP_MS ? (int)i : -1;
+			return (uint32_t)(now - eng.hans[i].at) >= CU_GAP_MS || num > eng.hans[i].num ? (int)i : -1;
 	for (unsigned i = 0; i < HELLO_ANS_N; i++)
 		if (eng.hans[i].id == 0 || (uint32_t)(now - eng.hans[i].at) >= CU_GAP_MS)
 			return (int)i;
@@ -1324,7 +1327,7 @@ static int hello_slot(uint32_t src, uint32_t now)
 static __attribute__((noinline)) void hello_answer(const radio_view_t *v, const otar_msg_t *m, uint32_t src,
 						   const otar_net_t *n, const uint8_t kmac[OTAR_KEY_LEN], uint32_t now)
 {
-	int slot = hello_slot(src, now);
+	int slot = hello_slot(src, m->msgnum, now);
 	if (slot < 0)
 		return;
 	rekey_t *rk = eng.rk;
@@ -1360,6 +1363,7 @@ static __attribute__((noinline)) void hello_answer(const radio_view_t *v, const 
 	if (answered) {
 		eng.hans[slot].id = src;
 		eng.hans[slot].at = now;
+		eng.hans[slot].num = m->msgnum;
 		// ... then the net's channel (7.8), so a member that was off when it changed learns it at its next start
 		otar_chan_t c;
 		chan_get(&c);

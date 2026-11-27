@@ -432,8 +432,11 @@ whose NC stays away costs the channel one short message per member every quarter
 
 NC doesn't check members' message numbers (19), so a recorded HELLO played back is valid. NC therefore works on at most
 one HELLO every 2 s and answers each member at most once every 2 minutes, keeping the last 8 answered: at most 8
-answers in any 2 minutes, however many recordings are played in turn. A genuine HELLO caught by the limit is asked
-again by its member's next retry. P25 has the same pair: a radio's rekey request answered either by keys or by "nothing
+answers in any 2 minutes, however many recordings are played in turn. A HELLO newer than the one NC last answered from
+that member (a higher message number, its MAC checked) is answered at once even within the 2 minutes: the member said
+it again because the answer was lost (it restarted, or was off air; found on the bench, where a member restarted during
+the answer waited 5 minutes for its next retry). A recording is never newer than what it recorded, so the bound above
+holds. A genuine HELLO caught by the limit is asked again by its member's next retry. P25 has the same pair: a radio's rekey request answered either by keys or by "nothing
 for you", and resynchronization of a radio's keys (23); P25's "warm start" is something else (a temporary key for a
 radio that can't decrypt management messages), which the pair keys make unnecessary here.
 

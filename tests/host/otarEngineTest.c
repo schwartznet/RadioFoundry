@@ -648,12 +648,11 @@ static void test_nc(void)
 	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_HELLO, &m, buf));
 	run(1000);
 	CHECK(last_out(&r) && r.type == OTAR_REKEY && r.keyset == 4 && r.kid == 77 && (r.flags & OTAR_RK_NOW));
-	// The same HELLO again a minute later (a replay, or a member that didn't take it): no second REKEY yet
+	// The same HELLO played back a minute later: no second REKEY
+	int hn = build(OTAR_HELLO, &m, buf);	// m.msgnum kept: the same message again
 	run(60000);
 	int before = out_n;
-	memset(&m, 0, sizeof m);
-	m.keyset = 3;
-	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_HELLO, &m, buf));
+	deliver(PEER_ID, ENGINE_ID, false, buf, hn);
 	run(1000);
 	CHECK(out_n == before);
 
@@ -949,13 +948,25 @@ static void test_hello_nc(void)
 	run(1000);
 	CHECK(out_n == 1 && last_out(&r) && r.type == OTAR_ACK && r.result == OTAR_ACK_CURRENT && r.echo == m.msgnum &&
 	      r.keyset == 4 && r.ckr == 0);
-	// The same member again within 2 minutes (or its HELLO played back): nothing
+	// Its HELLO played back within 2 minutes: nothing
+	uint8_t old[OTAR_MSG_MAX];
+	int on = build(OTAR_HELLO, &m, old);	// m.msgnum kept: the same message again
 	run(30000);
+	deliver(PEER_ID, ENGINE_ID, false, old, on);
+	run(1000);
+	CHECK(out_n == 1);
+	// A newer HELLO from it within 2 minutes (its answer was lost; it restarted): answered at once
+	run(3000);	// past HELLO_GAP_MS since the played-back one
 	memset(&m, 0, sizeof m);
 	m.keyset = 4;
 	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_HELLO, &m, buf));
 	run(1000);
-	CHECK(out_n == 1);
+	CHECK(out_n == 2 && last_out(&r) && r.type == OTAR_ACK && r.result == OTAR_ACK_CURRENT && r.echo == m.msgnum);
+	// ... and the older one played back after it: still nothing
+	deliver(PEER_ID, ENGINE_ID, false, old, on);
+	run(3000);
+	CHECK(out_n == 2);
+	out_n = 1;
 	// Behind, 2 minutes on: the catch-up REKEY is the answer
 	run(120000);
 	memset(&m, 0, sizeof m);
