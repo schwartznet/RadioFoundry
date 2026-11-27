@@ -9812,6 +9812,14 @@ static void nm_location(sbuf_t *b, uint32_t id)
 		sb_str(b, l.state == UI_LOC_ASKING ? TR(NM_KEYS_ASKING, "asking") :
 			  l.state == UI_LOC_NO_FIX ? TR(NM_LOC_NO_FIX, "no fix") :
 			  l.state == UI_LOC_REFUSED ? TR(NM_WIPE_REFUSED, "refused") : TR(NM_KEYS_NO_ANSWER, "no answer"));
+		// ... and when: an old answer isn't taken for a new one
+		if (l.state != UI_LOC_ASKING) {
+			sb_str(b, " - ");
+			if (l.age_s == 0)
+				sb_str(b, TR(NM_LOC_NOW, "now"));
+			else
+				sb_age_long(b, (l.age_s < 4000000u ? l.age_s : 4000000u) * 1000u);
+		}
 		return;
 	}
 	nm_deg5(b, l.lat);

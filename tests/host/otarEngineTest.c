@@ -1441,7 +1441,29 @@ static void test_locate_nc(void)
 	deliver(PEER_ID, ENGINE_ID, false, buf, position_msg(r.msgnum, OTAR_POS_NO_FIX, 0, 0, 0, buf));
 	run(500);
 	ui_svc_net_locate_view(PEER_ID, &lv);
-	CHECK(lv.state == UI_LOC_NO_FIX);
+	CHECK(lv.state == UI_LOC_NO_FIX && lv.age_s == 0);
+	// ... with its age, so an old "no fix" isn't taken for a new one (found on the bench, 2026-11-27)
+	run(60000);
+	ui_svc_net_locate_view(PEER_ID, &lv);
+	CHECK(lv.state == UI_LOC_NO_FIX && lv.age_s >= 60 && lv.age_s <= 61);
+
+	// During a rekey run (one by the clocks stays open until its changeover): asked at once all the same, not held
+	// back until the run ends (found on the bench: "asking" for as long as the run)
+	otar_start(&keys, 0, 77);
+	tek[77].used = true;
+	keys.ks_active = 4;
+	run(1000);
+	CHECK(ui_svc_net_rekey(v_now(), 60) == UI_NET_OK);
+	run(3000);
+	out_n = 0;
+	CHECK(ui_svc_net_locate(v_now(), PEER_ID) == UI_NET_OK);
+	run(25000);
+	int asked_in_run = 0;
+	for (int i = 0; i < out_n; i++)
+		asked_in_run += out_open(i, &r) && r.type == OTAR_LOCATE;
+	ui_rekey_view_t rv;
+	ui_svc_net_rekey_view(&rv);
+	CHECK(rv.on && asked_in_run >= 1);
 }
 
 // ===================== the net's channel (otar.md 7.8)

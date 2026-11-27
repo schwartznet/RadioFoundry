@@ -1297,6 +1297,7 @@ static __attribute__((noinline)) void loc_send(const radio_view_t *v, const otar
 	}
 	if (!eng.pair_ok) {
 		eng.loc.state = UI_LOC_NO_ANSWER;
+		eng.loc.got_at = now;
 		return;
 	}
 	otar_msg_t *m = &eng.ros_m;
@@ -1514,6 +1515,7 @@ static __attribute__((noinline)) void oos_got(const otar_msg_t *m, uint32_t src,
 		} else {
 			eng.loc.waiting = false;
 			eng.loc.state = UI_LOC_NO_ANSWER;
+			eng.loc.got_at = now;
 		}
 	}
 }
@@ -2273,7 +2275,9 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 		ch_send(v, &n, now);
 		changed = true;
 	}
-	if (eng.inv_to != 0 && n.rank != 0 && mn_ok && eng.out_len == 0 && !eng.sending && !eng.ros.waiting && eng.rk == NULL) {
+	// INVENTORY and LOCATE go during a rekey run too: a run by the clocks stays open until its changeover, up to a day,
+	// and both were held back all that time (found on the bench, 2026-11-27: Get location stuck on "asking")
+	if (eng.inv_to != 0 && n.rank != 0 && mn_ok && eng.out_len == 0 && !eng.sending && !eng.ros.waiting) {
 		inv_send(v, &n, now);
 		changed = true;
 	}
@@ -2301,13 +2305,15 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 	// A LOCATE asked for: the same
 	if (eng.loc.waiting && (int32_t)(now - eng.loc.ans_by) >= 0) {
 		eng.loc.waiting = false;
-		if (eng.loc.tries < LOC_TRIES)
+		if (eng.loc.tries < LOC_TRIES) {
 			eng.loc.send = true;
-		else
+		} else {
 			eng.loc.state = UI_LOC_NO_ANSWER;
+			eng.loc.got_at = now;
+		}
 		changed = true;
 	}
-	if (eng.loc.send && n.rank != 0 && mn_ok && eng.out_len == 0 && !eng.sending && !eng.ros.waiting && eng.rk == NULL) {
+	if (eng.loc.send && n.rank != 0 && mn_ok && eng.out_len == 0 && !eng.sending && !eng.ros.waiting) {
 		loc_send(v, &n, now);
 		changed = true;
 	}
@@ -2760,9 +2766,13 @@ void ui_svc_net_locate_view(uint32_t id, ui_loc_view_t *r)
 	if (id == 0 || id != eng.loc.id)
 		return;
 	r->state = eng.loc.state;
-	if (r->state != UI_LOC_GOT)
-		return;
 	uint32_t now = hal_millis();
+	if (r->state != UI_LOC_GOT) {
+		// No position: the answer's own age (a "no fix" from hours ago isn't today's)
+		if (r->state != UI_LOC_ASKING)
+			r->age_s = (uint32_t)(now - eng.loc.got_at) / 1000u;
+		return;
+	}
 	r->lat = eng.loc.lat;
 	r->lon = eng.loc.lon;
 	r->alt_m = eng.loc.alt_m;
