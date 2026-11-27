@@ -4978,7 +4978,7 @@ static void dmr_id_item(uint16_t i, ui_item_t *it)
 
 // My Radio's, Data Services' and key fill's text above the rows, one buffer (one body is drawn at a time; key fill's
 // compare step needs the room)
-static char id_body[96];
+static char id_body[192];	// a member screen's lines (nm_body) the longest
 
 static const char *dmr_id_body(void)
 {
@@ -9187,7 +9187,8 @@ static void nk_enter(void)
 // Net status and Change over the net; a member's are Members and Leave the net
 // The fingerprint is the radio's public key's, which another radio's Members list shows for it
 enum { NET_START, NET_JOIN, NET_MEMBERS, NET_ADD, NET_REKEY, NET_RK_WHEN, NET_STATUS, NET_CHANGE_OVER, NET_ROSTER,
-       NET_TAKE_OVER, NET_WIPE_OK, NET_ACCEPT, NET_REFUSE, NET_LEAVE, NET_SCHED, NET_TIME, NET_REQUEST, NET_ROWS };
+       NET_TAKE_OVER, NET_WIPE_OK, NET_ACCEPT, NET_REFUSE, NET_LEAVE, NET_SCHED, NET_TIME, NET_REQUEST, NET_SHARE_LOC,
+       NET_ROWS };
 static const uint8_t net_sched_days[] = { 0, 1, 7, 30 };	// Rekey every (otar.md 9)
 static uint8_t net_rk_when = 1;	// Key change: index into nk_mins, 5 min each time Net opens
 static uint32_t net_typed;	// Add a member: the ID typed
@@ -9200,7 +9201,7 @@ static uint8_t net_ask = NET_ROWS;
 
 static void net_view_now(ui_net_view_t *n) { ui_svc_net_view(n); }
 // The rows (otar.md 9, 10, 20): not in a net, Start and Join. In one: a take over to accept first, Members, the net
-// control's rows (Take over on net control 2-4), Remote wipe, Leave
+// control's rows (Take over on net control 2-4), Remote wipe, Share location, Leave
 static uint8_t net_rows(uint8_t out[NET_ROWS])
 {
 	ui_net_view_t n;
@@ -9228,6 +9229,7 @@ static uint8_t net_rows(uint8_t out[NET_ROWS])
 		out[k++] = NET_TIME;
 	}
 	out[k++] = NET_WIPE_OK;
+	out[k++] = NET_SHARE_LOC;	// a net control may ask where this radio is (LOCATE, otar.md 7.7)
 	out[k++] = NET_LEAVE;
 	return k;
 }
@@ -9253,7 +9255,7 @@ static void net_item(uint16_t i, ui_item_t *it)
 					 TRN(NET_REMOTE_WIPE, "Remote wipe"), TRN(NET_ACCEPT, "Accept the take over"),
 					 TRN(NET_REFUSE, "Refuse the take over"), TRN(NET_LEAVE, "Leave the net"),
 					 TRN(NET_SCHED, "Rekey every"), TRN(NET_TIME, "Send the time"),
-					 TRN(NET_REQUEST, "Request keys") };
+					 TRN(NET_REQUEST, "Request keys"), TRN(NET_SHARE_LOC, "Share location") };
 	uint8_t row = net_row(i);
 	str_copy(it->label, sizeof it->label, tr(names[row]));
 	if (row == NET_RK_WHEN) {
@@ -9264,6 +9266,10 @@ static void net_item(uint16_t i, ui_item_t *it)
 		ui_net_view_t n;
 		net_view_now(&n);
 		str_copy(it->value, sizeof it->value, n.remote_wipe ? TR(NET_ON, "On") : TR(NET_OFF, "Off"));
+	} else if (row == NET_SHARE_LOC) {
+		ui_net_view_t n;
+		net_view_now(&n);
+		str_copy(it->value, sizeof it->value, n.share_location ? TR(NET_ON, "On") : TR(NET_OFF, "Off"));
 	} else if (row == NET_SCHED) {
 		ui_net_view_t n;
 		net_view_now(&n);
@@ -9469,6 +9475,12 @@ static void net_select(uint16_t i, bool hold)
 		ui_svc_net_set_remote_wipe(!n.remote_wipe);
 		break;
 	}
+	case NET_SHARE_LOC: {
+		ui_net_view_t n;
+		net_view_now(&n);
+		ui_svc_net_set_share_location(!n.share_location);
+		break;
+	}
 	case NET_ACCEPT:
 		ui_svc_net_accept(true);
 		ui_toast(TR(NET_ACCEPTED, "Take over accepted"));
@@ -9617,9 +9629,9 @@ static void members_select(uint16_t i, bool hold)
 		ui_push(SCR_NET_MEMBER, i);
 }
 
-// A member's actions (otar.md 9, 10, 7.5; the net control): its rank (net control 1 only), revoke it, wipe its keys,
-// ask which keys it holds (INVENTORY: the body shows the answer)
-enum { NM_RANK, NM_REVOKE, NM_WIPE, NM_INV, NM_ROWS };
+// A member's actions (otar.md 9, 10, 7.5, 7.7; the net control): its rank (net control 1 only), revoke it, wipe its
+// keys, ask which keys it holds (INVENTORY) and where it is (LOCATE): the body shows the answers
+enum { NM_RANK, NM_REVOKE, NM_WIPE, NM_INV, NM_LOC, NM_ROWS };
 #define OTAR_RANK_MAX_UI	4u	// net controls 1-4 (otar_net.h OTAR_RANK_MAX)
 // A row that waits for OK, as the Net screen's (net_ask): Revoke (never undone) and Wipe its keys (its radio leaves the
 // net). Found on the bench: a single stray press sent a wipe. NM_ROWS: none
@@ -9644,7 +9656,7 @@ static uint16_t nm_count(void)
 static void nm_item(uint16_t i, ui_item_t *it)
 {
 	static const tr_id_t names[] = { TRN(NM_RANK, "Rank"), TRN(NM_REVOKE, "Revoke"), TRN(NM_WIPE, "Wipe its keys"),
-					 TRN(NM_INV, "Ask its keys") };
+					 TRN(NM_INV, "Ask its keys"), TRN(NM_LOC, "Get location") };
 	uint32_t id;
 	uint8_t r = 0, f = 0, fp[3];
 	(void)nm_member(&id, &r, &f, fp);
@@ -9662,6 +9674,48 @@ static void nm_item(uint16_t i, ui_item_t *it)
 		sb_str(&b, TR(NM_REVOKED, "revoked"));
 	}
 	item_num(it, (uint16_t)(i + 1u));
+}
+
+// Degrees with 5 decimals (about 1 m): "-33.86885"
+static void nm_deg5(sbuf_t *b, int32_t e7)
+{
+	uint32_t v = (uint32_t)(e7 < 0 ? -(int64_t)e7 : e7);
+	v = (v + 50u) / 100u;	// 1e-5 degree
+	if (e7 < 0 && v != 0)
+		sb_chr(b, '-');
+	sb_u32(b, v / 100000u, 1);
+	sb_chr(b, '.');
+	sb_u32(b, v % 100000u, 5);
+}
+
+// A LOCATE's answer (otar.md 7.7): "Location: -33.86885, 151.20930", then "850 m NE - 40s ago" from this radio's own
+// position, or the age alone without one
+static void nm_location(sbuf_t *b, uint32_t id)
+{
+	ui_loc_view_t l;
+	ui_svc_net_locate_view(id, &l);
+	if (l.state == UI_LOC_NONE)
+		return;
+	sb_chr(b, '\n');
+	sb_str(b, TR(NM_LOC_IS, "Location: "));
+	if (l.state != UI_LOC_GOT) {
+		sb_str(b, l.state == UI_LOC_ASKING ? TR(NM_KEYS_ASKING, "asking") :
+			  l.state == UI_LOC_NO_FIX ? TR(NM_LOC_NO_FIX, "no fix") :
+			  l.state == UI_LOC_REFUSED ? TR(NM_WIPE_REFUSED, "refused") : TR(NM_KEYS_NO_ANSWER, "no answer"));
+		return;
+	}
+	nm_deg5(b, l.lat);
+	sb_str(b, ", ");
+	nm_deg5(b, l.lon);
+	sb_chr(b, '\n');
+	if (l.range) {
+		sb_range(b, l.dist_m, l.bearing);
+		sb_str(b, " - ");
+	}
+	if (l.age_s == 0)
+		sb_str(b, TR(NM_LOC_NOW, "now"));
+	else
+		sb_age_long(b, (l.age_s < 4000000u ? l.age_s : 4000000u) * 1000u);
 }
 
 static const char *nm_body(void)
@@ -9696,25 +9750,26 @@ static const char *nm_body(void)
 	}
 	ui_inv_view_t q;
 	ui_svc_net_inventory_view(id, &q);
-	if (q.state == UI_INV_NONE)
-		return id_body;
-	sb_chr(&b, '\n');
-	sb_str(&b, TR(NM_KEYS, "Keys: "));
-	if (q.state == UI_INV_ASKING) {
-		sb_str(&b, TR(NM_KEYS_ASKING, "asking"));
-	} else if (q.state == UI_INV_NO_ANSWER) {
-		sb_str(&b, TR(NM_KEYS_NO_ANSWER, "no answer"));
-	} else if (q.n == 0) {
-		sb_str(&b, TR(NM_KEYS_NONE, "none"));
-	} else {
-		for (uint8_t k = 0; k < q.n && k < 2u; k++) {
-			if (k != 0)
-				sb_str(&b, ", ");
-			sb_str(&b, TR(NM_KEYSET, "keyset "));
-			sb_u32(&b, q.keyset[k], 1);
-			sb_str(&b, q.same[k] ? TR(NM_KEY_SAME, " OK") : TR(NM_KEY_OTHER, " differs"));
+	if (q.state != UI_INV_NONE) {
+		sb_chr(&b, '\n');
+		sb_str(&b, TR(NM_KEYS, "Keys: "));
+		if (q.state == UI_INV_ASKING) {
+			sb_str(&b, TR(NM_KEYS_ASKING, "asking"));
+		} else if (q.state == UI_INV_NO_ANSWER) {
+			sb_str(&b, TR(NM_KEYS_NO_ANSWER, "no answer"));
+		} else if (q.n == 0) {
+			sb_str(&b, TR(NM_KEYS_NONE, "none"));
+		} else {
+			for (uint8_t k = 0; k < q.n && k < 2u; k++) {
+				if (k != 0)
+					sb_str(&b, ", ");
+				sb_str(&b, TR(NM_KEYSET, "keyset "));
+				sb_u32(&b, q.keyset[k], 1);
+				sb_str(&b, q.same[k] ? TR(NM_KEY_SAME, " OK") : TR(NM_KEY_OTHER, " differs"));
+			}
 		}
 	}
+	nm_location(&b, id);
 	return id_body;
 }
 
@@ -9744,6 +9799,16 @@ static void nm_do(uint16_t i)
 		res = ui_svc_net_inventory(v, id);
 		if (res != UI_NET_OK)
 			ui_toast(res == UI_NET_BUSY ? TR(NM_INV_BUSY, "Still asking") : TR(NM_WHY_MEMBER, "Not for this radio"));
+		break;
+	case NM_LOC:
+		// The answer on a screen of its own (net_location_screen), and below the other lines here once back
+		res = ui_svc_net_locate(v, id);
+		if (res == UI_NET_OK || res == UI_NET_BUSY)
+			ui_push(SCR_NET_LOCATION, ui_frame()->arg);
+		if (res == UI_NET_BUSY)
+			ui_toast(TR(NM_INV_BUSY, "Still asking"));	// after the push, which clears a toast
+		else if (res != UI_NET_OK)
+			ui_toast(TR(NM_WHY_MEMBER, "Not for this radio"));
 		break;
 	default:
 		res = ui_svc_net_wipe(v, id);
@@ -9792,6 +9857,43 @@ static const ui_scr_def_t net_member_screen = {
 	.name = "net-member", .flags = SF_LIST | SF_NUMBERED | SF_HINT_FN, .prefix = TRN(NET_MEMBER_TITLE, "Member"),
 	.hint_fn = nm_hint, .empty = TRN(NET_MEMBER_NONE, "Nothing to do for this radio"),
 	.count = nm_count, .item = nm_item, .select = nm_select, .body = nm_body, .key = nm_key, .enter = nm_enter,
+};
+
+// Get location's answer (otar.md 7.7) on a screen of its own: the member screen's body has room for two lines on the
+// smallest screens (128x64), a position takes three. The member's ID, then "Location: ..." as nm_location writes it.
+// The member screen is often the stack's deepest frame, so this one takes its place (ui_push): Back puts it back, on
+// its Get location row
+static uint16_t nl_count(void) { return 0; }
+static bool nl_key(const input_event_t *ev)
+{
+	if (ev->gesture != GESTURE_PRESS || ev->action != ACT_BACK)
+		return false;
+	uint16_t arg = ui_frame()->arg;
+	ui_pop();
+	if (ui_frame()->scr != SCR_NET_MEMBER) {
+		ui_push(SCR_NET_MEMBER, arg);
+		ui_frame()->focus = NM_LOC;
+	}
+	ui_dirty();
+	return true;
+}
+static void nl_item(uint16_t i, ui_item_t *it) { (void)i; (void)it; }
+static const char *nl_body(void)
+{
+	uint32_t id;
+	uint8_t r, f, fp[3];
+	sbuf_t b;
+	sb_init(&b, id_body, sizeof id_body);
+	if (nm_member(&id, &r, &f, fp)) {
+		sb_u32(&b, id, 1);
+		nm_location(&b, id);
+	}
+	return id_body;
+}
+
+static const ui_scr_def_t net_location_screen = {
+	.name = "net-location", .flags = SF_LIST, .prefix = TRN(NET_LOC_TITLE, "Location"), .hint = TRN(HINT_BACK, "Back"),
+	.count = nl_count, .item = nl_item, .body = nl_body, .key = nl_key,
 };
 
 // Net status (otar.md 9): the rekey run's key and progress, each member: OK, waiting, sent, or failed (tried again)
@@ -10213,6 +10315,7 @@ const ui_scr_def_t *const ui_scr[SCR_COUNT] = {
 #if CONFIG_OTAR
 	[SCR_NET_KEYS] = &net_keys_screen, [SCR_NET] = &net_screen, [SCR_NET_MEMBERS] = &net_members_screen,
 	[SCR_NET_STATUS] = &net_status_screen, [SCR_NET_MEMBER] = &net_member_screen,
+	[SCR_NET_LOCATION] = &net_location_screen,
 #endif
 #if CONFIG_ZEROIZE
 	[SCR_WIPE_CODE] = &wipe_code_screen, [SCR_WIPE] = &wipe_screen,

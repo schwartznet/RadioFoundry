@@ -1130,10 +1130,10 @@ static const flow_t flows[] = {
 	{ "O a member's net: Members and Request keys", NET_JOINED, "1 back",
 	  "screen=net shows=Members shows=Request_keys hides=Add_a_member hides=Rekey_now hides=Net_status", 2, false },
 	// Leave the net wipes the key pair: it asks first, and only OK says yes
-	{ "O leaving the net asks first", NET_JOINED, "4", "toast=none screen=net shows=Leave_the_net?",
+	{ "O leaving the net asks first", NET_JOINED, "5", "toast=none screen=net shows=Leave_the_net?",
 	  1, false },
-	{ "O a member leaves the net", NET_JOINED, "4 ok", "toast=Left_the_net shows=Not_in_a_net", 2, false },
-	{ "O back keeps the net", NET_JOINED, "4 back", "toast=none shows=Net_1A2B:_member hides=Leave_the_net?", 2, false },
+	{ "O a member leaves the net", NET_JOINED, "5 ok", "toast=Left_the_net shows=Not_in_a_net", 2, false },
+	{ "O back keeps the net", NET_JOINED, "5 back", "toast=none shows=Net_1A2B:_member hides=Leave_the_net?", 2, false },
 	// A member asks its net control for keys (HELLO, otar.md 9); the sim's net control answers at once
 	{ "O a member requests keys", NET_JOINED, "2", "screen=net shows=Keys_up_to_date", 1, false },
 	{ "O add a member", NET_STARTED, "2 4 6 7 5 8 1 0 ok", "screen=key-fill shows=Press_keys", 9, false },
@@ -1202,6 +1202,28 @@ static const flow_t flows[] = {
 	  false },
 	{ "O remote wipe on", NET_JOINED, "3", "screen=net shows=Remote_wipe shows=On", 1, false },
 	{ "O ask a member's keys", NET_ADDED " 1 down ok", "4", "shows=Ask_its_keys shows=Keys:_keyset_1_OK", 1, false },
+	// Get location (otar.md 7.7): asking, then the member's answer below the other lines; the sim's member is 1.2 km
+	// north-east, its fix 40 s old. Share location on a member: On after joining (Remote wipe turned on first, so an
+	// Off on the screen is Share location's), and Off once chosen
+	{ "O get location is a member's row", NET_ADDED " 1 down ok", "up", "screen=net-member shows=Get_location", 1,
+	  false },
+	{ "O get a member's location", NET_ADDED " 1 down ok", "5",
+	  "toast=none screen=net-location shows=4675810 shows=Location:_asking", 1, false },
+	{ "O a member's location", NET_ADDED " 1 down ok 5", "loc:pos",
+	  "screen=net-location shows=Location:_-33.86885, shows=-151.20930 shows=1.2_km_NE_-_40s_ago hides=asking", 0,
+	  false },
+	{ "O the age goes on", NET_ADDED " 1 down ok 5 loc:pos", "wait:60000", "shows=1.2_km_NE_-_1m_ago", 0, false },
+	{ "O a member's location under its keys", NET_ADDED " 1 down ok 4 5 loc:pos", "back",
+	  "screen=net-member shows=Keys:_keyset_1_OK shows=Location:_-33.86885", 1, false },
+	{ "O a member without a fix", NET_ADDED " 1 down ok 5", "loc:nofix", "shows=Location:_no_fix", 0, false },
+	{ "O a member that doesn't share it", NET_ADDED " 1 down ok 5", "loc:refused", "shows=Location:_refused", 0,
+	  false },
+	{ "O a member that doesn't answer", NET_ADDED " 1 down ok 5", "loc:none", "shows=Location:_no_answer", 0, false },
+	{ "O one location at a time", NET_ADDED " 1 down ok 5 back", "5",
+	  "toast=Still_asking screen=net-location shows=Location:_asking", 1, false },
+	{ "O share location on", NET_JOINED " 3", "4 4", "screen=net shows=Share_location shows=On hides=Off", 2,
+	  false },
+	{ "O share location off", NET_JOINED " 3", "4", "screen=net shows=Share_location shows=Off", 1, false },
 #endif
 	{ "G a copy that fails says so", "gk:aes ok 6 up ok 2 ok down ok", "gk:fail",
 	  "shows=Couldn't_send", 0, false },

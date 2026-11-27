@@ -2771,6 +2771,10 @@ static struct {
 	uint32_t inv_id;
 	uint32_t wipe_id;
 	uint8_t hello;
+	bool share;		// Share location
+	uint32_t loc_id;	// the member asked where it is: asking until loc:pos, loc:nofix, loc:refused or loc:none
+	uint8_t loc_state;
+	uint32_t loc_at;	// when it answered
 } net_sim;
 
 static void net_sim_add(uint32_t id, uint8_t rank)
@@ -2797,6 +2801,7 @@ void ui_svc_net_view(ui_net_view_t *v)
 	v->starting = net_sim.starting;
 	v->presses = net_sim.starting ? net_sim.left : 0;
 	v->remote_wipe = net_sim.wipe;
+	v->share_location = net_sim.share;
 	v->sched_days = net_sim.sched;
 	v->sched_at = net_sim.sched_at;
 	v->hello = net_sim.hello;
@@ -2893,6 +2898,47 @@ uint8_t ui_svc_net_wipe_state(uint32_t id)
 }
 void ui_svc_net_accept(bool yes) { (void)yes; }
 void ui_svc_net_set_remote_wipe(bool on) { net_sim.wipe = on; }
+void ui_svc_net_set_share_location(bool on) { net_sim.share = on; }
+// Get location: asking, then what the token says (sim_loc_token): a position 1.2 km north-east, its fix 40 s old
+uint8_t ui_svc_net_locate(const radio_view_t *v, uint32_t id)
+{
+	int i = sim_member(id);
+	if (!net_sim.in || net_sim.rank == 0)
+		return UI_NET_NOT_NC;
+	if (i < 0 || id == v->dmr.own_id || net_sim.flags[i])
+		return UI_NET_NO_MEMBER;
+	if (net_sim.loc_state == UI_LOC_ASKING)
+		return UI_NET_BUSY;
+	net_sim.loc_id = id;
+	net_sim.loc_state = UI_LOC_ASKING;
+	return UI_NET_OK;
+}
+void ui_svc_net_locate_view(uint32_t id, ui_loc_view_t *r)
+{
+	memset(r, 0, sizeof *r);
+	if (id == 0 || id != net_sim.loc_id)
+		return;
+	r->state = net_sim.loc_state;
+	if (r->state != UI_LOC_GOT)
+		return;
+	r->lat = -338688512;
+	r->lon = -1512093045;
+	r->alt_m = 58;
+	r->age_s = 40u + (hal_millis() - net_sim.loc_at) / 1000u;
+	r->range = true;
+	r->dist_m = 1240;
+	r->bearing = 45;
+}
+static bool sim_loc_token(const char *arg)
+{
+	if (net_sim.loc_state != UI_LOC_ASKING)
+		return false;
+	net_sim.loc_state = strcmp(arg, "pos") == 0 ? UI_LOC_GOT : strcmp(arg, "nofix") == 0 ? UI_LOC_NO_FIX :
+			    strcmp(arg, "refused") == 0 ? UI_LOC_REFUSED : UI_LOC_NO_ANSWER;
+	net_sim.loc_at = hal_millis();
+	changed();
+	return true;
+}
 // TIME, the schedule, INVENTORY: the time goes out at once; a member asked holds keyset 1, the same key
 uint8_t ui_svc_net_send_time(const radio_view_t *v)
 {
@@ -3052,6 +3098,7 @@ bool ui_svc_net_tick(const radio_view_t *v, uint32_t now)
 		net_sim.has_key = true;
 		net_sim.id = 0x1A2B;
 		net_sim.rank = 1;
+		net_sim.share = true;	// Share location on at each start or join, as on the radio
 	}
 	return true;
 }
@@ -3183,6 +3230,7 @@ static bool kf_sim_token(const char *arg)
 				net_sim.has_key = true;
 				net_sim.id = 0x1A2B;
 				net_sim.rank = 0;
+				net_sim.share = true;
 				net_sim.n = 0;
 				net_sim_add(KF_SIM_PEER, 1);
 				net_sim_add(k->own_id, 0);
@@ -4461,6 +4509,14 @@ static bool run_token(char *t, char *err, size_t len)
 	}
 #endif
 #if CONFIG_OTAR
+	if (strcmp(t, "loc") == 0 && arg != NULL) {	// loc:pos, loc:nofix, loc:refused, loc:none: Get location's answer
+		if (!sim_loc_token(arg)) {
+			snprintf(err, len, "loc:%s: not now", arg);
+			return false;
+		}
+		advance(200);
+		return true;
+	}
 	if (strcmp(t, "rk") == 0 && arg != NULL) {	// rk:ack, rk:fail: the rekey run's next member
 		if (!rk_sim_token(arg)) {
 			snprintf(err, len, "rk:%s: not now", arg);

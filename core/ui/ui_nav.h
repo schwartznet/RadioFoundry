@@ -55,6 +55,7 @@ typedef enum {
 	SCR_NET, SCR_NET_MEMBERS,	// Net (CONFIG_OTAR): this radio's net, joining, adding; the roster
 	SCR_NET_STATUS,			// Net status (CONFIG_OTAR): the net control's rekey run, member by member
 	SCR_NET_MEMBER,			// a roster member's actions (CONFIG_OTAR, net control): rank, revoke, wipe its keys
+	SCR_NET_LOCATION,		// ... and where it is: Get location's answer (arg: the member, as SCR_NET_MEMBER's)
 	SCR_WIPE_CODE, SCR_WIPE,	// the emergency wipe (CONFIG_ZEROIZE): its code; the confirmation and the wipe
 	SCR_KEY_FILL_MENU,		// Tools > Key fill: receive, send (CONFIG_KEY_FILL)
 #if CONFIG_BACKLIGHT_TEST

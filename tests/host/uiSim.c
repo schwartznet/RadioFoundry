@@ -357,6 +357,17 @@ static const struct { const char *name, *script; } worst_screens[] = {
 	{ "w_settings_privacy", "ok 7 4 ok ok down ok up" },
 	{ "w_settings_range", "ok 7 7 down down ok 9 9 ok" },
 	{ "w_hotspot", "hotspot:on" },
+#if CONFIG_OTAR
+	// A net control's member screen with every line it can show: a wipe's answer, two keysets, a location (otar.md 7.7)
+	{ "w_net_member_location", "aeschan ok 6 up ok 5 ok back 6 1 net:full 2 4 6 7 5 8 1 0 ok kf:full kf:peer ok "
+		"kf:peer back 1 down ok 3 ok 4 5 loc:pos back" },
+	{ "w_net_location", "aeschan ok 6 up ok 5 ok back 6 1 net:full 2 4 6 7 5 8 1 0 ok kf:full kf:peer ok "
+		"kf:peer back 1 down ok 5 loc:pos" },
+	{ "w_net_member_asking", "aeschan ok 6 up ok 5 ok back 6 1 net:full 2 4 6 7 5 8 1 0 ok kf:full kf:peer ok "
+		"kf:peer back 1 down ok 5" },
+	// A member's Net screen: Share location under Remote wipe
+	{ "w_net_member_rows", "ok 6 up ok 6 2 kf:full kf:peer ok kf:peer back" },
+#endif
 	{ "w_hotspot_tx", "hotspot:on pttdown" },
 };
 

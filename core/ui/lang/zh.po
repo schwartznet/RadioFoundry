@@ -5295,6 +5295,11 @@ msgid "Request keys"
 msgstr "请求密钥"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_SHARE_LOC"
+msgid "Share location"
+msgstr "共享位置"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_ON"
 msgid "On"
 msgstr "开"
@@ -5575,6 +5580,11 @@ msgid "Ask its keys"
 msgstr "查询其密钥"
 
 #: core/ui/ui_menus.c
+msgctxt "NM_LOC"
+msgid "Get location"
+msgstr "查询位置"
+
+#: core/ui/ui_menus.c
 msgctxt "NM_MEMBER"
 msgid "member"
 msgstr "普通台"
@@ -5588,6 +5598,36 @@ msgstr "主台 "
 msgctxt "NM_REVOKED"
 msgid "revoked"
 msgstr "已撤销"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_LOC_IS"
+msgid "Location: "
+msgstr "位置： "
+
+#: core/ui/ui_menus.c
+msgctxt "NM_KEYS_ASKING"
+msgid "asking"
+msgstr "查询中"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_LOC_NO_FIX"
+msgid "no fix"
+msgstr "无定位"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WIPE_REFUSED"
+msgid "refused"
+msgstr "已拒绝"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_KEYS_NO_ANSWER"
+msgid "no answer"
+msgstr "无回应"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_LOC_NOW"
+msgid "now"
+msgstr "现在"
 
 #: core/ui/ui_menus.c
 msgctxt "NM_ASK_REVOKE"
@@ -5620,24 +5660,9 @@ msgid "wiped"
 msgstr "已完成"
 
 #: core/ui/ui_menus.c
-msgctxt "NM_WIPE_REFUSED"
-msgid "refused"
-msgstr "已拒绝"
-
-#: core/ui/ui_menus.c
-msgctxt "NM_KEYS_NO_ANSWER"
-msgid "no answer"
-msgstr "无回应"
-
-#: core/ui/ui_menus.c
 msgctxt "NM_KEYS"
 msgid "Keys: "
 msgstr "密钥: "
-
-#: core/ui/ui_menus.c
-msgctxt "NM_KEYS_ASKING"
-msgid "asking"
-msgstr "查询中"
 
 #: core/ui/ui_menus.c
 msgctxt "NM_KEYS_NONE"
@@ -5693,6 +5718,11 @@ msgstr "台站"
 msgctxt "NET_MEMBER_NONE"
 msgid "Nothing to do for this radio"
 msgstr "本机无可用操作"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_LOC_TITLE"
+msgid "Location"
+msgstr "位置"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_ST_WAIT"

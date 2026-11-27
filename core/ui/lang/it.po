@@ -5293,6 +5293,11 @@ msgid "Request keys"
 msgstr "Chiedi le chiavi"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_SHARE_LOC"
+msgid "Share location"
+msgstr "Condividi posizione"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_ON"
 msgid "On"
 msgstr "Sì"
@@ -5573,6 +5578,11 @@ msgid "Ask its keys"
 msgstr "Chiedi le sue chiavi"
 
 #: core/ui/ui_menus.c
+msgctxt "NM_LOC"
+msgid "Get location"
+msgstr "Chiedi la posizione"
+
+#: core/ui/ui_menus.c
 msgctxt "NM_MEMBER"
 msgid "member"
 msgstr "membro"
@@ -5586,6 +5596,36 @@ msgstr "CR "
 msgctxt "NM_REVOKED"
 msgid "revoked"
 msgstr "revocata"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_LOC_IS"
+msgid "Location: "
+msgstr "Posizione: "
+
+#: core/ui/ui_menus.c
+msgctxt "NM_KEYS_ASKING"
+msgid "asking"
+msgstr "richiesta in corso"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_LOC_NO_FIX"
+msgid "no fix"
+msgstr "senza posizione"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WIPE_REFUSED"
+msgid "refused"
+msgstr "rifiutata"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_KEYS_NO_ANSWER"
+msgid "no answer"
+msgstr "nessuna risposta"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_LOC_NOW"
+msgid "now"
+msgstr "ora"
 
 #: core/ui/ui_menus.c
 msgctxt "NM_ASK_REVOKE"
@@ -5618,24 +5658,9 @@ msgid "wiped"
 msgstr "fatta"
 
 #: core/ui/ui_menus.c
-msgctxt "NM_WIPE_REFUSED"
-msgid "refused"
-msgstr "rifiutata"
-
-#: core/ui/ui_menus.c
-msgctxt "NM_KEYS_NO_ANSWER"
-msgid "no answer"
-msgstr "nessuna risposta"
-
-#: core/ui/ui_menus.c
 msgctxt "NM_KEYS"
 msgid "Keys: "
 msgstr "Chiavi: "
-
-#: core/ui/ui_menus.c
-msgctxt "NM_KEYS_ASKING"
-msgid "asking"
-msgstr "richiesta in corso"
 
 #: core/ui/ui_menus.c
 msgctxt "NM_KEYS_NONE"
@@ -5691,6 +5716,11 @@ msgstr "Membro"
 msgctxt "NET_MEMBER_NONE"
 msgid "Nothing to do for this radio"
 msgstr "Niente da fare per questa radio"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_LOC_TITLE"
+msgid "Location"
+msgstr "Posizione"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_ST_WAIT"
