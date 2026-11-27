@@ -3924,6 +3924,14 @@ static bool check(const char *kv, char *err, size_t len)
 			}
 		}
 	}
+	else if (strcmp(key, "word") == 0) {	// a drawn text is the value, whole (the top bar's mode word)
+		snprintf(got, sizeof got, "not a whole text");
+		for (int i = 0; i < live_n; i++)
+			if (strcmp(live[i].s, want) == 0) {
+				snprintf(got, sizeof got, "%s", want);
+				break;
+			}
+	}
 	else if (strcmp(key, "markafter") == 0 || strcmp(key, "nomarkafter") == 0) {
 		// A mark drawn (not a text) within a character cell right of the text that contains the value (an icon
 		// beside a word), or none
@@ -4722,6 +4730,16 @@ static bool run_token(char *t, char *err, size_t len)
 		view.ch.mode = RADIO_MODE_DMR;
 		view.ch.kind = CODEPLUG_KIND_DMR_AES;
 		view.ch.aes_ref = 0;
+		view.dmr.privacy = false;
+		changed();
+		advance(200);
+		return true;
+	}
+	if (strcmp(t, "aeschangone") == 0) {	// a key bound, but not in the store (wiped): the radio loaded none
+		view.ch.mode = RADIO_MODE_DMR;
+		view.ch.kind = CODEPLUG_KIND_DMR_AES;
+		view.ch.aes_ref = 2;
+		view.dmr.privacy = false;
 		changed();
 		advance(200);
 		return true;

@@ -291,8 +291,9 @@ been checked against another radio yet ([Radio reference](23-radios.md)).
   fail with an 8-bit key: use **ETSI** or **TMS** ([Messages](10-messages-and-signaling.md)). 16-bit basic privacy has no form for data, so with a 16-bit key
   the radio sends no text messages or other data: a message you send fails. Scrambled data the radio can't read is
   not shown.
-- **\***, **6** turns privacy on for your calls ("Privacy on for now"). Home shows "Priv". **Back** on Home turns it
-  off again.
+- **\***, **6** turns privacy on for your calls ("Privacy on for now"). Home names the scheme in a blue badge at the
+  right end of the channel's name: **BP8** or **BP16** (on a long name, a padlock). Basic privacy is a fixed
+  keystream, not encryption: the badge says which so it is never mistaken for AES. **Back** on Home turns it off again.
 
 Most countries don't allow encrypted or scrambled messages on amateur frequencies: read
 [Encryption on amateur frequencies](04-programming.md#encryption-on-amateur-frequencies) before using basic privacy or AES
@@ -310,11 +311,12 @@ The channel transmits with the key you select and plays calls made with any key 
 key by the key ID the call carries. A call with a key ID the system doesn't have shows as "Encrypted: not played".
 A channel holds up to four keys of its system (the one you select always among them); on a system with more, the
 others aren't heard on that channel. A protected channel without its key refuses PTT ("AES key or TX disabled"),
-but still plays the system's other keys. Text messages and other packet data on these channels go encrypted with
-the channel's key, and only then: without the key nothing is sent, never in the clear. Two radios running
-RadioFoundry read each other's; whether a radio of another make reads them is not known yet. Radio check, call
-alert and emergency alarms work as on any DMR channel. Your GPS position is never put in an encrypted call's voice
-header. The editor's image export omits key bytes by
+but still plays the system's other keys, and Home shows **NO KEY** in an amber badge instead of **AES256**, for
+example after the keys were wiped or with a codeplug from another radio. Text messages and other packet data on these
+channels go encrypted with the channel's key, and only then: without the key nothing is sent, never in the clear. Two
+radios running RadioFoundry read each other's; whether a radio of another make reads them is not known yet. Radio
+check, call alert and emergency alarms work as on any DMR channel. Your GPS position is never put in an encrypted
+call's voice header. The editor's image export omits key bytes by
 default. Including keys produces a file that contains the keys.
 
 To change to a new key without a flag day: add the new key to the system with a new key ID beside the old one and
