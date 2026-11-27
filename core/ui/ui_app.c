@@ -33,7 +33,8 @@
 #include "hotspot/hotspot.h"
 #endif
 
-#define UI_STACK_MAX		6
+#define UI_STACK_MAX		9	// Home > Menu > Tools > Key fill > Net > Members > a member > Location is 8 deep (at 6 the member replaced
+				// Members, and Back skipped it: found on the bench, 2026-11-27)
 #define TOAST_MS		1800
 #define VOLUME_MS		3000	// the volume screen closes this long after the last key, the knob's bar after its last turn
 #define ENTRY_TIMEOUT_MS	10000

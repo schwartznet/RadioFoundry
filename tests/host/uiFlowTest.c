@@ -1263,6 +1263,9 @@ static const flow_t flows[] = {
 	{ "O a member's actions", NET_ADDED " 1", "down ok", "screen=net-member shows=Rank shows=member shows=Revoke", 2,
 	  false },
 	{ "O a member made net control 2", NET_ADDED " 1 down ok", "1", "toast=Rank_sent_to_the_net shows=NC_2", 1, false },
+	// Back from a member returns to Members (the screens were deeper than the screen stack, and Back from a member
+	// skipped Members: found on the bench)
+	{ "O back from a member is Members", NET_ADDED " 1 down ok", "back", "screen=net-members", 1, false },
 	{ "O revoke asks first", NET_ADDED " 1 down ok", "2", "toast=none shows=Revoke_it? hides=revoked", 1, false },
 	{ "O a member revoked", NET_ADDED " 1 down ok", "2 ok", "toast=Revoked:_rekey_now shows=revoked", 2, false },
 	{ "O back keeps the member", NET_ADDED " 1 down ok", "2 back", "toast=none hides=Revoke_it? hides=revoked", 2,
