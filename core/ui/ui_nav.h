@@ -58,6 +58,7 @@ typedef enum {
 	SCR_NET_LOCATION,		// ... and where it is: Get location's answer (arg: the member, as SCR_NET_MEMBER's)
 	SCR_WIPE_CODE, SCR_WIPE,	// the emergency wipe (CONFIG_ZEROIZE): its code; the confirmation and the wipe
 	SCR_KEY_FILL_MENU,		// Tools > Key fill: receive, send (CONFIG_KEY_FILL)
+	SCR_MSG_NEW, SCR_MSG_TO,	// Messages > New message: whom to (CONFIG_DMR_SMS); a contact or a typed ID
 #if CONFIG_BACKLIGHT_TEST
 	SCR_BL_TEST,			// Settings > Advanced > Backlight tests
 #endif
@@ -160,6 +161,8 @@ bool ui_about_busy(void);	// About is still working out the image hash: redraw i
 void ui_focus_changed(void);
 // Open the actions for a target (SCR_ACTIONS)
 void ui_open_actions(const ui_target_t *t);
+// The station Home's CONTEXT acts on: the current caller, else the last one heard (false: none)
+bool ui_caller_target(ui_target_t *t);
 void ui_aprs_compose(const char *call);
 #if CONFIG_CONTACT_EDIT
 // The contact editor on a new contact for t: its ID, type and name (a talkgroup or ID as its name when it has none)
