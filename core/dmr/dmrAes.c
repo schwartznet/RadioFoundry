@@ -445,7 +445,7 @@ bool dmrAesCallHook(uint8_t ambe27[27], const struct dmr_crypt_pos *pos, bool tx
 	uint8_t alg = !tx && pos->alg == 0x05 ? DMR_AES_ALG_AES256 : pos->alg;
 	int8_t slot = tx ? st->tx_slot : dmrAesFindKey(st, alg, pos->key_id);
 
-	if (slot < 0 || st->keys[slot].alg == 0 || st->keys[slot].alg != pos->alg ||
+	if (slot < 0 || st->keys[slot].alg == 0 || st->keys[slot].alg != alg ||
 	    st->keys[slot].key_id != pos->key_id)
 		return false;
 	if (tx) {
