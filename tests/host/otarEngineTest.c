@@ -224,6 +224,18 @@ void radio_req_otar(uint8_t op, uint32_t value)
 		}
 		break;
 	case RADIO_OTAR_TIME: req_time++; break;
+	case RADIO_OTAR_RESET: {
+		// As radio_aes.c: the keysets start again on the key ID at the keyset number, every other key erased
+		static const uint8_t which[] = { OTAR_ACTIVE, OTAR_NEXT, OTAR_PREV };
+		uint8_t old;
+		for (unsigned i = 0; i < sizeof which; i++)
+			if (otar_kid(&keys, which[i], 1, &old) && old != (uint8_t)value)
+				tek[old].used = false;
+		uint8_t sys = otar_system(&keys);
+		otar_start(&keys, sys, (uint8_t)value);
+		keys.ks_active = (uint16_t)(value >> 8);
+		break;
+	}
 	case RADIO_OTAR_DROP_PREV: {
 		// As radio_aes.c: the previous keyset ended now, its keys erased
 		uint8_t kids[OTAR_CKRS];
@@ -1256,6 +1268,107 @@ static void test_silent_revoke_nc(void)
 	ui_svc_net_member_added(PEER_ID);
 	CHECK(ui_svc_net_wipe_state(PEER_ID) == UI_ZZ_SENDING);
 	run(90000);
+}
+
+// ===================== a radio silently revoked joins again (otar.md 7.12): net control 1's reset, the engine a member
+static void test_rejoin_reset_member(void)
+{
+	setup(0);
+	roster_add(PEER_ID, 1, peer_pub);
+	roster_add(ENGINE_ID, 0, eng_pub);
+	// On a silent revoke's throwaway: keyset 17, key 201, above the net's 15
+	otar_start(&keys, 0, 201);
+	tek[201].used = true;
+	keys.ks_active = 17;
+	run(25000);
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t m, r;
+	// Not joined lately: the net's keyset flagged reset is older, refused
+	out_n = 0;
+	rekey_msg(&m, 15, 77, 0x11, OTAR_RK_NOW | OTAR_RK_RESET);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(2000);
+	CHECK(keys.ks_active == 17 && tek[201].used && last_out(&r) && r.result == OTAR_ACK_OLD);
+	// Joined by key fill just now: taken; the keysets start again from the net's 15 and the throwaway is erased
+	ui_svc_net_joined();
+	rekey_msg(&m, 15, 77, 0x11, OTAR_RK_NOW | OTAR_RK_RESET);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(2000);
+	CHECK(keys.ks_active == 15 && otar_kid(&keys, OTAR_ACTIVE, 1, &r.kid) && r.kid == 77 && !tek[201].used && tek[77].used);
+	CHECK(last_out(&r) && r.type == OTAR_ACK && r.result == OTAR_ACK_STORED && r.keyset == 15);
+	// Then a normal rekey above it is taken as ever
+	rekey_msg(&m, 16, 78, 0x12, 0);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(2000);
+	CHECK(keys.ks_next == 16 && last_out(&r) && r.result == OTAR_ACK_STORED);
+	// Past the window after the join: a reset is refused again
+	setup(0);
+	roster_add(PEER_ID, 1, peer_pub);
+	roster_add(ENGINE_ID, 0, eng_pub);
+	otar_start(&keys, 0, 201);
+	tek[201].used = true;
+	keys.ks_active = 17;
+	ui_svc_net_joined();
+	run(25000);
+	run(600000);
+	rekey_msg(&m, 15, 77, 0x11, OTAR_RK_NOW | OTAR_RK_RESET);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(2000);
+	CHECK(keys.ks_active == 17 && last_out(&r) && r.result == OTAR_ACK_OLD);
+	// From a net control that isn't the authority: refused however soon after the join
+	setup(0);
+	roster_add(PEER_ID, 2, peer_pub);
+	roster_add(OTHER_NC, 1, peer_pub);
+	roster_add(ENGINE_ID, 0, eng_pub);
+	otar_start(&keys, 0, 201);
+	tek[201].used = true;
+	keys.ks_active = 17;
+	ui_svc_net_joined();
+	run(25000);
+	rekey_msg(&m, 15, 77, 0x11, OTAR_RK_NOW | OTAR_RK_RESET);
+	m.rank = 2;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(2000);
+	CHECK(keys.ks_active == 17 && tek[201].used);
+}
+
+// ... and net control 1 sending it: a HELLO naming a keyset this net never had gets the active key flagged reset; one
+// naming the net's next keyset doesn't
+static void test_rejoin_reset_nc(void)
+{
+	setup(1);
+	roster_add(ENGINE_ID, 1, eng_pub);
+	roster_add(PEER_ID, 0, peer_pub);
+	otar_start(&keys, 0, 77);
+	tek[77].used = true;
+	keys.ks_active = 15;
+	run(3000);
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t m, r;
+	out_n = 0;
+	memset(&m, 0, sizeof m);
+	m.keyset = 17;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_HELLO, &m, buf));
+	run(2000);
+	CHECK(last_out(&r) && r.type == OTAR_REKEY && (r.flags & (OTAR_RK_NOW | OTAR_RK_RESET)) == (OTAR_RK_NOW | OTAR_RK_RESET) &&
+	      r.keyset == 15 && r.kid == 77);
+	// Behind (keyset 12): the catch-up as before, not flagged reset
+	run(130000);
+	memset(&m, 0, sizeof m);
+	m.keyset = 12;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_HELLO, &m, buf));
+	run(2000);
+	CHECK(last_out(&r) && r.type == OTAR_REKEY && (r.flags & OTAR_RK_NOW) && !(r.flags & OTAR_RK_RESET) && r.keyset == 15);
+	// The net's next keyset (16) held already: up to date, no reset
+	CHECK(otar_set_next(&keys, 1, 78, 0, false));
+	keys.ks_next = 16;
+	tek[78].used = true;
+	run(130000);
+	memset(&m, 0, sizeof m);
+	m.keyset = 16;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_HELLO, &m, buf));
+	run(2000);
+	CHECK(last_out(&r) && r.type == OTAR_ACK && r.result == OTAR_ACK_CURRENT);
 }
 
 // A further member k of the engine's net: its ID, public key and pair MAC key with the engine
@@ -2960,6 +3073,8 @@ int main(void)
 	test_silence_remote_nc();
 	test_silent_revoke_member();
 	test_silent_revoke_nc();
+	test_rejoin_reset_member();
+	test_rejoin_reset_nc();
 	test_hello_nc();
 	test_hello_member();
 	test_oos_member();
