@@ -32,6 +32,7 @@
 //   p25rx:<src>,<dst>[,u|e|o]   a P25 call (CONFIG_P25 builds): u a unit call, e encrypted, o another talk group
 //                       (both not played); p25rxend ends it
 //   nxdnrx:<src>,<dst>[,e|p]    an NXDN call: e scrambled and muted, p scrambled and played
+//   airname:<name>              the P25 or NXDN caller's contact name (radio_view_t.air_src_name; '_' for a space)
 //   chkind:<n>,p25|nxdn|dmr_aes|aes[,<name>]  a stored P25 channel, NXDN channel or DMR channel with AES-256, with an
 //                                         optional name (_ = space)
 //   p25t:<state>[,<tg>[,<reg>[,<tx>[,<why>]]]]  the channel on view is a trunked P25 one (CONFIG_P25_TRUNK builds),
@@ -4557,6 +4558,15 @@ static bool run_token(char *t, char *err, size_t len)
 			return false;
 		}
 		sim_rec.codeplug_writes--;	// the codeplug as found, not a write of the UI's
+		return true;
+	}
+#endif
+#if CONFIG_AIR
+	if (strcmp(t, "airname") == 0) {
+		snprintf(view.air_src_name, sizeof view.air_src_name, "%s", arg != NULL ? arg : "");
+		for (char *c = view.air_src_name; *c; c++)
+			*c = *c == '_' ? ' ' : *c;
+		changed();
 		return true;
 	}
 #endif
