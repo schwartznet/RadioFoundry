@@ -1852,6 +1852,101 @@ static void test_planned_nc(void)
 	CHECK(cut_of() == 0 && live.otar_cut_kid == 0);
 }
 
+// ===================== radio silence (radio-silence.md 3): a reply is dropped, only what the user starts goes
+#if CONFIG_RADIO_SILENCE
+static void test_silence_member(void)
+{
+	setup(0);
+	roster_add(PEER_ID, 1, peer_pub);
+	roster_add(ENGINE_ID, 0, eng_pub);
+	otar_start(&keys, 0, 77);
+	tek[77].used = true;
+	keys.ks_active = 4;
+	radio_silence_flag = true;
+	out_n = 0;
+	// The automatic HELLO at start waits
+	run(25000);
+	CHECK(out_n == 0);
+	// A REKEY is taken (the radio keeps up with the net) but not ACKed; a ZEROIZE wipes without its ACK
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t m, r;
+	rekey_msg(&m, 5, 78, 0x55, 0);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(1000);
+	CHECK(out_n == 0 && keys.ks_next == 5 && keys.kid_next[0] == 78);
+	memset(&m, 0, sizeof m);
+	m.rank = 1;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_INVENTORY, &m, buf));
+	run(1000);
+	CHECK(out_n == 0);
+	// The user's Request keys goes
+	CHECK(ui_svc_net_request_keys(v_now()) == UI_NET_OK);
+	run(1000);
+	CHECK(out_n == 1 && last_out(&r) && r.type == OTAR_HELLO);
+	// Silence ends: the radio answers again
+	radio_silence_flag = false;
+	memset(&m, 0, sizeof m);
+	m.rank = 1;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_INVENTORY, &m, buf));
+	run(1000);
+	CHECK(out_n > 1 && last_out(&r) && r.type == OTAR_ACK);
+	// Remote wipe under silence: the keys go, no ACK
+	radio_silence_flag = true;
+	live.otar_wipe = 1;
+	saved = live;
+	wipes = 0;
+	int before = out_n;
+	memset(&m, 0, sizeof m);
+	m.rank = 1;
+	m.target = ENGINE_ID;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ZEROIZE, &m, buf));
+	run(2000);
+	CHECK(wipes == 1 && out_n == before);
+	radio_silence_flag = false;
+}
+
+static void test_silence_nc(void)
+{
+	setup(1);
+	roster_add(ENGINE_ID, 1, eng_pub);
+	roster_add(PEER_ID, 0, peer_pub);
+	otar_start(&keys, 0, 77);
+	tek[77].used = true;
+	keys.ks_active = 4;
+	run(3000);
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t m, r;
+	radio_silence_flag = true;
+	out_n = 0;
+	// A member's HELLO (behind, up to date): no answer of any kind
+	memset(&m, 0, sizeof m);
+	m.keyset = 3;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_HELLO, &m, buf));
+	run(3000);
+	memset(&m, 0, sizeof m);
+	m.keyset = 4;
+	run(3000);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_HELLO, &m, buf));
+	run(3000);
+	CHECK(out_n == 0);
+	// The user's Rekey now goes, and so do its retries
+	CHECK(ui_svc_net_rekey(v_now(), 0) == UI_NET_OK);
+	run(3000);
+	CHECK(out_n == 1 && last_out(&r) && r.type == OTAR_REKEY && r.keyset == 5);
+	run(90000);
+	CHECK(out_n >= 2 && last_out(&r) && r.type == OTAR_REKEY);
+	radio_silence_flag = false;
+	// Silence ends: a HELLO is answered again
+	out_n = 0;
+	memset(&m, 0, sizeof m);
+	m.keyset = 4;
+	run(130000);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_HELLO, &m, buf));
+	run(3000);
+	CHECK(out_n >= 1);
+}
+#endif
+
 int main(void)
 {
 	test_msgnum();
@@ -1871,6 +1966,10 @@ int main(void)
 	test_netchan_nc();
 	test_planned_member();
 	test_planned_nc();
+#if CONFIG_RADIO_SILENCE
+	test_silence_member();
+	test_silence_nc();
+#endif
 	printf("otarEngineTest: %d checks, %d failures\n", checks, failures);
 	return failures != 0;
 }

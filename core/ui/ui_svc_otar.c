@@ -392,6 +392,7 @@ static struct {
 	// A member's HELLO (9): said until its net control answers, with longer and longer gaps (hello_gap)
 	struct {
 		bool on;		// not answered yet
+		bool asked;		// the user's Request keys: goes under radio silence too (the automatic one waits)
 		uint8_t state;		// UI_HELLO_*
 		uint8_t n;		// said this many times
 		uint32_t to, num;	// the net control it went to, its message number (the answer echoes it)
@@ -479,6 +480,7 @@ static struct {
 	bool manage_due;	// a member just joined: manage the channel's keys if it doesn't yet (ui_svc_net_joined)
 	bool co_hand;		// Change over the net by hand: the run's end sends no CHANGEOVER of its own
 	uint32_t sched_ms;	// the schedule last looked at
+	uint16_t silence_dropped;	// replies not sent under radio silence (silenced)
 } eng;
 
 // A rekey's key or a new net's key pair still waits for randomness
@@ -655,6 +657,22 @@ __attribute__((noinline)) static bool pair_keys(uint32_t own, uint32_t id, uint1
 	return ok;
 }
 
+// Radio silence (radio-silence.md 3): the message in eng.out isn't sent when it is a reply. A member sends nothing but
+// the HELLO its user asked for (Request keys): its ACKs, answers and "old message number" are replies. A net control
+// sends what its user starts (a rekey run and its retries, the roster, the time, a wipe, Ask its keys, Get location,
+// the channel, a cancel), never an ACK or a POSITION (its answers to a higher net control, or to a HELLO); its other
+// answers to a HELLO and its automatic rekey and changeover are not started at all (hello_answer, sched_tick, rk_step).
+// The message is dropped, not held, as every reply under radio silence is
+static bool silenced(const otar_net_t *n)
+{
+	if (!radio_silent())
+		return false;
+	uint8_t type = eng.out[2];
+	if (n->rank == 0)
+		return !(type == OTAR_HELLO && eng.hello.asked);
+	return type == OTAR_ACK || type == OTAR_POSITION;
+}
+
 // A message built straight into eng.out (only while it is free)
 static void out_set(uint32_t dst, bool group, int len)
 {
@@ -749,6 +767,7 @@ __attribute__((noinline)) static void on_rekey(const radio_view_t *v, const uint
 	}
 	if (eng.hello.on && src == eng.hello.to) {	// the answer to its HELLO (9): asked no more
 		eng.hello.on = false;
+		eng.hello.asked = false;
 		eng.hello.state = UI_HELLO_GOT;
 	}
 	memset(&eng.ack, 0, sizeof eng.ack);
@@ -825,6 +844,7 @@ __attribute__((noinline)) static void on_withdraw(const radio_view_t *v, const u
 		return;
 	if (eng.hello.on && src == eng.hello.to) {	// the answer to its HELLO (9)
 		eng.hello.on = false;
+		eng.hello.asked = false;
 		eng.hello.state = UI_HELLO_GOT;
 	}
 	uint32_t ks = m->keyset, echo = m->msgnum;
@@ -1397,6 +1417,8 @@ static int hello_slot(uint32_t src, uint32_t num, uint32_t now)
 static __attribute__((noinline)) void hello_answer(const radio_view_t *v, const otar_msg_t *m, uint32_t src,
 						   const otar_net_t *n, const uint8_t kmac[OTAR_KEY_LEN], uint32_t now)
 {
+	if (radio_silent())
+		return;		// an answer: not under radio silence (radio-silence.md 3); the member asks again later
 	int slot = hello_slot(src, m->msgnum, now);
 	if (slot < 0)
 		return;
@@ -1689,7 +1711,8 @@ __attribute__((noinline)) static bool rk_step(const radio_view_t *v, const otar_
 		}
 	} else if (!shown) {
 		// Changed over by the clock (not by hand): CHANGEOVER for the members that have no clock (otar.md 9)
-		if (rk->changeover != 0 && !eng.co_hand && v->otar.on && v->otar.kid == rk->kid)
+		// (not under radio silence: sent by itself; a member with a clock changes over all the same)
+		if (rk->changeover != 0 && !eng.co_hand && v->otar.on && v->otar.kid == rk->kid && !radio_silent())
 			(void)co_start(v, rk->kid, rk->keyset, n->net_id, n->rank, false);
 		eng.co_hand = false;
 		rk_free();
@@ -2046,6 +2069,7 @@ static __attribute__((noinline)) void on_hello_ack(const radio_view_t *v, const 
 	    (m->result != OTAR_ACK_CURRENT && m->result != OTAR_ACK_NOT_MANAGED) || !take_msgnum(src, m->msgnum, now))
 		return;
 	eng.hello.on = false;
+	eng.hello.asked = false;
 	eng.hello.state = m->result == OTAR_ACK_CURRENT ? UI_HELLO_CURRENT : UI_HELLO_NONE;
 }
 
@@ -2063,6 +2087,7 @@ uint8_t ui_svc_net_request_keys(const radio_view_t *v)
 	if (eng.hello.n != 0 && (uint32_t)(now - eng.hello.sent_at) < HELLO_REQ_MS)
 		return UI_NET_BUSY;
 	eng.hello.on = true;
+	eng.hello.asked = true;
 	eng.hello.n = 0;
 	eng.hello.due = now;
 	return UI_NET_OK;
@@ -2102,8 +2127,8 @@ static __attribute__((noinline)) bool sched_tick(const radio_view_t *v, uint32_t
 		sched_put(days, next, now);
 		return true;
 	}
-	if (v->otar.now_min < at || v->otar.has_next)
-		return false;
+	if (v->otar.now_min < at || v->otar.has_next || radio_silent())
+		return false;	// under radio silence the rekey that falls due waits until silence ends
 	if (ui_svc_net_rekey(v, SCHED_CO_MIN) != UI_NET_OK)
 		return false;
 	sched_put(days, next, now);
@@ -2182,7 +2207,9 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 		}
 	}
 	if (eng.out_len != 0 && !eng.sending) {
-		if (otar_send(eng.out_dst, eng.out_group, eng.out, eng.out_len))
+		if (silenced(&n))
+			eng.silence_dropped++;
+		else if (otar_send(eng.out_dst, eng.out_group, eng.out, eng.out_len))
 			eng.sending = true;
 		crypto_wipe(eng.out, sizeof eng.out);
 		eng.out_len = 0;
@@ -2259,8 +2286,9 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 		manage_joined(v);
 	// A member back on asks its net control for keys with HELLO (9), again until it is answered; not once it is
 	// removed from the net
+	// Radio silence (radio-silence.md 3): the automatic HELLO waits until it ends; the user's Request keys goes
 	if (n.rank == 0 && eng.hello.on && v->otar.on && !(n.flags & OTAR_NET_REMOVED) && mn_ok &&
-	    (int32_t)(now - eng.hello.due) >= 0 && eng.out_len == 0 && !eng.sending) {
+	    (int32_t)(now - eng.hello.due) >= 0 && eng.out_len == 0 && !eng.sending && (eng.hello.asked || !radio_silent())) {
 		say_hello(v, &n, now);
 		changed = true;
 	}
