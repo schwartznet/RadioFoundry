@@ -106,6 +106,9 @@ Text is shortened with a middle ellipsis only as a last resort (P5 allows it for
   nothing encrypted, so Home never shows a lock it can't keep. It goes by whether the radio loaded the key
   (`radio_view_t.dmr.privacy` after `radio_aes_configure`), not by the channel's key reference alone.
   On an AES channel the top bar's mode word says DMR, as with basic privacy: the badge names the encryption.
+  Large-text Home shows the same mark: the badge in the medium font under the channel name where the name's line
+  leaves room for it, else the padlock at the right end of the name's line (the name takes a smaller font before it
+  is shortened). The VFO shows neither, as on normal Home.
 - NXDN Home shows an ENC marker with the caller and destination when a scrambled call plays. It shows "Encrypted: not played" when
   the radio receives an encrypted call and holds its audio.
 

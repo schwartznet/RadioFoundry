@@ -313,5 +313,7 @@ bool ui_home_no_key(const radio_view_t *v);
 
 // The last Home frame drew the encryption type badge after the channel's name (else the padlock, or nothing)
 bool ui_home_badge_drawn(void);
+// The last Home frame drew the padlock after the channel's name
+bool ui_home_lock_drawn(void);
 
 #endif
