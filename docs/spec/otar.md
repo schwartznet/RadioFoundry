@@ -963,12 +963,13 @@ every time.
 Under radio silence ([radio-silence.md](radio-silence.md) 3) OTAR sends only what its user starts. A member sends no
 answers at all (its ACKs, POSITION, "old message number"), though it still takes what a message carries (a REKEY's
 key is stored, a WITHDRAW drops the keyset, a ZEROIZE wipes); its HELLO at start waits until silence ends, and Net >
-Request keys goes. A net control answers no HELLO, sends no ACK or POSITION, skips the CHANGEOVER it would send by
-itself at a changeover by the clocks, and holds a scheduled rekey until silence ends; Rekey now, Change over the net,
-Send the roster, Send the time, a wipe, Ask its keys, Get location, the net's channel and Move or Cancel the change go,
-with their retries. A reply is dropped, not held (`silenced`, counted in `eng.silence_dropped`).
+Request keys goes. A net control answers no HELLO and sends no ACK or POSITION. What its user starts or scheduled goes,
+with its retries: Rekey now and a scheduled rekey (Rekey every, the user's own schedule) with the CHANGEOVER at their
+changeover by the clocks (members without a clock wait for it), Change over the net, Send the roster, Send the time, a
+wipe, Ask its keys, Get location, the net's channel and Move or Cancel the change. A reply is dropped, not held (`silenced`, counted in `eng.silence_dropped`).
 
-Tests: `otarEngineTest` (327 checks) adds a member under silence (no HELLO at start, a REKEY stored without its ACK,
+Tests: `otarEngineTest` (333 checks) adds a member under silence (no HELLO at start, a REKEY stored without its ACK,
 an INVENTORY unanswered, Request keys sent, answers again once silence ends, a ZEROIZE wiping with no ACK) and a net
-control (no answer to a HELLO behind or up to date, Rekey now and its retry sent, a HELLO answered again after). Each
-gate was taken out in turn and the test fails each time.
+control (no answer to a HELLO behind or up to date, Rekey now and its retry sent, a HELLO answered again after), and a
+scheduled rekey under silence (its REKEY sent, then its CHANGEOVER to the talkgroup). Each gate was taken out in turn,
+and the scheduled rekey and its CHANGEOVER held back in turn, and the test fails each time.

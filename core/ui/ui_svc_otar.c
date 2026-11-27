@@ -659,9 +659,10 @@ __attribute__((noinline)) static bool pair_keys(uint32_t own, uint32_t id, uint1
 
 // Radio silence (radio-silence.md 3): the message in eng.out isn't sent when it is a reply. A member sends nothing but
 // the HELLO its user asked for (Request keys): its ACKs, answers and "old message number" are replies. A net control
-// sends what its user starts (a rekey run and its retries, the roster, the time, a wipe, Ask its keys, Get location,
-// the channel, a cancel), never an ACK or a POSITION (its answers to a higher net control, or to a HELLO); its other
-// answers to a HELLO and its automatic rekey and changeover are not started at all (hello_answer, sched_tick, rk_step).
+// sends what its user starts or scheduled (a rekey run, scheduled or not, its retries and its CHANGEOVER at a clocked
+// changeover, the roster, the time, a wipe, Ask its keys, Get location, the channel, a cancel), never an ACK or a
+// POSITION (its answers to a higher net control, or to a HELLO); its other answers to a HELLO are not started at all
+// (hello_answer).
 // The message is dropped, not held, as every reply under radio silence is
 static bool silenced(const otar_net_t *n)
 {
@@ -1711,8 +1712,8 @@ __attribute__((noinline)) static bool rk_step(const radio_view_t *v, const otar_
 		}
 	} else if (!shown) {
 		// Changed over by the clock (not by hand): CHANGEOVER for the members that have no clock (otar.md 9)
-		// (not under radio silence: sent by itself; a member with a clock changes over all the same)
-		if (rk->changeover != 0 && !eng.co_hand && v->otar.on && v->otar.kid == rk->kid && !radio_silent())
+		// (under radio silence too: the end of the user's own rekey, which members without a clock wait for)
+		if (rk->changeover != 0 && !eng.co_hand && v->otar.on && v->otar.kid == rk->kid)
 			(void)co_start(v, rk->kid, rk->keyset, n->net_id, n->rank, false);
 		eng.co_hand = false;
 		rk_free();
@@ -2127,8 +2128,8 @@ static __attribute__((noinline)) bool sched_tick(const radio_view_t *v, uint32_t
 		sched_put(days, next, now);
 		return true;
 	}
-	if (v->otar.now_min < at || v->otar.has_next || radio_silent())
-		return false;	// under radio silence the rekey that falls due waits until silence ends
+	if (v->otar.now_min < at || v->otar.has_next)
+		return false;	// (under radio silence too: the schedule is the user's own, radio-silence.md 3)
 	if (ui_svc_net_rekey(v, SCHED_CO_MIN) != UI_NET_OK)
 		return false;
 	sched_put(days, next, now);

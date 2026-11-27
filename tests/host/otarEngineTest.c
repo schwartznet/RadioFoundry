@@ -1945,6 +1945,50 @@ static void test_silence_nc(void)
 	run(3000);
 	CHECK(out_n >= 1);
 }
+// A scheduled rekey is the user's own: under radio silence it goes, and so does its CHANGEOVER at the changeover
+static void test_silence_sched(void)
+{
+	setup(1);
+	roster_add(ENGINE_ID, 1, eng_pub);
+	roster_add(PEER_ID, 0, peer_pub);
+	otar_start(&keys, 0, 77);
+	tek[77].used = true;
+	keys.ks_active = 4;
+	run(3000);
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t r;
+	radio_silence_flag = true;
+	uint32_t due = v_now()->otar.now_min;
+	live.otar_sched = 1;
+	live.otar_sched_at[0] = (uint8_t)(due >> 16);
+	live.otar_sched_at[1] = (uint8_t)(due >> 8);
+	live.otar_sched_at[2] = (uint8_t)due;
+	saved = live;
+	out_n = 0;
+	run(15000);
+	int rekeys = 0;
+	for (int i = 0; i < out_n; i++)
+		rekeys += out_open(i, &r) && r.type == OTAR_REKEY && r.keyset == 5;
+	CHECK(rekeys >= 1);
+	// The member ACKs; the clocks change the net over: CHANGEOVER to the talkgroup all the same
+	CHECK(last_out(&r) && r.type == OTAR_REKEY);
+	ack_rekey(5, &r, OTAR_ACK_STORED, buf);
+	run(500);
+	view.dmr.target_id = 9;
+	view.dmr.target_private = false;
+	(void)otar_change_over(&keys);
+	out_n = 0;
+	run(10000);
+	int co = 0;
+	for (int i = 0; i < out_n; i++)
+		co += outbox[i].group && outbox[i].m[2] == OTAR_CHANGEOVER;
+	CHECK(co >= 1);
+	view.dmr.target_id = 0;
+	radio_silence_flag = false;
+	live.otar_sched = 0;
+	memset(live.otar_sched_at, 0, sizeof live.otar_sched_at);
+	saved = live;
+}
 #endif
 
 int main(void)
@@ -1969,6 +2013,7 @@ int main(void)
 #if CONFIG_RADIO_SILENCE
 	test_silence_member();
 	test_silence_nc();
+	test_silence_sched();
 #endif
 	printf("otarEngineTest: %d checks, %d failures\n", checks, failures);
 	return failures != 0;
