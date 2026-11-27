@@ -901,6 +901,8 @@ checked on air yet.
 | Share location | Net > Share location on every radio in a net, under Remote wipe: On by default and set again at each join or start (`settings_t.otar_loc_off`, [settings-store.md](settings-store.md)); Off answers "refused" |
 | Get location | Net > Members > OK on a radio > 5 Get location: a screen with "Location: asking", then the position, the distance and compass point from this radio and the fix's age, or "no fix", "refused", "no answer" (3 tries, 20 s apart). Back returns to the member screen, which shows the same lines under its others |
 | Limits | One LOCATE asked at a time; a member answers each net control at most once per 10 s, never a replay, never under radio silence (7.7) |
+| During a rekey run | Get location (and Ask its keys) go at once during a rekey run too. Before 2026-11-27 they waited for the run to end, and a run by the clocks stays open until its changeover (up to a day), so Get location sat on "asking" (found on the bench) |
+| How old | "no fix", "refused" and "no answer" show how long ago they came ("no fix - 9h ago"), as a position shows its age: an old answer isn't taken for today's |
 | Old radios | Drop type 10 (an unknown type): "no answer". The protocol version stays 4 |
 
 Tests: `otarEngineTest` adds the member's answer (position, south and west, altitude unknown, the fix's age), Share
