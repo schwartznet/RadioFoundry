@@ -427,6 +427,52 @@ static void test_roster(void)
 	      otar_join_build(1, 5, p, sizeof p) == 0 && otar_join_build(1, 1, p, 4) == 0);
 }
 
+// Traffic key record n as the Codeplug Editor writes it: system, algorithm ALG, key ID, flags 0x01, the key
+static void put_record(uint16_t n, uint8_t system, uint16_t key_id, const uint8_t *key, uint8_t len)
+{
+	uint8_t v[CODEPLUG_TRAFFIC_HDR + 64];
+	v[0] = system;
+	v[1] = ALG;
+	v[2] = (uint8_t)key_id;
+	v[3] = (uint8_t)(key_id >> 8);
+	v[4] = 0x01;
+	memcpy(&v[CODEPLUG_TRAFFIC_HDR], key, len);
+	CHECK(codeplug_kv_set((uint16_t)(CODEPLUG_KEY_TRAFFIC + n), v, (uint16_t)(CODEPLUG_TRAFFIC_HDR + len)));
+}
+
+// A page from one walk (key_store_window) is what key_store_get gives one entry at a time, the count too, at every
+// start and size (from #1077's keyStoreTest)
+static void test_window(void)
+{
+	fresh();
+	put_system(3, TYPE_A, "Wide", NULL, 0);
+	const uint8_t k[6] = { 1, 2, 3, 4, 5, 6 };	// the longest record's key below
+	for (uint16_t i = 0; i < 6; i++)
+		put_record((uint16_t)(i * 2u), 3, (uint16_t)(i + 1u), k, (uint8_t)(i + 1u));
+	put_record(1, 4, 0x0099, k, 4);	// no system 4: skipped, in the middle
+	settings.privacy_type[2] = DMR_PRIVACY_ANYTONE_BP;
+	settings.privacy_key[2] = 0x0BEEu;
+	settings.privacy_type[3] = DMR_PRIVACY_MOTOROLA_BP;
+	settings.privacy_key[3] = 9;
+	uint16_t total = 0, n = key_store_count();
+	key_entry_t page[4], one;
+	CHECK(n == 8);
+	for (uint16_t first = 0; first <= n; first++) {
+		for (uint16_t max = 0; max <= 4; max++) {
+			uint16_t got = key_store_window(first, page, max, &total);
+			CHECK(total == n && got == (uint16_t)(first + max <= n ? max : n - first));
+			for (uint16_t i = 0; i < got; i++) {
+				const key_entry_t *r = &page[i];
+				CHECK(key_store_get((uint16_t)(first + i), &one, NULL));
+				CHECK(r->cls == one.cls && r->type == one.type && r->kcv_ok == one.kcv_ok &&
+				      r->key_id == one.key_id && memcmp(r->kcv, one.kcv, KCV_LEN) == 0 &&
+				      r->slot == one.slot && r->system == one.system && r->record == one.record &&
+				      r->len == one.len && strcmp(r->name, one.name) == 0);
+			}
+		}
+	}
+}
+
 int main(void)
 {
 	test_privacy();
@@ -434,6 +480,7 @@ int main(void)
 	test_traffic();
 	test_unsupported();
 	test_full();
+	test_window();
 	test_roster();
 	if (failures != 0) {
 		printf("keyStoreTest: %d failure(s)\n", failures);

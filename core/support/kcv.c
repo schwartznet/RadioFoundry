@@ -6,6 +6,7 @@
 #include "support/kcv.h"
 #include "support/sha256.h"
 #include "support/hkdf.h"
+#include "codeplug/codeplug_modes.h"
 #if CONFIG_DMR_AES
 #include "dmr/dmrAes.h"
 #endif
@@ -18,7 +19,7 @@ static const uint8_t LABEL[6] = { 'R', 'F', 'K', 'C', 'V', '1' };
 // when it claims its ids (channel-modes.md 4); every other key gets the hashed form
 static const struct { uint8_t sys_type, alg; } AES_ALGS[] = {
 #if CONFIG_DMR_AES
-	{ 5, DMR_AES_ALG_AES256 },	// conventional DMR AES-256
+	{ CODEPLUG_SYSTYPE_DMR_AES, DMR_AES_ALG_AES256 },	// conventional DMR AES-256
 #endif
 	{ 0, 0 },			// none: no system type is 0
 };
@@ -39,7 +40,9 @@ bool kcv_hashed(kcv_class_t cls, uint8_t a, uint8_t b, const uint8_t *key, uint1
 	return true;
 }
 
-bool kcv_aes(const uint8_t *key, uint16_t n, uint8_t out[KCV_LEN])
+// noinline: inlined into kcv_traffic, its 240 octets of round keys would sit under the hashed form's SHA-256 too, on the
+// UI task's deepest path (stack-check.md)
+__attribute__((noinline)) bool kcv_aes(const uint8_t *key, uint16_t n, uint8_t out[KCV_LEN])
 {
 #if CONFIG_DMR_AES
 	if (n != DMR_AES_KEY_BYTES)

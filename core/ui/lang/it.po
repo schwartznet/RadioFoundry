@@ -4564,8 +4564,8 @@ msgstr "Diagnostica: non in questa build"
 
 #: core/ui/ui_menus.c
 msgctxt "SET_TOAST_KEY_CHECK_COMPARE"
-msgid "The same check on both radios: the same key"
-msgstr "Stessa verifica su entrambe le radio: stessa chiave"
+msgid "Radios that show the same check value hold the same key"
+msgstr "Le radio che mostrano lo stesso valore di verifica hanno la stessa chiave"
 
 #: core/ui/ui_menus.c
 msgctxt "GPS_POSITION_SAVED"
@@ -4686,6 +4686,16 @@ msgstr "Modifica liste scan in qdmr"
 msgctxt "KEYS_LABEL_PRIVACY"
 msgid "Privacy"
 msgstr "Privacy"
+
+#: core/ui/ui_menus.c
+msgctxt "KEYS_TYPE_8_BIT"
+msgid "8-bit"
+msgstr "8 bit"
+
+#: core/ui/ui_menus.c
+msgctxt "KEYS_TYPE_16_BIT"
+msgid "16-bit"
+msgstr "16 bit"
 
 #: core/ui/ui_menus.c
 msgctxt "KF_WHY_KEY_TOO_LONG"

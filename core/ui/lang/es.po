@@ -4564,8 +4564,8 @@ msgstr "Diagnóstico: no disponible"
 
 #: core/ui/ui_menus.c
 msgctxt "SET_TOAST_KEY_CHECK_COMPARE"
-msgid "The same check on both radios: the same key"
-msgstr "Misma verificación en ambas radios: misma clave"
+msgid "Radios that show the same check value hold the same key"
+msgstr "Las radios que muestran el mismo valor de verificación tienen la misma clave"
 
 #: core/ui/ui_menus.c
 msgctxt "GPS_POSITION_SAVED"
@@ -4686,6 +4686,16 @@ msgstr "Edita listas de escaneo en qdmr"
 msgctxt "KEYS_LABEL_PRIVACY"
 msgid "Privacy"
 msgstr "Privacidad"
+
+#: core/ui/ui_menus.c
+msgctxt "KEYS_TYPE_8_BIT"
+msgid "8-bit"
+msgstr "8 bits"
+
+#: core/ui/ui_menus.c
+msgctxt "KEYS_TYPE_16_BIT"
+msgid "16-bit"
+msgstr "16 bits"
 
 #: core/ui/ui_menus.c
 msgctxt "KF_WHY_KEY_TOO_LONG"

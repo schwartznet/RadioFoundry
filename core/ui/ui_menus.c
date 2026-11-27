@@ -7865,7 +7865,7 @@ static void group_select(uint16_t i, bool hold)
 		case SA_LANGUAGE: ui_push(SCR_LANGUAGE, 0); break;
 #if CONFIG_KEY_CHECK
 		case SA_KEY_CHECK:
-			ui_toast(TR(SET_TOAST_KEY_CHECK_COMPARE, "The same check on both radios: the same key"));
+			ui_toast(TR(SET_TOAST_KEY_CHECK_COMPARE, "Radios that show the same check value hold the same key"));
 			break;
 #endif
 #if KEY_STORE
@@ -8360,8 +8360,15 @@ static void keys_item(uint16_t i, ui_item_t *it)
 		sb_str(&b, TR(KEYS_LABEL_PRIVACY, "Privacy"));
 		sb_chr(&b, ' ');
 		sb_u32(&b, e.slot, 1);
-		sb_chr(&b, ' ');
-		sb_str(&b, e.type == 1 ? "Moto" : e.type == 2 ? "Anytone" : "?");
+#if CONFIG_DMR && CONFIG_DMR_PRIVACY
+		// The type by its short name: the Key type setting's names carry the key range, too wide beside the
+		// check value (index = the privacy type, as n_ptype)
+		static const tr_id_t types[] = { TR_NONE, TRN(KEYS_TYPE_8_BIT, "8-bit"), TRN(KEYS_TYPE_16_BIT, "16-bit") };
+		if (e.type < sizeof types / sizeof types[0] && types[e.type] != TR_NONE) {
+			sb_chr(&b, ' ');
+			sb_str(&b, tr(types[e.type]));
+		}
+#endif
 	} else {
 		sb_str(&b, e.name[0] ? e.name : codeplug_systype_name(e.type));
 		sb_str(&b, " #");
@@ -8387,7 +8394,7 @@ static void keys_select(uint16_t i, bool hold)
 	ui_push(SCR_KEY_SEND, i);	// Send this key: to which radio
 #else
 	(void)i;
-	ui_toast(TR(SET_TOAST_KEY_CHECK_COMPARE, "The same check on both radios: the same key"));
+	ui_toast(TR(SET_TOAST_KEY_CHECK_COMPARE, "Radios that show the same check value hold the same key"));
 #endif
 }
 

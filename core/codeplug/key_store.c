@@ -60,29 +60,49 @@ typedef struct {
 	uint8_t n;
 	uint8_t id[4];
 	bool ok[4];
-	codeplug_system_t s[4];
+	uint8_t type[4];			// only what an entry takes from its system: the type and the name (a whole
+	char name[4][CODEPLUG_NAME_LEN + 1];	// codeplug_system_t each was on the UI task's deepest path; stack-check.md)
 } sys_cache_t;
 
-static bool cached_system(sys_cache_t *c, uint8_t id, codeplug_system_t *out)
+// System id's slot in the cache, looked up once per walk; -1 when the system doesn't exist
+static int cached_system(sys_cache_t *c, uint8_t id)
 {
 	for (uint8_t i = 0; i < c->n; i++) {
-		if (c->id[i] == id) {
-			*out = c->s[i];
-			return c->ok[i];
-		}
+		if (c->id[i] == id)
+			return c->ok[i] ? i : -1;
 	}
+	codeplug_system_t s;
 	uint8_t block[CODEPLUG_SYS_HDR];
-	memset(out, 0, sizeof *out);	// the name's tail too: an entry copies it whole
-	bool ok = codeplug_system(id, out, block, 0) >= 0;
+	memset(&s, 0, sizeof s);	// the name's tail too: an entry copies it whole
+	bool ok = codeplug_system(id, &s, block, 0) >= 0;
 	uint8_t slot = c->n < 4u ? c->n++ : (uint8_t)(id & 3u);
 	c->id[slot] = id;
 	c->ok[slot] = ok;
-	c->s[slot] = *out;
-	return ok;
+	c->type[slot] = s.type;
+	memcpy(c->name[slot], s.name, sizeof c->name[slot]);
+	return ok ? slot : -1;
 }
 #endif
 
 #if CODEPLUG_MODE_RECORDS
+// Entry *e from traffic record k (its value v, len octets, read whole up to KEY_STORE_MAX_LEN of key) of the system in
+// cache slot si: the one fill for a single entry and for a page
+static void traffic_fill(key_entry_t *e, const sys_cache_t *sc, int si, const uint8_t *v, int len, uint16_t k)
+{
+	memset(e, 0, sizeof *e);
+	e->cls = KCV_CLASS_TRAFFIC;
+	e->type = sc->type[si];
+	e->system = v[0];
+	e->alg = v[1];
+	e->key_id = (uint16_t)(v[2] | v[3] << 8);
+	e->flags = v[4];
+	e->record = k;
+	e->len = (uint16_t)(len - (int)CODEPLUG_TRAFFIC_HDR);
+	memcpy(e->name, sc->name[si], sizeof e->name);
+	// A key longer than the walk copied has no check value here (none in this tree is)
+	e->kcv_ok = e->len <= KEY_STORE_MAX_LEN && kcv_traffic(e->type, e->alg, &v[CODEPLUG_TRAFFIC_HDR], e->len, e->kcv);
+}
+
 // Traffic key entry n, in the area's order, counting only records whose system exists: as privacy_entry
 static bool traffic_entry(uint16_t n, uint16_t want_record, key_entry_t *e, uint8_t *key, uint16_t *count)
 {
@@ -95,24 +115,12 @@ static bool traffic_entry(uint16_t n, uint16_t want_record, key_entry_t *e, uint
 	sc.n = 0;
 	codeplug_kv_begin(&c, CODEPLUG_KEY_TRAFFIC, (uint16_t)(CODEPLUG_KEY_TRAFFIC + TRAFFIC_RECORDS - 1u));
 	while (!found && (len = codeplug_kv_next(&c, &k, v, sizeof v)) >= 0) {
-		codeplug_system_t s;
-		if (len <= (int)CODEPLUG_TRAFFIC_HDR || !cached_system(&sc, v[0], &s))
+		int si;
+		if (len <= (int)CODEPLUG_TRAFFIC_HDR || (si = cached_system(&sc, v[0])) < 0)
 			continue;
 		if (want_record != 0 ? k != want_record : seen++ != n)
 			continue;
-		memset(e, 0, sizeof *e);
-		e->cls = KCV_CLASS_TRAFFIC;
-		e->type = s.type;
-		e->system = v[0];
-		e->alg = v[1];
-		e->key_id = (uint16_t)(v[2] | v[3] << 8);
-		e->flags = v[4];
-		e->record = k;
-		e->len = (uint16_t)(len - (int)CODEPLUG_TRAFFIC_HDR);
-		memcpy(e->name, s.name, sizeof e->name);
-		// A key longer than the walk copied has no check value here (none in this tree is)
-		e->kcv_ok = e->len <= KEY_STORE_MAX_LEN &&
-			kcv_traffic(s.type, e->alg, &v[CODEPLUG_TRAFFIC_HDR], e->len, e->kcv);
+		traffic_fill(e, &sc, si, v, len, k);
 		if (key != NULL)
 			memcpy(key, &v[CODEPLUG_TRAFFIC_HDR], e->len < KEY_STORE_MAX_LEN ? e->len : KEY_STORE_MAX_LEN);
 		found = true;
@@ -172,25 +180,13 @@ uint16_t key_store_window(uint16_t first, key_entry_t *out, uint16_t max, uint16
 	sc.n = 0;
 	codeplug_kv_begin(&c, CODEPLUG_KEY_TRAFFIC, (uint16_t)(CODEPLUG_KEY_TRAFFIC + TRAFFIC_RECORDS - 1u));
 	while ((len = codeplug_kv_next(&c, &k, v, sizeof v)) >= 0) {
-		codeplug_system_t s;
-		if (len <= (int)CODEPLUG_TRAFFIC_HDR || !cached_system(&sc, v[0], &s))
+		int si;
+		if (len <= (int)CODEPLUG_TRAFFIC_HDR || (si = cached_system(&sc, v[0])) < 0)
 			continue;
 		uint16_t n = at++;
 		if (n < first || filled >= max)
 			continue;
-		key_entry_t *e = &out[filled++];
-		memset(e, 0, sizeof *e);
-		e->cls = KCV_CLASS_TRAFFIC;
-		e->type = s.type;
-		e->system = v[0];
-		e->alg = v[1];
-		e->key_id = (uint16_t)(v[2] | v[3] << 8);
-		e->flags = v[4];
-		e->record = k;
-		e->len = (uint16_t)(len - (int)CODEPLUG_TRAFFIC_HDR);
-		memcpy(e->name, s.name, sizeof e->name);
-		e->kcv_ok = e->len <= KEY_STORE_MAX_LEN &&
-			kcv_traffic(s.type, e->alg, &v[CODEPLUG_TRAFFIC_HDR], e->len, e->kcv);
+		traffic_fill(&out[filled++], &sc, si, v, len, k);
 	}
 	crypto_wipe(v, sizeof v);
 #endif
