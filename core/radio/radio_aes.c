@@ -306,6 +306,12 @@ bool radio_aes_otar_request(uint8_t op, uint32_t value, const channel_t *ch, uin
 			return false;
 		change_over(now_ms);
 		return true;	// saved by change_over
+	case RADIO_OTAR_DROP_PREV:
+		// A silent revoke (otar.md 7.12): the key this radio changed over from goes at once, not after the overlap
+		if (!(otar.flags & OTAR_F_PREV))
+			return false;
+		drop_prev(now_ms);
+		return true;	// saved by drop_prev
 	case RADIO_OTAR_CLOCK:
 		utc_clock_set((int64_t)value, now_ms, UTC_SRC_HAND);
 		rtc_keep((int64_t)value, now_ms);

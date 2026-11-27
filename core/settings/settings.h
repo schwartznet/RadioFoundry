@@ -297,6 +297,10 @@ typedef struct {
 	// The OTAR net's channel (otar.md 7.8), appended: the one its net control set, else the one this radio started or
 	// joined the net on. An older record reads none
 	otar_chan_t otar_chan;
+	// OTAR remote silence (otar.md 7.11), appended: SETTINGS_OSIL_* bits. An older record reads 0: a net control may
+	// turn radio silence on, as the user's rule for remote controls wants
+	uint8_t otar_sil;
+	uint8_t otar_sil_reserved[3];	// 0
 } settings_t;
 
 // Pages: settings_t is stored as records of SETTINGS_PAGE_BYTES each (settings-store.md 2.1). Only the pages its size
@@ -484,6 +488,9 @@ static inline void settings_set_tones_off(settings_t *s, uint8_t off)
 #define SETTINGS_RS_KEY_BEEP		0x10u
 #define SETTINGS_RS_NO_TALK_PERMIT	0x20u	// the talk permit tone off (0 = on, as before)
 #define SETTINGS_RS_SILENCE		0x40u	// radio silence (docs/spec/radio-silence.md; 0 = off, as before)
+#define SETTINGS_OSIL_OFF	0x01u	// settings_t.otar_sil: the user turned Net > Remote silence off (otar.md 7.11)
+#define SETTINGS_OSIL_BY_NC	0x02u	// ... radio silence is on because a net control turned it on: its SILENCE off
+					// may end it, never a silence the user turned on
 // settings_t.rpt_beacon (taken with the roam_ fields)
 #define SETTINGS_RPT_BEACON		0x01u	// our repeater roles key an idle beacon
 #define SETTINGS_RPT_SFR_RX		0x06u	// an SFR user channel hears: 0 the repeat, 1 both (first), 2 both (dual-path RX)

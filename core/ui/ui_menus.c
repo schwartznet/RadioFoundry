@@ -9387,7 +9387,7 @@ static void nk_enter(void)
 // The fingerprint is the radio's public key's, which another radio's Members list shows for it
 enum { NET_START, NET_JOIN, NET_MEMBERS, NET_ADD, NET_REKEY, NET_RK_WHEN, NET_STATUS, NET_CHANGE_OVER, NET_ROSTER,
        NET_TAKE_OVER, NET_WIPE_OK, NET_ACCEPT, NET_REFUSE, NET_LEAVE, NET_SCHED, NET_TIME, NET_REQUEST, NET_SHARE_LOC,
-       NET_CHAN, NET_MOVE, NET_CANCEL, NET_ROWS };
+       NET_CHAN, NET_MOVE, NET_CANCEL, NET_SIL_OK, NET_ROWS };
 static const uint8_t net_sched_days[] = { 0, 1, 7, 30 };	// Rekey every (otar.md 9)
 static uint8_t net_rk_when = 1;	// Key change: index into nk_mins, 5 min each time Net opens
 static uint32_t net_typed;	// Add a member: the ID typed
@@ -9437,6 +9437,7 @@ static uint8_t net_rows(uint8_t out[NET_ROWS])
 	}
 	out[k++] = NET_WIPE_OK;
 	out[k++] = NET_SHARE_LOC;	// a net control may ask where this radio is (LOCATE, otar.md 7.7)
+	out[k++] = NET_SIL_OK;		// ... and turn its radio silence on and off (SILENCE, 7.11)
 	out[k++] = NET_CHAN;		// the net's channel (otar.md 7.8): net control 1 sets it
 	out[k++] = NET_LEAVE;
 	return k;
@@ -9479,7 +9480,7 @@ static void net_item(uint16_t i, ui_item_t *it)
 					 TRN(NET_SCHED, "Rekey every"), TRN(NET_TIME, "Send the time"),
 					 TRN(NET_REQUEST, "Request keys"), TRN(NET_SHARE_LOC, "Share location"),
 					 TRN(NET_CHAN, "Net channel"), TRN(NET_MOVE, "Move the change"),
-					 TRN(NET_CANCEL, "Cancel the change") };
+					 TRN(NET_CANCEL, "Cancel the change"), TRN(NET_REMOTE_SILENCE, "Remote silence") };
 	uint8_t row = net_row(i);
 	str_copy(it->label, sizeof it->label, tr(names[row]));
 	if (row == NET_RK_WHEN) {
@@ -9494,6 +9495,10 @@ static void net_item(uint16_t i, ui_item_t *it)
 		ui_net_view_t n;
 		net_view_now(&n);
 		str_copy(it->value, sizeof it->value, n.share_location ? TR(NET_ON, "On") : TR(NET_OFF, "Off"));
+	} else if (row == NET_SIL_OK) {
+		ui_net_view_t n;
+		net_view_now(&n);
+		str_copy(it->value, sizeof it->value, n.remote_silence ? TR(NET_ON, "On") : TR(NET_OFF, "Off"));
 	} else if (row == NET_CHAN) {
 		ui_net_view_t n;
 		net_view_now(&n);
@@ -9771,6 +9776,12 @@ static void net_select(uint16_t i, bool hold)
 		ui_svc_net_set_share_location(!n.share_location);
 		break;
 	}
+	case NET_SIL_OK: {
+		ui_net_view_t n;
+		net_view_now(&n);
+		ui_svc_net_set_remote_silence(!n.remote_silence);
+		break;
+	}
 	case NET_ACCEPT:
 		ui_svc_net_accept(true);
 		ui_toast(TR(NET_ACCEPTED, "Take over accepted"));
@@ -9933,12 +9944,13 @@ static void members_select(uint16_t i, bool hold)
 		ui_push(SCR_NET_MEMBER, i);
 }
 
-// A member's actions (otar.md 9, 10, 7.5, 7.7; the net control): its rank (net control 1 only), revoke it, wipe its
-// keys, ask which keys it holds (INVENTORY) and where it is (LOCATE): the body shows the answers
-enum { NM_RANK, NM_REVOKE, NM_WIPE, NM_INV, NM_LOC, NM_ROWS };
+// A member's actions (otar.md 9, 10, 7.5, 7.7, 7.10-7.12; the net control): everything the net does to one radio. Its
+// rank (net control 1 only), revoke it, wipe its keys, ask which keys it holds (INVENTORY) and where it is (LOCATE),
+// wipe the whole radio (WIPE), its radio silence on or off (SILENCE), and a silent revoke: the body shows the answers
+enum { NM_RANK, NM_REVOKE, NM_WIPE, NM_INV, NM_LOC, NM_WIPE_ALL, NM_SILENCE, NM_SREVOKE, NM_ROWS };
 #define OTAR_RANK_MAX_UI	4u	// net controls 1-4 (otar_net.h OTAR_RANK_MAX)
-// A row that waits for OK, as the Net screen's (net_ask): Revoke (never undone) and Wipe its keys (its radio leaves the
-// net). Found on the bench: a single stray press sent a wipe. NM_ROWS: none
+// A row that waits for OK, as the Net screen's (net_ask): Revoke and Silent revoke (never undone), Wipe its keys (its
+// radio leaves the net) and Wipe the radio. Found on the bench: a single stray press sent a wipe. NM_ROWS: none
 static uint8_t nm_ask = NM_ROWS;
 
 static bool nm_member(uint32_t *id, uint8_t *rank, uint8_t *flags, uint8_t fp[3])
@@ -9960,7 +9972,9 @@ static uint16_t nm_count(void)
 static void nm_item(uint16_t i, ui_item_t *it)
 {
 	static const tr_id_t names[] = { TRN(NM_RANK, "Rank"), TRN(NM_REVOKE, "Revoke"), TRN(NM_WIPE, "Wipe its keys"),
-					 TRN(NM_INV, "Ask its keys"), TRN(NM_LOC, "Get location") };
+					 TRN(NM_INV, "Ask its keys"), TRN(NM_LOC, "Get location"),
+					 TRN(NM_WIPE_ALL, "Wipe the radio"), TRN(NM_SILENCE, "Radio silence"),
+					 TRN(NM_SREVOKE, "Silent revoke") };
 	uint32_t id;
 	uint8_t r = 0, f = 0, fp[3];
 	(void)nm_member(&id, &r, &f, fp);
@@ -9974,8 +9988,13 @@ static void nm_item(uint16_t i, ui_item_t *it)
 			sb_str(&b, TR(NM_NC, "NC "));
 			sb_u32(&b, r, 1);
 		}
-	} else if (i == NM_REVOKE && (f & UI_NET_M_REVOKED)) {
+	} else if ((i == NM_REVOKE || i == NM_SREVOKE) && (f & UI_NET_M_REVOKED)) {
 		sb_str(&b, TR(NM_REVOKED, "revoked"));
+	} else if (i == NM_SILENCE) {
+		// What OK asks next: on, unless the last answer was on
+		bool asked;
+		uint8_t st = ui_svc_net_silence_state(id, &asked);
+		sb_str(&b, st == UI_SIL_ON || (st == UI_SIL_SENDING && asked) ? TR(NET_ON, "On") : TR(NET_OFF, "Off"));
 	}
 	item_num(it, (uint16_t)(i + 1u));
 }
@@ -10041,10 +10060,12 @@ static const char *nm_body(void)
 	sb_u32(&b, id, 1);
 	sb_str(&b, "  ");
 	net_fp(&b, fp);
-	if (nm_ask == NM_REVOKE || nm_ask == NM_WIPE) {
+	if (nm_ask != NM_ROWS) {
 		sb_chr(&b, '\n');
 		sb_str(&b, nm_ask == NM_REVOKE ? TR(NM_ASK_REVOKE, "Revoke it? This can't be undone") :
-						TR(NM_ASK_WIPE, "Wipe its keys? It leaves the net"));
+			   nm_ask == NM_SREVOKE ? TR(NM_ASK_SREVOKE, "Silent revoke? It isn't told. Can't be undone") :
+			   nm_ask == NM_WIPE_ALL ? TR(NM_ASK_WIPE_ALL, "Wipe the whole radio? Keys and channels") :
+						   TR(NM_ASK_WIPE, "Wipe its keys? It leaves the net"));
 		return id_body;
 	}
 	if (ui_svc_net_out_of_sync(id)) {	// its message numbers from this radio are ahead (otar.md 7.6)
@@ -10055,10 +10076,28 @@ static const char *nm_body(void)
 	uint8_t zz = ui_svc_net_wipe_state(id);
 	if (zz != UI_ZZ_NONE) {
 		sb_chr(&b, '\n');
-		sb_str(&b, TR(NM_WIPE_IS, "Wipe: "));
+		sb_str(&b, ui_svc_net_wipe_whole(id) ? TR(NM_WIPE_ALL_IS, "Radio wipe: ") : TR(NM_WIPE_IS, "Wipe: "));
 		sb_str(&b, zz == UI_ZZ_SENDING ? TR(NM_WIPE_SENDING, "sending") :
 			   zz == UI_ZZ_WIPED ? TR(NM_WIPE_DONE, "wiped") :
 			   zz == UI_ZZ_REFUSED ? TR(NM_WIPE_REFUSED, "refused") : TR(NM_KEYS_NO_ANSWER, "no answer"));
+	}
+	// Radio silence asked (otar.md 7.11): what the radio answered
+	bool asked;
+	uint8_t sil = ui_svc_net_silence_state(id, &asked);
+	if (sil != UI_SIL_NONE) {
+		sb_chr(&b, '\n');
+		sb_str(&b, TR(NM_SIL_IS, "Silence: "));
+		sb_str(&b, sil == UI_SIL_SENDING ? TR(NM_WIPE_SENDING, "sending") :
+			   sil == UI_SIL_ON ? TR(NET_ON, "On") : sil == UI_SIL_OFF ? TR(NET_OFF, "Off") :
+			   sil == UI_SIL_REFUSED ? TR(NM_WIPE_REFUSED, "refused") : TR(NM_KEYS_NO_ANSWER, "no answer"));
+	}
+	// A silent revoke (7.12): how it went
+	uint8_t sr = ui_svc_net_silent_revoke_state(id);
+	if (sr != UI_SR_NONE) {
+		sb_chr(&b, '\n');
+		sb_str(&b, sr == UI_SR_SENDING ? TR(NM_SR_SENDING, "Silent revoke: sending") :
+			   sr == UI_SR_DONE ? TR(NM_SR_DONE, "Silent revoke: done") :
+			   TR(NM_SR_UNSURE, "Revoked, no key taken: rekey now"));
 	}
 	ui_inv_view_t q;
 	ui_svc_net_inventory_view(id, &q);
@@ -10122,8 +10161,24 @@ static void nm_do(uint16_t i)
 		else if (res != UI_NET_OK)
 			ui_toast(TR(NM_WHY_MEMBER, "Not for this radio"));
 		break;
+	case NM_SILENCE: {
+		bool asked;
+		uint8_t st = ui_svc_net_silence_state(id, &asked);
+		bool on = !(st == UI_SIL_ON || (st == UI_SIL_SENDING && asked));
+		res = ui_svc_net_silence(v, id, on);
+		ui_toast(res == UI_NET_OK ? (on ? TR(NM_SIL_ON_SENT, "Silence on sent") : TR(NM_SIL_OFF_SENT, "Silence off sent")) :
+			 res == UI_NET_BUSY ? TR(NM_INV_BUSY, "Still asking") : TR(NM_WHY_MEMBER, "Not for this radio"));
+		break;
+	}
+	case NM_SREVOKE:
+		res = ui_svc_net_silent_revoke(v, id);
+		ui_toast(res == UI_NET_OK ? TR(NM_SR_SENT, "Sending it a throwaway key") :
+			 res == UI_NET_HIGHER ? TR(NM_WHY_HIGHER, "A higher net control: use Take over") :
+			 res == UI_NET_NOT_MANAGED ? TR(NM_WHY_NO_KEYS, "This radio manages no keys") :
+			 res == UI_NET_BUSY ? TR(NET_WHY_BUSY, "A rekey is running") : TR(NM_WHY_MEMBER, "Not for this radio"));
+		break;
 	default:
-		res = ui_svc_net_wipe(v, id);
+		res = ui_svc_net_wipe(v, id, i == NM_WIPE_ALL);
 		ui_toast(res == UI_NET_OK ? TR(NM_WIPE_SENT, "Wipe sent: done if its Remote wipe is on") :
 			 res == UI_NET_BUSY ? TR(NM_INV_BUSY, "Still asking") : TR(NM_WHY_MEMBER, "Not for this radio"));
 		break;
@@ -10133,7 +10188,7 @@ static void nm_do(uint16_t i)
 static void nm_select(uint16_t i, bool hold)
 {
 	(void)hold;
-	if (i == NM_REVOKE || i == NM_WIPE)
+	if (i == NM_REVOKE || i == NM_WIPE || i == NM_WIPE_ALL || i == NM_SREVOKE)
 		nm_ask = (uint8_t)i;
 	else
 		nm_do(i);

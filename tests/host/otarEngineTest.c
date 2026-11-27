@@ -160,7 +160,26 @@ bool ui_svc_clear_keys_start(void)
 	memset(&live.otar_net, 0, sizeof live.otar_net);
 	return true;
 }
+// A WIPE's wipe (keys and codeplug): counted apart from Clear all keys
+static int wipe_alls;
+bool ui_svc_wipe_all_start(void)
+{
+	wipe_alls++;
+	wipe_out_n = out_n_now();
+	memset(&live.otar_net, 0, sizeof live.otar_net);
+	return true;
+}
 void ui_svc_noise_want(uint32_t ms) { (void)ms; }
+// The radio silence setting as the UI saves it (a net control's SILENCE): counted, and the flag the radio core sets
+static int sil_sets;
+bool ui_svc_setting_set(uint8_t id, int32_t value)
+{
+	if (id == UI_SET_SILENCE)
+		sil_sets++;
+	(void)value;
+	return true;
+}
+void ui_svc_apply(uint8_t id, int32_t value) { (void)id; (void)value; }
 
 // --- randomness: deterministic, always full (the engine's own key presses aren't what is tested here)
 static uint8_t rnd_ctr;
@@ -170,7 +189,7 @@ void entropy_stir(const void *d, size_t n, unsigned bits) { (void)d; (void)n; (v
 
 // --- the radio core: the engine's requests applied to a keyset state, as radio_aes.c does
 static otar_keys_t keys;
-static int req_time, req_now;
+static int req_time, req_now, req_drop_prev;
 static int drop_mode;		// DROP_NEXT: 0 made, 1 the next one lost, 2 held until drop_release, 3 never made
 static int drop_asks;
 static uint32_t drop_held = 0xFFFFu;
@@ -203,6 +222,15 @@ void radio_req_otar(uint8_t op, uint32_t value)
 		}
 		break;
 	case RADIO_OTAR_TIME: req_time++; break;
+	case RADIO_OTAR_DROP_PREV: {
+		// As radio_aes.c: the previous keyset ended now, its keys erased
+		uint8_t kids[OTAR_CKRS];
+		req_drop_prev++;
+		uint8_t nk = otar_drop_prev(&keys, kids);
+		for (uint8_t i = 0; i < nk; i++)
+			tek[kids[i]].used = false;
+		break;
+	}
 	default: break;
 	}
 }
@@ -360,6 +388,8 @@ static int build(uint8_t type, otar_msg_t *m, uint8_t *out)
 	case OTAR_POSITION: return otar_position_build(out, &a, kmac, m);
 	case OTAR_NETCHAN: return otar_netchan_build(out, &a, kmac, m);
 	case OTAR_WITHDRAW: return otar_withdraw_build(out, &a, kmac, m);
+	case OTAR_WIPE: return otar_wipe_build(out, &a, kmac, m);
+	case OTAR_SILENCE: return otar_silence_build(out, &a, kmac, m);
 	default: return 0;
 	}
 }
@@ -873,8 +903,8 @@ static void test_zeroize_nc(void)
 	uint8_t buf[OTAR_MSG_MAX];
 	otar_msg_t m, r;
 	out_n = 0;
-	CHECK(ui_svc_net_wipe(v_now(), PEER_ID) == UI_NET_OK);
-	CHECK(ui_svc_net_wipe(v_now(), PEER_ID) == UI_NET_BUSY);
+	CHECK(ui_svc_net_wipe(v_now(), PEER_ID, false) == UI_NET_OK);
+	CHECK(ui_svc_net_wipe(v_now(), PEER_ID, false) == UI_NET_BUSY);
 	run(1000);
 	CHECK(out_n == 1 && last_out(&r) && r.type == OTAR_ZEROIZE && r.target == PEER_ID);
 	CHECK(ui_svc_net_wipe_state(PEER_ID) == UI_ZZ_SENDING);
@@ -896,7 +926,7 @@ static void test_zeroize_nc(void)
 
 	// No answer: 3 tries, 20 s apart, then shown as no answer
 	out_n = 0;
-	CHECK(ui_svc_net_wipe(v_now(), PEER_ID) == UI_NET_OK);
+	CHECK(ui_svc_net_wipe(v_now(), PEER_ID, false) == UI_NET_OK);
 	run(90000);
 	int zz = 0;
 	for (int i = 0; i < out_n; i++)
@@ -905,7 +935,7 @@ static void test_zeroize_nc(void)
 	CHECK(ui_svc_net_wipe_state(PEER_ID) == UI_ZZ_NO_ANSWER);
 
 	// Refused (its Remote wipe off): shown as refused
-	CHECK(ui_svc_net_wipe(v_now(), PEER_ID) == UI_NET_OK);
+	CHECK(ui_svc_net_wipe(v_now(), PEER_ID, false) == UI_NET_OK);
 	run(1000);
 	CHECK(last_out(&r) && r.type == OTAR_ZEROIZE);
 	memset(&m, 0, sizeof m);
@@ -914,6 +944,276 @@ static void test_zeroize_nc(void)
 	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &m, buf));
 	run(500);
 	CHECK(ui_svc_net_wipe_state(PEER_ID) == UI_ZZ_REFUSED);
+}
+
+// ===================== WIPE, the whole radio (otar.md 7.10): the engine a member, then net control 1
+static void test_wipe_radio(void)
+{
+	setup(0);
+	roster_add(PEER_ID, 1, peer_pub);
+	roster_add(ENGINE_ID, 0, eng_pub);
+	run(25000);
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t m, r;
+	// Remote wipe off: REFUSED, nothing wiped
+	wipes = wipe_alls = 0;
+	memset(&m, 0, sizeof m);
+	m.rank = 1;
+	m.target = ENGINE_ID;
+	out_n = 0;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_WIPE, &m, buf));
+	run(1000);
+	CHECK(out_n == 1 && last_out(&r) && r.type == OTAR_ACK && r.result == OTAR_ACK_REFUSED && r.echo == m.msgnum);
+	CHECK(wipes == 0 && wipe_alls == 0);
+	// On: WIPED first, then the whole radio (keys and codeplug), not Clear all keys
+	live.otar_wipe = 1;
+	saved = live;
+	memset(&m, 0, sizeof m);
+	m.rank = 1;
+	m.target = ENGINE_ID;
+	out_n = 0;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_WIPE, &m, buf));
+	run(2000);
+	CHECK(out_open(0, &r) && r.type == OTAR_ACK && r.result == OTAR_ACK_WIPED && r.echo == m.msgnum);
+	CHECK(wipe_alls == 1 && wipes == 0 && wipe_out_n == 1);
+
+	// The net control: WIPE sent, not ZEROIZE, and shown as the whole radio's
+	setup(1);
+	roster_add(ENGINE_ID, 1, eng_pub);
+	roster_add(PEER_ID, 0, peer_pub);
+	run(3000);
+	out_n = 0;
+	CHECK(ui_svc_net_wipe(v_now(), PEER_ID, true) == UI_NET_OK);
+	run(1000);
+	CHECK(out_n == 1 && last_out(&r) && r.type == OTAR_WIPE && r.target == PEER_ID);
+	CHECK(ui_svc_net_wipe_whole(PEER_ID) && !ui_svc_net_wipe_whole(OTHER_NC));
+	memset(&m, 0, sizeof m);
+	m.result = OTAR_ACK_WIPED;
+	m.echo = r.msgnum;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &m, buf));
+	run(500);
+	CHECK(ui_svc_net_wipe_state(PEER_ID) == UI_ZZ_WIPED);
+}
+
+// ===================== SILENCE answered (otar.md 7.11): the engine a member, the test its net control
+static int silence_msg(uint8_t on, uint8_t *buf, otar_msg_t *m)
+{
+	memset(m, 0, sizeof *m);
+	m->rank = 1;
+	m->on = on;
+	return build(OTAR_SILENCE, m, buf);
+}
+
+static void test_silence_remote_member(void)
+{
+	setup(0);
+	roster_add(PEER_ID, 1, peer_pub);
+	roster_add(ENGINE_ID, 0, eng_pub);
+	run(25000);
+	radio_silence_flag = false;
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t m, r;
+	ui_net_view_t nv;
+	// On: SILENT answered first, then silence, marked as the net control's
+	out_n = 0;
+	sil_sets = 0;
+	send_state = OTAR_SEND_SENDING;
+	deliver(PEER_ID, ENGINE_ID, false, buf, silence_msg(1, buf, &m));
+	run(2000);
+	CHECK(out_n == 1 && last_out(&r) && r.type == OTAR_ACK && r.result == OTAR_ACK_SILENT && r.echo == m.msgnum);
+	CHECK(!radio_silence_flag && sil_sets == 0);	// not before the ACK has gone
+	send_state = OTAR_SEND_SENT;
+	run(1000);
+	CHECK(radio_silence_flag && sil_sets == 1 && (live.otar_sil & SETTINGS_OSIL_BY_NC));
+	ui_svc_net_view(&nv);
+	CHECK(nv.silenced_by_nc && nv.remote_silence);
+	// Silent: another SILENCE on gets no answer
+	deliver(PEER_ID, ENGINE_ID, false, buf, silence_msg(1, buf, &m));
+	run(1000);
+	CHECK(out_n == 1);
+	// Off: the net control's silence ends, then SPEAKING
+	deliver(PEER_ID, ENGINE_ID, false, buf, silence_msg(0, buf, &m));
+	run(1000);
+	CHECK(!radio_silence_flag && !(live.otar_sil & SETTINGS_OSIL_BY_NC));
+	CHECK(out_n == 2 && last_out(&r) && r.result == OTAR_ACK_SPEAKING && r.echo == m.msgnum);
+	// The user's own silence: a SILENCE off never ends it, and nothing is answered under it
+	radio_silence_flag = true;
+	deliver(PEER_ID, ENGINE_ID, false, buf, silence_msg(0, buf, &m));
+	run(1000);
+	CHECK(radio_silence_flag && out_n == 2);
+	// A silence the net control turned on that the user ended: not the net control's any more
+	radio_silence_flag = false;
+	deliver(PEER_ID, ENGINE_ID, false, buf, silence_msg(1, buf, &m));
+	run(2000);
+	CHECK(radio_silence_flag && (live.otar_sil & SETTINGS_OSIL_BY_NC));
+	radio_silence_flag = false;	// the user turns it off
+	run(500);
+	CHECK(!(live.otar_sil & SETTINGS_OSIL_BY_NC));
+	radio_silence_flag = true;	// ... and on again: theirs, which a SILENCE off leaves
+	deliver(PEER_ID, ENGINE_ID, false, buf, silence_msg(0, buf, &m));
+	run(1000);
+	CHECK(radio_silence_flag);
+	radio_silence_flag = false;
+	// Remote silence off: REFUSED, nothing changes
+	ui_svc_net_set_remote_silence(false);
+	ui_svc_net_view(&nv);
+	CHECK(!nv.remote_silence);
+	int before = out_n;
+	deliver(PEER_ID, ENGINE_ID, false, buf, silence_msg(1, buf, &m));
+	run(1000);
+	CHECK(out_n == before + 1 && last_out(&r) && r.result == OTAR_ACK_REFUSED && !radio_silence_flag);
+	ui_svc_net_set_remote_silence(true);
+	// A join sets it on again
+	ui_svc_net_set_remote_silence(false);
+	ui_svc_net_joined();
+	ui_svc_net_view(&nv);
+	CHECK(nv.remote_silence);
+}
+
+// ===================== SILENCE retried until answered (otar.md 7.11): the engine net control 1, the test a member
+static void test_silence_remote_nc(void)
+{
+	setup(1);
+	roster_add(ENGINE_ID, 1, eng_pub);
+	roster_add(PEER_ID, 0, peer_pub);
+	run(3000);
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t m, r;
+	bool asked;
+	out_n = 0;
+	CHECK(ui_svc_net_silence(v_now(), ENGINE_ID, true) == UI_NET_NO_MEMBER);
+	CHECK(ui_svc_net_silence(v_now(), PEER_ID, true) == UI_NET_OK);
+	CHECK(ui_svc_net_silence(v_now(), PEER_ID, false) == UI_NET_BUSY);
+	run(1000);
+	CHECK(out_n == 1 && last_out(&r) && r.type == OTAR_SILENCE && r.on == 1);
+	CHECK(ui_svc_net_silence_state(PEER_ID, &asked) == UI_SIL_SENDING && asked);
+	memset(&m, 0, sizeof m);
+	m.result = OTAR_ACK_SILENT;
+	m.echo = r.msgnum;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &m, buf));
+	run(500);
+	CHECK(ui_svc_net_silence_state(PEER_ID, &asked) == UI_SIL_ON);
+	// Off, answered
+	CHECK(ui_svc_net_silence(v_now(), PEER_ID, false) == UI_NET_OK);
+	run(1000);
+	CHECK(last_out(&r) && r.type == OTAR_SILENCE && r.on == 0);
+	memset(&m, 0, sizeof m);
+	m.result = OTAR_ACK_SPEAKING;
+	m.echo = r.msgnum;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &m, buf));
+	run(500);
+	CHECK(ui_svc_net_silence_state(PEER_ID, &asked) == UI_SIL_OFF && !asked);
+	// No answer (a radio already silent says nothing): 3 tries, then no answer
+	out_n = 0;
+	CHECK(ui_svc_net_silence(v_now(), PEER_ID, true) == UI_NET_OK);
+	run(90000);
+	int n = 0;
+	for (int i = 0; i < out_n; i++)
+		n += out_open(i, &r) && r.type == OTAR_SILENCE;
+	CHECK(n == 3 && ui_svc_net_silence_state(PEER_ID, &asked) == UI_SIL_NO_ANSWER);
+	// Refused
+	CHECK(ui_svc_net_silence(v_now(), PEER_ID, true) == UI_NET_OK);
+	run(1000);
+	CHECK(last_out(&r) && r.type == OTAR_SILENCE);
+	memset(&m, 0, sizeof m);
+	m.result = OTAR_ACK_REFUSED;
+	m.echo = r.msgnum;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &m, buf));
+	run(500);
+	CHECK(ui_svc_net_silence_state(PEER_ID, &asked) == UI_SIL_REFUSED);
+}
+
+// ===================== a silent revoke (otar.md 7.12): the engine a member taking the throwaway key, then net control 1
+static void test_silent_revoke_member(void)
+{
+	setup(0);
+	roster_add(PEER_ID, 1, peer_pub);
+	roster_add(ENGINE_ID, 0, eng_pub);
+	otar_start(&keys, 0, 77);
+	tek[77].used = true;
+	keys.ks_active = 4;
+	run(25000);
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t m, r;
+	// A REKEY flagged now and drop: stored, changed over to, and the key it held (77) erased at once
+	req_drop_prev = 0;
+	out_n = 0;
+	rekey_msg(&m, 5, 200, 0x3C, OTAR_RK_NOW | OTAR_RK_DROP);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(2000);
+	CHECK(keys.ks_active == 5 && otar_kid(&keys, OTAR_ACTIVE, 1, &r.kid) && r.kid == 200);
+	CHECK(req_drop_prev == 1 && !tek[77].used && !(keys.flags & OTAR_F_PREV));
+	CHECK(out_n == 1 && last_out(&r) && r.type == OTAR_ACK && r.result == OTAR_ACK_STORED && r.keyset == 5);
+	// Without drop (a missed changeover's catch-up): the overlap stays
+	tek[200].used = true;
+	rekey_msg(&m, 6, 201, 0x3D, OTAR_RK_NOW);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(2000);
+	CHECK(keys.ks_active == 6 && req_drop_prev == 1 && (keys.flags & OTAR_F_PREV) && tek[200].used);
+}
+
+static int count_to(uint32_t id, uint8_t type)
+{
+	int n = 0;
+	otar_msg_t r;
+	for (int i = 0; i < out_n; i++)
+		n += outbox[i].dst == id && out_open(i, &r) && r.type == type;
+	return n;
+}
+
+static void test_silent_revoke_nc(void)
+{
+	setup(1);
+	roster_add(ENGINE_ID, 1, eng_pub);
+	roster_add(PEER_ID, 0, peer_pub);
+	otar_start(&keys, 0, 77);
+	tek[77].used = true;
+	keys.ks_active = 9;
+	run(3000);
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t m, r;
+	otar_member_t e;
+	out_n = 0;
+	CHECK(ui_svc_net_silent_revoke(v_now(), ENGINE_ID) == UI_NET_NO_MEMBER);
+	CHECK(ui_svc_net_silent_revoke(v_now(), PEER_ID) == UI_NET_OK);
+	CHECK(ui_svc_net_silent_revoke(v_now(), PEER_ID) == UI_NET_BUSY);
+	CHECK(ui_svc_net_revoke(v_now(), PEER_ID) == UI_NET_BUSY);	// nothing else reaches it meanwhile
+	run(1000);
+	// The throwaway key: to the member alone, flagged now and drop, above the net's number, not the net's key ID,
+	// and never stored on this radio
+	CHECK(out_n == 1 && last_out(&r) && r.type == OTAR_REKEY && (r.flags & (OTAR_RK_NOW | OTAR_RK_DROP)) ==
+	      (OTAR_RK_NOW | OTAR_RK_DROP) && r.keyset == 10 && r.kid != 77 && r.kid != 0);
+	CHECK(!tek[r.kid].used && keys.ks_active == 9);
+	CHECK(ui_svc_net_silent_revoke_state(PEER_ID) == UI_SR_SENDING);
+	CHECK(otar_roster_find(PEER_ID, &e) && !(e.flags & OTAR_M_REVOKED));
+	// Its ACK: done, and revoked here without a ROSTER to it
+	uint8_t kcv_tek[3];
+	CHECK(kcv_traffic(CODEPLUG_SYSTYPE_DMR_AES, DMR_AES_ALG_AES256, r.tek, 32, kcv_tek));
+	memset(&m, 0, sizeof m);
+	m.result = OTAR_ACK_STORED;
+	m.keyset = r.keyset;
+	m.ckr = 1;
+	m.echo = r.msgnum;
+	memcpy(m.kcv, kcv_tek, 3);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &m, buf));
+	run(2000);
+	CHECK(ui_svc_net_silent_revoke_state(PEER_ID) == UI_SR_DONE);
+	CHECK(otar_roster_find(PEER_ID, &e) && (e.flags & OTAR_M_REVOKED));
+	run(60000);
+	CHECK(count_to(PEER_ID, OTAR_ROSTER) == 0);
+	CHECK(ui_svc_net_silent_revoke(v_now(), PEER_ID) == UI_NET_NO_MEMBER);	// revoked already
+
+	// No answer (the radio is off or lost): 3 tries, then revoked all the same
+	setup(1);
+	roster_add(ENGINE_ID, 1, eng_pub);
+	roster_add(PEER_ID, 0, peer_pub);
+	run(3000);
+	out_n = 0;
+	CHECK(ui_svc_net_silent_revoke(v_now(), PEER_ID) == UI_NET_OK);
+	run(90000);
+	CHECK(count_to(PEER_ID, OTAR_REKEY) == 3 && ui_svc_net_silent_revoke_state(PEER_ID) == UI_SR_NO_ANSWER);
+	run(2000);
+	CHECK(otar_roster_find(PEER_ID, &e) && (e.flags & OTAR_M_REVOKED) && count_to(PEER_ID, OTAR_ROSTER) == 0);
 }
 
 // A further member k of the engine's net: its ID, public key and pair MAC key with the engine
@@ -2285,6 +2585,11 @@ int main(void)
 	test_join_without_key();
 	test_zeroize_member();
 	test_zeroize_nc();
+	test_wipe_radio();
+	test_silence_remote_member();
+	test_silence_remote_nc();
+	test_silent_revoke_member();
+	test_silent_revoke_nc();
 	test_hello_nc();
 	test_hello_member();
 	test_oos_member();

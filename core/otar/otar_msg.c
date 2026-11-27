@@ -154,13 +154,31 @@ int otar_roster_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OT
 	return seal(out, (int)(OTAR_ROSTER_LEN - OTAR_MAC), a, k_mac);
 }
 
-int otar_zeroize_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m)
+static int wipe_build(uint8_t type, uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN],
+		      const otar_msg_t *m)
 {
-	header(out, OTAR_ZEROIZE, m);
+	header(out, type, m);
 	out[OTAR_HDR] = (uint8_t)(m->target >> 16);
 	out[OTAR_HDR + 1] = (uint8_t)(m->target >> 8);
 	out[OTAR_HDR + 2] = (uint8_t)m->target;
 	return seal(out, (int)(OTAR_ZEROIZE_LEN - OTAR_MAC), a, k_mac);
+}
+
+int otar_zeroize_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m)
+{
+	return wipe_build(OTAR_ZEROIZE, out, a, k_mac, m);
+}
+
+int otar_wipe_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m)
+{
+	return wipe_build(OTAR_WIPE, out, a, k_mac, m);
+}
+
+int otar_silence_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m)
+{
+	header(out, OTAR_SILENCE, m);
+	out[OTAR_HDR] = m->on ? 1u : 0u;
+	return seal(out, (int)(OTAR_SILENCE_LEN - OTAR_MAC), a, k_mac);
 }
 
 int otar_inventory_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m)
@@ -223,6 +241,8 @@ static int len_of(uint8_t type)
 	case OTAR_POSITION: return (int)OTAR_POSITION_LEN;
 	case OTAR_NETCHAN: return (int)OTAR_NETCHAN_LEN;
 	case OTAR_WITHDRAW: return (int)OTAR_WITHDRAW_LEN;
+	case OTAR_SILENCE: return (int)OTAR_SILENCE_LEN;
+	case OTAR_WIPE: return (int)OTAR_WIPE_LEN;
 	default: return -1;
 	}
 }
@@ -295,8 +315,12 @@ static bool parse(otar_msg_t *m, const uint8_t *p, const uint8_t *ukek)
 		memcpy(m->rec, p, OTAR_ROSTER_REC);
 		return true;
 	case OTAR_ZEROIZE:
+	case OTAR_WIPE:
 		m->target = ((uint32_t)p[0] << 16) | ((uint32_t)p[1] << 8) | p[2];
 		return true;
+	case OTAR_SILENCE:
+		m->on = p[0];
+		return p[0] <= 1u;
 	case OTAR_INVENTORY:
 		return true;
 	case OTAR_TIME:

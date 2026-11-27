@@ -5365,6 +5365,11 @@ msgid "Cancel the change"
 msgstr "取消切换"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_REMOTE_SILENCE"
+msgid "Remote silence"
+msgstr "由主台静默"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_ON"
 msgid "On"
 msgstr "开"
@@ -5735,6 +5740,21 @@ msgid "Get location"
 msgstr "查询位置"
 
 #: core/ui/ui_menus.c
+msgctxt "NM_WIPE_ALL"
+msgid "Wipe the radio"
+msgstr "擦除电台"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_SILENCE"
+msgid "Radio silence"
+msgstr "无线电静默"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_SREVOKE"
+msgid "Silent revoke"
+msgstr "静默撤销"
+
+#: core/ui/ui_menus.c
 msgctxt "NM_MEMBER"
 msgid "member"
 msgstr "普通台"
@@ -5785,6 +5805,16 @@ msgid "Revoke it? This can't be undone"
 msgstr "撤销？无法恢复"
 
 #: core/ui/ui_menus.c
+msgctxt "NM_ASK_SREVOKE"
+msgid "Silent revoke? It isn't told. Can't be undone"
+msgstr "静默撤销？对方不会收到。无法撤消"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_ASK_WIPE_ALL"
+msgid "Wipe the whole radio? Keys and channels"
+msgstr "擦除电台的密钥和信道？"
+
+#: core/ui/ui_menus.c
 msgctxt "NM_ASK_WIPE"
 msgid "Wipe its keys? It leaves the net"
 msgstr "擦除其密钥？其会退出网络"
@@ -5793,6 +5823,11 @@ msgstr "擦除其密钥？其会退出网络"
 msgctxt "NM_SYNC"
 msgid "Out of sync: rejoin"
 msgstr "不同步: 需重新加入"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WIPE_ALL_IS"
+msgid "Radio wipe: "
+msgstr "电台擦除: "
 
 #: core/ui/ui_menus.c
 msgctxt "NM_WIPE_IS"
@@ -5808,6 +5843,26 @@ msgstr "发送中"
 msgctxt "NM_WIPE_DONE"
 msgid "wiped"
 msgstr "已完成"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_SIL_IS"
+msgid "Silence: "
+msgstr "静默: "
+
+#: core/ui/ui_menus.c
+msgctxt "NM_SR_SENDING"
+msgid "Silent revoke: sending"
+msgstr "静默撤销：正在发送"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_SR_DONE"
+msgid "Silent revoke: done"
+msgstr "静默撤销：已完成"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_SR_UNSURE"
+msgid "Revoked, no key taken: rekey now"
+msgstr "已撤销，未收到新密钥：请立即更新密钥"
 
 #: core/ui/ui_menus.c
 msgctxt "NM_KEYS"
@@ -5853,6 +5908,26 @@ msgstr "已撤销: 请更换密钥"
 msgctxt "NM_WHY_HIGHER"
 msgid "A higher net control: use Take over"
 msgstr "更高的主台: 请用接任主台"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_SIL_ON_SENT"
+msgid "Silence on sent"
+msgstr "已发送开启静默"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_SIL_OFF_SENT"
+msgid "Silence off sent"
+msgstr "已发送关闭静默"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_SR_SENT"
+msgid "Sending it a throwaway key"
+msgstr "正在发送临时密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_WHY_NO_KEYS"
+msgid "This radio manages no keys"
+msgstr "本电台无密钥"
 
 #: core/ui/ui_menus.c
 msgctxt "NM_WIPE_SENT"

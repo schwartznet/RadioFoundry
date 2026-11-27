@@ -147,6 +147,8 @@ typedef struct {
 	uint8_t pend_from, pend_lost;
 	bool remote_wipe;	// a net control may wipe this radio's keys (Remote wipe)
 	bool share_location;	// a net control may ask where this radio is (Share location, LOCATE)
+	bool remote_silence;	// a net control may turn radio silence on and off (Remote silence, SILENCE)
+	bool silenced_by_nc;	// radio silence is on because a net control turned it on
 	bool removed;		// a net control revoked this radio: "Removed from the net"
 	uint8_t sched_days;	// a net control's rekey schedule: every this many days, 0 by hand
 	uint32_t sched_at;	// ... the next one, UTC minutes (0: none yet)
@@ -228,8 +230,10 @@ uint8_t ui_svc_net_revoke(const radio_view_t *v, uint32_t id);
 // asked to accept it. *lost its rank. NOT_NC, NO_LOST, BUSY
 uint8_t ui_svc_net_take_over(const radio_view_t *v, uint8_t *lost);
 // A net control: ZEROIZE to member id (it wipes its keys when its Remote wipe is on), tried up to 3 times until it
-// answers. BUSY: one is still being tried
-uint8_t ui_svc_net_wipe(const radio_view_t *v, uint32_t id);
+// answers; whole: WIPE instead, the whole radio (keys and codeplug, otar.md 7.10). BUSY: one is still being tried
+uint8_t ui_svc_net_wipe(const radio_view_t *v, uint32_t id, bool whole);
+// ... whether the wipe asked of member id was of the whole radio
+bool ui_svc_net_wipe_whole(uint32_t id);
 // ... and what member id answered, as its member screen shows it: wiped, refused (Remote wipe off, or it ranks the
 // same or above), or no answer after the tries (off, out of range, or wiped with its answer lost)
 enum { UI_ZZ_NONE, UI_ZZ_SENDING, UI_ZZ_WIPED, UI_ZZ_REFUSED, UI_ZZ_NO_ANSWER };
@@ -241,6 +245,21 @@ bool ui_svc_net_out_of_sync(uint32_t id);
 void ui_svc_net_accept(bool yes);
 void ui_svc_net_set_remote_wipe(bool on);
 void ui_svc_net_set_share_location(bool on);
+void ui_svc_net_set_remote_silence(bool on);
+// A net control: SILENCE to member id (otar.md 7.11), radio silence on or off, tried up to 3 times until it answers.
+// UI_NET_OK, NOT_NC, NO_MEMBER (this radio, not on the roster, revoked, or a net control of this rank or above), BUSY
+uint8_t ui_svc_net_silence(const radio_view_t *v, uint32_t id, bool on);
+// ... and what member id answered: silence on, off, refused (its Remote silence off), or no answer (off, out of range,
+// or already silent: a silent radio answers nothing). *on what was asked
+enum { UI_SIL_NONE, UI_SIL_SENDING, UI_SIL_ON, UI_SIL_OFF, UI_SIL_REFUSED, UI_SIL_NO_ANSWER };
+uint8_t ui_svc_net_silence_state(uint32_t id, bool *on);
+// A net control: a silent revoke of member id (otar.md 7.12): a throwaway key flagged now and drop sent to it alone,
+// then it is revoked on the roster without being told. UI_NET_OK, NOT_NC, NOT_MANAGED, NO_MEMBER, HIGHER, BUSY
+uint8_t ui_svc_net_silent_revoke(const radio_view_t *v, uint32_t id);
+// ... and how it went: sending, done (it took the throwaway key), refused or no answer (revoked all the same: rekey
+// the net if its key may have been copied)
+enum { UI_SR_NONE, UI_SR_SENDING, UI_SR_DONE, UI_SR_REFUSED, UI_SR_NO_ANSWER };
+uint8_t ui_svc_net_silent_revoke_state(uint32_t id);
 // A net control: LOCATE to member id (otar.md 7.7), tried up to 3 times 20 s apart until its POSITION comes. One at a
 // time. UI_NET_OK, NOT_NC, NO_MEMBER (this radio, not on the roster, or revoked), BUSY (one is still asking)
 uint8_t ui_svc_net_locate(const radio_view_t *v, uint32_t id);
@@ -536,6 +555,9 @@ bool ui_svc_wipe_start(void);
 // Start a wipe of the keys only, whatever Wipe what says (Settings > Privacy > Clear all keys, zeroize.md 3.2): the
 // same steps and restart as the emergency wipe's keys only scope. False: not in this build
 bool ui_svc_clear_keys_start(void);
+// Start a wipe of the keys and the codeplug, whatever Wipe what says (a net control's WIPE, otar.md 7.10): the
+// emergency wipe's Keys + codeplug scope. False: not in this build
+bool ui_svc_wipe_all_start(void);
 // Where it is, UI_WIPE_*; *failed the zeroize.h ZEROIZE_FAIL_* bits of a wipe that didn't finish
 enum { UI_WIPE_IDLE, UI_WIPE_RUNNING, UI_WIPE_DONE, UI_WIPE_FAILED };
 uint8_t ui_svc_wipe_state(uint8_t *failed);
