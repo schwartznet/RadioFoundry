@@ -507,9 +507,12 @@ A rekey is also the answer when the radio's key may have been copied before the 
 
 **Joining again.** The radio keeps its keyset numbers when it leaves (Leave the net keeps them, so a member that joins
 again works at once), and after a silent revoke those are the throwaway's: a number above the net's, which the net's
-key, an older number, never replaces (7.1). Net control 1 (the authority) tells such a radio by its HELLO: a keyset
-above its own active one that isn't its next one or a withdrawn one is one this net never had. It answers with its
-active key as the catch-up REKEY flagged now and **reset** (bit 3). A radio takes a reset only from the authority and
+key, an older number, never replaces (7.1). Net control 1 (the authority) sends such a radio its active key as the
+catch-up REKEY flagged now and **reset** (bit 3) when its HELLO names a keyset above the net's active one that isn't
+its next one or a withdrawn one (one this net never had), and to any member it added by key fill in the last 10
+minutes whatever number it names: a HELLO names keyset numbers, not keys, and the throwaway may carry the net's own
+number by then (found on the bench: the net had reached keyset 17 with another key, and the radio on the throwaway's
+17 was told "up to date"). A radio takes a reset only from the authority and
 only within 10 minutes of joining by key fill (the moment its user stands at net control 1, which is current then): its
 keysets start again from the net's active one (`RADIO_OTAR_RESET`) and every other key it held is erased, the
 throwaway too. At any other time, and from any other net control, a reset is an older keyset and refused (OLD): no net
@@ -1101,7 +1104,7 @@ answered before ("Radio wipe: wiped"): a member added by key fill now clears tho
 Then the silent revoke worked (the radio, not told, still showed "member"; the net no longer read its texts nor it the
 net's, while the others went on), but the radio joined again stayed on the throwaway's keyset 17: the reset (7.12).
 
-Tests: `otarEngineTest` (536 checks) adds WIPE refused and taken (the whole radio wiped after its ACK, not Clear all
+Tests: `otarEngineTest` (539 checks) adds WIPE refused and taken (the whole radio wiped after its ACK, not Clear all
 keys) and sent as WIPE; SILENCE on answered before silence starts, no answer while silent, off ending only the net
 control's silence and never the user's own, a silence the user ended becoming theirs, Remote silence off refused and
 set on again at a join, and the net control's tries, answers and "no answer"; a REKEY flagged drop changing over and
@@ -1110,7 +1113,8 @@ alone, above the net's number, a key ID the net doesn't use, never stored), the 
 nothing else allowed meanwhile, revoked all the same after three tries with no answer, the noise asked for while the
 pool is short, a radio joined again shown without its old answers, and the reset: taken from net control 1 just after
 a join (the throwaway erased, normal rekeys after it), refused before a join, past 10 minutes and from another net
-control, and sent only for a keyset the net never had (not for one behind, nor the net's next).
+control, and sent only for a keyset the net never had (not for one behind, nor the net's next) or to a member just added,
+for 10 minutes.
 
 ## 30. Asking for keys by itself, and Check all members (as built, 2026-11-27)
 
