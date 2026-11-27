@@ -4773,6 +4773,11 @@ msgid "ROAM"
 msgstr "ROAM"
 
 #: core/ui/ui_screens.c
+msgctxt "HOME_BADGE_NO_KEY"
+msgid "NO KEY"
+msgstr "SIN CLAVE"
+
+#: core/ui/ui_screens.c
 msgctxt "HOME_STATE_P25T_HUNT"
 msgid "Finding system"
 msgstr "Buscando sistema"
@@ -5186,6 +5191,11 @@ msgstr "DMon"
 msgctxt "HOME_CHIP_PRIVACY"
 msgid "Priv"
 msgstr "Priv"
+
+#: core/ui/ui_screens.c
+msgctxt "HOME_CHIP_NO_KEY"
+msgid "No key"
+msgstr "Sin clave"
 
 #: core/ui/ui_screens.c
 msgctxt "TRUNK_OTHER_KIND"

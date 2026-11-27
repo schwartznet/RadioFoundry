@@ -45,6 +45,7 @@ static const struct { const char *name, *script; } gallery[] = {
 	{ "home_fm", "down" },
 #if CONFIG_DMR_AES
 	{ "home_encrypted", "aeschan" },	// an AES channel: its type in a badge on the name's line
+	{ "home_no_key", "aeschangone" },	// an AES channel whose key is gone: NO KEY in the warning color
 #endif
 #if CONFIG_DMR && CONFIG_DMR_PRIVACY
 	// Basic privacy on (the 1-255 key 123, the Quick tile): BP8 in the badge

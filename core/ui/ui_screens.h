@@ -309,6 +309,7 @@ bool ui_sb_gw_caller(sbuf_t *b, uint32_t src);
 // The channel on Home transmits encrypted (AES with its key, or basic privacy on): Home draws a padlock after its
 // name
 bool ui_home_encrypted(const radio_view_t *v);
+bool ui_home_no_key(const radio_view_t *v);
 
 // The last Home frame drew the encryption type badge after the channel's name (else the padlock, or nothing)
 bool ui_home_badge_drawn(void);

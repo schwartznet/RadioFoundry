@@ -3728,6 +3728,7 @@ static bool run_token(char *t, char *err, size_t len)
 		view.ch.mode = RADIO_MODE_DMR;
 		view.ch.kind = CODEPLUG_KIND_DMR_AES;
 		view.ch.aes_ref = 2;
+		view.dmr.privacy = true;	// the radio loaded its key (radio_aes_configure)
 		changed();
 		advance(200);
 		return true;
@@ -3736,6 +3737,16 @@ static bool run_token(char *t, char *err, size_t len)
 		view.ch.mode = RADIO_MODE_DMR;
 		view.ch.kind = CODEPLUG_KIND_DMR_AES;
 		view.ch.aes_ref = 0;
+		view.dmr.privacy = false;
+		changed();
+		advance(200);
+		return true;
+	}
+	if (strcmp(t, "aeschangone") == 0) {	// a key bound, but not in the store (wiped): the radio loaded none
+		view.ch.mode = RADIO_MODE_DMR;
+		view.ch.kind = CODEPLUG_KIND_DMR_AES;
+		view.ch.aes_ref = 2;
+		view.dmr.privacy = false;
 		changed();
 		advance(200);
 		return true;

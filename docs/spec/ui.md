@@ -97,8 +97,12 @@ Text is shortened with a middle ellipsis only as a last resort (P5 allows it for
   of the privacy blue) at the right end of the channel name's line: AES256 on an AES channel with its key, BP8 (the
   1-255 key) or BP16 (the 16-bit key) with basic privacy. The name keeps its place and shrinks to a smaller font
   before the badge gives way; where even the small font would not fit beside it, a hand-drawn padlock (7x8, 9x12 or
-  12x16, by the font) stands in and the chips line names the scheme. A clear channel, or an AES channel with no key bound (it won't transmit), shows
-  neither.
+  12x16, by the font) stands in and the chips line names the scheme. A clear channel shows neither.
+- An AES channel the radio holds no key for (none bound, or the bound key not in the store: wiped, erased, or a
+  codeplug from another radio) shows NO KEY in the same badge shape in the warning color, and no padlock; where the
+  badge has no room, the chips line says "No key" in the warning color. The radio refuses to transmit there and plays
+  nothing encrypted, so Home never shows a lock it can't keep. It goes by whether the radio loaded the key
+  (`radio_view_t.dmr.privacy` after `radio_aes_configure`), not by the channel's key reference alone.
   On an AES channel the top bar's mode word says DMR, as with basic privacy: the badge names the encryption.
 - NXDN Home shows an ENC marker with the caller and destination when a scrambled call plays. It shows "Encrypted: not played" when
   the radio receives an encrypted call and holds its audio.

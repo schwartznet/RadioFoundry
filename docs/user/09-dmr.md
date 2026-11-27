@@ -307,7 +307,7 @@ to the radio. Both radios must have the same key bytes and ID. The system and ch
 
 On the handset, open the DMR channel editor and press **OK** on **AES key** to cycle through the provisioned
 system number/key ID pairs. **None** removes channel AES. Save the channel to keep the choice across restarts.
-A protected channel without its key refuses PTT ("AES key or TX disabled"). Text messages and packet data aren't
+A protected channel without its key refuses PTT ("AES key or TX disabled"), and Home shows **NO KEY** in an amber badge instead of **AES256**, for example after the keys were wiped or with a codeplug from another radio. Text messages and packet data aren't
 sent on these channels yet ("Encrypted channels can't send text"), and your GPS position is not sent on them. Radio
 check, call alert and emergency alarms work as on any DMR channel. The editor's image export omits key bytes by
 default. Including keys produces a file that contains the keys.
