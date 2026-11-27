@@ -489,7 +489,8 @@ refused, no answer". A radio from before drops type 14 unread.
 Net > Members > a member > **Silent revoke** (asks first: "Silent revoke? It isn't told. Can't be undone") takes a
 radio out of the net without telling it:
 
-1. The net control makes a throwaway key from the randomness pool and never stores it. It sends it to that member
+1. The net control makes a throwaway key from the randomness pool and never stores it (with the pool short, as after a
+   key fill, the receiver's noise is gathered first, as for a rekey's key). It sends it to that member
    alone as a REKEY flagged now and drop (7.1): a keyset number above every number of the net's (its active, its next
    and a withdrawn one), a key ID none of the net's keysets uses (a new one each try).
 2. The member stores it, changes over to it at once and erases the key it held: no overlap. It answers STORED as for
@@ -1079,10 +1080,17 @@ New: messages 14 (SILENCE) and 15 (WIPE), ACK results 12 and 13, the REKEY flag 
 (`ui_svc_zeroize.c`: keys and codeplug whatever Wipe what says) and the settings byte `otar_sil`
 ([settings-store.md](settings-store.md)).
 
-Tests: `otarEngineTest` (497 checks) adds WIPE refused and taken (the whole radio wiped after its ACK, not Clear all
+Found on the bench (four DM-32UVs, 2026-11-27): radio silence on and off from net control 1 to a member, and Wipe the
+radio (the member came back on the built-in channels, out of the net), then the radio joined again by key fill. Two
+fixes came of it: a silent revoke right after a key fill, which had emptied the pool, waited for randomness without
+asking for the receiver's noise (`pool_wanted`), so it stayed "sending"; and a radio joined again still showed what it
+answered before ("Radio wipe: wiped"): a member added by key fill now clears those lines (`ui_svc_net_member_added`).
+
+Tests: `otarEngineTest` (513 checks) adds WIPE refused and taken (the whole radio wiped after its ACK, not Clear all
 keys) and sent as WIPE; SILENCE on answered before silence starts, no answer while silent, off ending only the net
 control's silence and never the user's own, a silence the user ended becoming theirs, Remote silence off refused and
 set on again at a join, and the net control's tries, answers and "no answer"; a REKEY flagged drop changing over and
 erasing the old key at once (and without drop keeping the overlap); a silent revoke's throwaway key (to the member
 alone, above the net's number, a key ID the net doesn't use, never stored), the member revoked with no ROSTER to it,
-nothing else allowed meanwhile, and revoked all the same after three tries with no answer.
+nothing else allowed meanwhile, revoked all the same after three tries with no answer, the noise asked for while the
+pool is short, and a radio joined again shown without its old answers.

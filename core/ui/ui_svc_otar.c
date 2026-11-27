@@ -550,7 +550,7 @@ static struct {
 // A rekey's key or a new net's key pair still waits for randomness
 static bool pool_wanted(void)
 {
-	return (eng.rk != NULL && !eng.rk->keyed) || net.starting;
+	return (eng.rk != NULL && !eng.rk->keyed) || net.starting || (eng.sr.state == UI_SR_SENDING && eng.sr.send);
 }
 
 #define ROS_TRIES	3u	// a roster entry no ACK came for is sent this many times, then counted as failed
@@ -3036,6 +3036,23 @@ bool ui_svc_net_rekey_member(uint16_t i, uint32_t *id, uint8_t *state, uint8_t *
 	*tries = rk->m[i].tries;
 	return true;
 }
+// A member added (again) by key fill: what was asked of the radio before (a wipe, silence, a silent revoke, its keys,
+// its location) is no longer shown on its screen; one still under way is left to finish. Found on the bench: a radio
+// wiped and joined again still showed "Radio wipe: wiped"
+void ui_svc_net_member_added(uint32_t id)
+{
+	if (id == eng.zz.id && eng.zz.state != UI_ZZ_SENDING)
+		memset(&eng.zz, 0, sizeof eng.zz);
+	if (id == eng.sil.id && eng.sil.state != UI_SIL_SENDING)
+		memset(&eng.sil, 0, sizeof eng.sil);
+	if (id == eng.sr.id && eng.sr.state != UI_SR_SENDING && !eng.sr.revoke_due)
+		memset(&eng.sr, 0, sizeof eng.sr);
+	if (id == eng.inv.id && eng.inv.state != UI_INV_ASKING)
+		memset(&eng.inv, 0, sizeof eng.inv);
+	if (id == eng.loc.id && eng.loc.state != UI_LOC_ASKING)
+		memset(&eng.loc, 0, sizeof eng.loc);
+}
+
 uint8_t ui_svc_net_roster_send(uint32_t only)
 {
 	otar_net_t n;

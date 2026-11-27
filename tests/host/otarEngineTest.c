@@ -169,7 +169,8 @@ bool ui_svc_wipe_all_start(void)
 	memset(&live.otar_net, 0, sizeof live.otar_net);
 	return true;
 }
-void ui_svc_noise_want(uint32_t ms) { (void)ms; }
+static int noise_wants;
+void ui_svc_noise_want(uint32_t ms) { (void)ms; noise_wants++; }
 // The radio silence setting as the UI saves it (a net control's SILENCE): counted, and the flag the radio core sets
 static int sil_sets;
 bool ui_svc_setting_set(uint8_t id, int32_t value)
@@ -183,7 +184,8 @@ void ui_svc_apply(uint8_t id, int32_t value) { (void)id; (void)value; }
 
 // --- randomness: deterministic, always full (the engine's own key presses aren't what is tested here)
 static uint8_t rnd_ctr;
-unsigned entropy_bits(void) { return ENTROPY_FULL; }
+static unsigned pool_bits = ENTROPY_FULL;	// what the pool holds (a test empties it)
+unsigned entropy_bits(void) { return pool_bits; }
 void entropy_take(uint8_t *out, size_t n) { for (size_t i = 0; i < n; i++) out[i] = (uint8_t)(0xA5 ^ (rnd_ctr++ * 31u)); }
 void entropy_stir(const void *d, size_t n, unsigned bits) { (void)d; (void)n; (void)bits; }
 
@@ -1214,6 +1216,46 @@ static void test_silent_revoke_nc(void)
 	CHECK(count_to(PEER_ID, OTAR_REKEY) == 3 && ui_svc_net_silent_revoke_state(PEER_ID) == UI_SR_NO_ANSWER);
 	run(2000);
 	CHECK(otar_roster_find(PEER_ID, &e) && (e.flags & OTAR_M_REVOKED) && count_to(PEER_ID, OTAR_ROSTER) == 0);
+
+	// The pool empty (a key fill just took it): the throwaway key waits, and the receiver's noise is asked for, as for a
+	// rekey's key. Found on the bench: it waited for good, still "sending"
+	setup(1);
+	roster_add(ENGINE_ID, 1, eng_pub);
+	roster_add(PEER_ID, 0, peer_pub);
+	run(3000);
+	out_n = 0;
+	pool_bits = 0;
+	noise_wants = 0;
+	CHECK(ui_svc_net_silent_revoke(v_now(), PEER_ID) == UI_NET_OK);
+	run(5000);
+	CHECK(count_to(PEER_ID, OTAR_REKEY) == 0 && noise_wants > 0 && ui_svc_net_silent_revoke_state(PEER_ID) == UI_SR_SENDING);
+	pool_bits = ENTROPY_FULL;
+	run(1000);
+	CHECK(count_to(PEER_ID, OTAR_REKEY) == 1);
+	run(90000);
+	noise_wants = 0;
+	run(1000);
+	CHECK(noise_wants == 0);	// done: no more noise asked for
+
+	// A radio joined again: what it answered before isn't shown (found on the bench: "Radio wipe: wiped" stayed)
+	setup(1);
+	roster_add(ENGINE_ID, 1, eng_pub);
+	roster_add(PEER_ID, 0, peer_pub);
+	run(3000);
+	bool asked;
+	CHECK(ui_svc_net_wipe(v_now(), PEER_ID, true) == UI_NET_OK && ui_svc_net_silence(v_now(), PEER_ID, true) == UI_NET_OK);
+	run(90000);
+	CHECK(ui_svc_net_wipe_state(PEER_ID) == UI_ZZ_NO_ANSWER && ui_svc_net_silence_state(PEER_ID, &asked) == UI_SIL_NO_ANSWER);
+	ui_svc_net_member_added(OTHER_NC);
+	CHECK(ui_svc_net_wipe_state(PEER_ID) == UI_ZZ_NO_ANSWER);	// another radio's join: kept
+	ui_svc_net_member_added(PEER_ID);
+	CHECK(ui_svc_net_wipe_state(PEER_ID) == UI_ZZ_NONE && ui_svc_net_silence_state(PEER_ID, &asked) == UI_SIL_NONE &&
+	      !ui_svc_net_wipe_whole(PEER_ID));
+	// One still sending is left to finish
+	CHECK(ui_svc_net_wipe(v_now(), PEER_ID, false) == UI_NET_OK);
+	ui_svc_net_member_added(PEER_ID);
+	CHECK(ui_svc_net_wipe_state(PEER_ID) == UI_ZZ_SENDING);
+	run(90000);
 }
 
 // A further member k of the engine's net: its ID, public key and pair MAC key with the engine

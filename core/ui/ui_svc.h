@@ -260,6 +260,8 @@ uint8_t ui_svc_net_silent_revoke(const radio_view_t *v, uint32_t id);
 // the net if its key may have been copied)
 enum { UI_SR_NONE, UI_SR_SENDING, UI_SR_DONE, UI_SR_REFUSED, UI_SR_NO_ANSWER };
 uint8_t ui_svc_net_silent_revoke_state(uint32_t id);
+// A net control: member id added (again) by key fill: the answers shown on its member screen from before are cleared
+void ui_svc_net_member_added(uint32_t id);
 // A net control: LOCATE to member id (otar.md 7.7), tried up to 3 times 20 s apart until its POSITION comes. One at a
 // time. UI_NET_OK, NOT_NC, NO_MEMBER (this radio, not on the roster, or revoked), BUSY (one is still asking)
 uint8_t ui_svc_net_locate(const radio_view_t *v, uint32_t id);

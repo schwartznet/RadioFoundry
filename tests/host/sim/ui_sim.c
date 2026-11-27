@@ -3144,6 +3144,7 @@ bool ui_svc_net_rekey_member(uint16_t i, uint32_t *id, uint8_t *state, uint8_t *
 }
 // Send the roster: on at once, nothing sent (the simulator has no air)
 static ui_roster_view_t ros_sim;
+void ui_svc_net_member_added(uint32_t id) { (void)id; }
 uint8_t ui_svc_net_roster_send(uint32_t only)
 {
 	(void)only;
