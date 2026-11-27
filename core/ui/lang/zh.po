@@ -6025,24 +6025,19 @@ msgid "OK, next "
 msgstr "一致, 下一 "
 
 #: core/ui/ui_menus.c
-msgctxt "NET_RC_KEY"
-msgid "key "
-msgstr "密钥组 "
+msgctxt "NET_RC_OK"
+msgid "OK"
+msgstr "一致"
 
 #: core/ui/ui_menus.c
-msgctxt "NET_RC_KEY_OK"
-msgid " OK"
-msgstr " 一致"
+msgctxt "NET_RC_BEHIND_AT"
+msgid "behind: "
+msgstr "较旧： "
 
 #: core/ui/ui_menus.c
-msgctxt "NET_RC_BEHIND"
-msgid "behind (keyset "
-msgstr "较旧 (密钥组 "
-
-#: core/ui/ui_menus.c
-msgctxt "NET_RC_OTHER"
-msgid "other key (keyset "
-msgstr "不同 (密钥组 "
+msgctxt "NET_RC_OTHER_AT"
+msgid "other key: "
+msgstr "不同： "
 
 #: core/ui/ui_menus.c
 msgctxt "NET_RC_NO_KEYS"

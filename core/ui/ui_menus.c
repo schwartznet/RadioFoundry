@@ -10374,22 +10374,20 @@ static void rc_item(uint16_t i, ui_item_t *it)
 	sb_u32(&b, m.id, 1);
 	sb_init(&b, it->value, sizeof it->value);
 	switch (m.state) {
+	// Short values, so the member's DMR ID beside them is never shortened (found on the bench: "4...  other key
+	// (keyset 17)"). OK is this radio's keyset, which the body names
 	case UI_RC_OK:
 		if (m.next != 0) {
 			sb_str(&b, TR(NET_RC_OK_NEXT, "OK, next "));
 			sb_u32(&b, m.next, 1);
 		} else {
-			sb_str(&b, TR(NET_RC_KEY, "key "));
-			sb_u32(&b, m.keyset, 1);
-			sb_str(&b, TR(NET_RC_KEY_OK, " OK"));
+			sb_str(&b, TR(NET_RC_OK, "OK"));
 		}
 		break;
 	case UI_RC_BEHIND:
 	case UI_RC_OTHER:
-		sb_str(&b, m.state == UI_RC_BEHIND ? TR(NET_RC_BEHIND, "behind (keyset ") :
-						    TR(NET_RC_OTHER, "other key (keyset "));
+		sb_str(&b, m.state == UI_RC_BEHIND ? TR(NET_RC_BEHIND_AT, "behind: ") : TR(NET_RC_OTHER_AT, "other key: "));
 		sb_u32(&b, m.keyset, 1);
-		sb_chr(&b, ')');
 		break;
 	case UI_RC_NO_KEYS: sb_str(&b, TR(NET_RC_NO_KEYS, "no keys")); break;
 	case UI_RC_NO_ANSWER: sb_str(&b, TR(NET_ST_FAIL, "no answer")); break;

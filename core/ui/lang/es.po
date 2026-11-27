@@ -6023,24 +6023,19 @@ msgid "OK, next "
 msgstr "OK, siguiente "
 
 #: core/ui/ui_menus.c
-msgctxt "NET_RC_KEY"
-msgid "key "
-msgstr "juego "
+msgctxt "NET_RC_OK"
+msgid "OK"
+msgstr "OK"
 
 #: core/ui/ui_menus.c
-msgctxt "NET_RC_KEY_OK"
-msgid " OK"
-msgstr " OK"
+msgctxt "NET_RC_BEHIND_AT"
+msgid "behind: "
+msgstr "atrasado: "
 
 #: core/ui/ui_menus.c
-msgctxt "NET_RC_BEHIND"
-msgid "behind (keyset "
-msgstr "atrasado (juego "
-
-#: core/ui/ui_menus.c
-msgctxt "NET_RC_OTHER"
-msgid "other key (keyset "
-msgstr "otra clave (juego "
+msgctxt "NET_RC_OTHER_AT"
+msgid "other key: "
+msgstr "otra clave: "
 
 #: core/ui/ui_menus.c
 msgctxt "NET_RC_NO_KEYS"
