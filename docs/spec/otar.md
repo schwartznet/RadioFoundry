@@ -337,7 +337,7 @@ GPS, a host feeding NMEA, or the fixed position, by the Position source setting)
 A fixed position counts as a position, its age 0.
 
 Net > **Share location** on the member, under Remote wipe: On by default, and set On again whenever the radio joins
-or starts a net (`settings_t.otar_locate`), for the reason 7.5 gives for Remote wipe: a net control is trusted with
+or starts a net (`settings_t.otar_loc_off`, 0 = share, so a radio already in a net when it updates shares too), for the reason 7.5 gives for Remote wipe: a net control is trusted with
 far more than this already. The radio's user can turn it Off; the net control then sees "refused" rather than silence.
 
 Limits: a member answers one net control at most once every 10 s, whatever arrives; a LOCATE played back has an old
@@ -805,7 +805,7 @@ checked on air yet.
 | Part | What it does |
 |---|---|
 | LOCATE, POSITION | Types 10 and 11 (7, 7.7): a net control asks one member where it is, and the member answers under their pair keys, its position encrypted and authenticated. Type 9 stays reserved for TAKEOVER (22) |
-| Share location | Net > Share location on every radio in a net, under Remote wipe: On by default and set again at each join or start (`settings_t.otar_locate`, [settings-store.md](settings-store.md)); Off answers "refused" |
+| Share location | Net > Share location on every radio in a net, under Remote wipe: On by default and set again at each join or start (`settings_t.otar_loc_off`, [settings-store.md](settings-store.md)); Off answers "refused" |
 | Get location | Net > Members > OK on a radio > 5 Get location: a screen with "Location: asking", then the position, the distance and compass point from this radio and the fix's age, or "no fix", "refused", "no answer" (3 tries, 20 s apart). Back returns to the member screen, which shows the same lines under its others |
 | Limits | One LOCATE asked at a time; a member answers each net control at most once per 10 s, never a replay, never under radio silence (7.7) |
 | Old radios | Drop type 10 (an unknown type): "no answer". The protocol version stays 4 |

@@ -110,7 +110,7 @@ void ui_svc_net_view(ui_net_view_t *v)
 	v->presses = net.starting && bits < ENTROPY_FULL ?
 		(uint8_t)((ENTROPY_FULL - bits + ENTROPY_KEY_BITS - 1u) / ENTROPY_KEY_BITS) : 0;
 	v->remote_wipe = SETTINGS_FIELD(otar_wipe) == 1u;
-	v->share_location = SETTINGS_FIELD(otar_locate) == 1u;
+	v->share_location = SETTINGS_FIELD(otar_loc_off) == 0u;
 	v->removed = (n.flags & OTAR_NET_REMOVED) != 0;
 	eng_view(v);
 	crypto_wipe(&n, sizeof n);
@@ -171,7 +171,7 @@ static void start_now(uint32_t now)
 	st->otar_net.rank = 1;
 	st->otar_net.flags = OTAR_NET_IN;
 	st->otar_wipe = 1u;	// Remote wipe on in a net (otar.md 7.5): a backup net control may be wiped by net control 1
-	st->otar_locate = 1u;	// ... and Share location (7.7)
+	st->otar_loc_off = 0u;	// ... and Share location (7.7)
 	otar_seen_clear(st);
 	otar_net_t n = st->otar_net;
 	settings_end(now);
@@ -1108,7 +1108,7 @@ static __attribute__((noinline)) void on_locate(const radio_view_t *v, const uin
 	m->net_id = n->net_id;
 	m->rank = n->rank;
 	m->echo = echo;
-	if (SETTINGS_FIELD(otar_locate) != 1u)
+	if (SETTINGS_FIELD(otar_loc_off) != 0u)
 		m->result = OTAR_POS_REFUSED;
 	else if (!own_fix(m, now))
 		m->result = OTAR_POS_NO_FIX;
@@ -1669,7 +1669,7 @@ void ui_svc_net_joined(void)
 	eng.manage_due = true;
 	settings_t *st = settings_begin();
 	st->otar_wipe = 1u;
-	st->otar_locate = 1u;	// Share location the same (7.7)
+	st->otar_loc_off = 0u;	// Share location the same (7.7)
 	settings_end(hal_millis());
 }
 
@@ -2334,7 +2334,7 @@ void ui_svc_net_set_remote_wipe(bool on)
 void ui_svc_net_set_share_location(bool on)
 {
 	settings_t *st = settings_begin();
-	st->otar_locate = on ? 1u : 0u;
+	st->otar_loc_off = on ? 0u : 1u;
 	settings_end(hal_millis());
 }
 

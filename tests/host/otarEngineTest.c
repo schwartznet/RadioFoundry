@@ -1201,7 +1201,7 @@ static void test_locate_member(void)
 	uint8_t other_pub[32], other_km[32];
 	other_member(3, &other, other_pub, other_km);
 	roster_add(other, 0, other_pub);
-	live.otar_locate = 1;
+	live.otar_loc_off = 0;
 	saved = live;
 	run(1000);
 	uint8_t buf[OTAR_MSG_MAX], buf2[OTAR_MSG_MAX];
@@ -1242,7 +1242,7 @@ static void test_locate_member(void)
 	CHECK(out_n == before);
 
 	// Share location off: refused, and no position in it
-	live.otar_locate = 0;
+	live.otar_loc_off = 1;
 	ui_net_view_t nv;
 	ui_svc_net_view(&nv);
 	CHECK(!nv.share_location);
@@ -1253,7 +1253,7 @@ static void test_locate_member(void)
 	      r.lat == 0 && r.lon == 0);
 	// On again, no fix: "no fix"
 	ui_svc_net_set_share_location(true);
-	CHECK(live.otar_locate == 1 && saved.otar_locate == 1);
+	CHECK(live.otar_loc_off == 0 && saved.otar_loc_off == 0);
 	ui_svc_net_view(&nv);
 	CHECK(nv.share_location);
 	fake_fix = false;
@@ -1298,9 +1298,9 @@ static void test_locate_member(void)
 	CHECK(out_n == before + 1 && last_out(&r) && r.type == OTAR_POSITION && r.result == OTAR_POS_OK);
 
 	// A join sets Share location on again
-	live.otar_locate = 0;
+	live.otar_loc_off = 1;
 	ui_svc_net_joined();
-	CHECK(live.otar_locate == 1 && saved.otar_locate == 1);
+	CHECK(live.otar_loc_off == 0 && saved.otar_loc_off == 0);
 	fake_fix = false;
 }
 
