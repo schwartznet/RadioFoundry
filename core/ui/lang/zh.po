@@ -6175,6 +6175,11 @@ msgid "ROAM"
 msgstr "漫游"
 
 #: core/ui/ui_screens.c
+msgctxt "HOME_BADGE_NO_KEY"
+msgid "NO KEY"
+msgstr "无密钥"
+
+#: core/ui/ui_screens.c
 msgctxt "HOME_STATE_P25T_HUNT"
 msgid "Finding system"
 msgstr "搜索中"
@@ -6588,6 +6593,11 @@ msgstr "数听"
 msgctxt "HOME_CHIP_PRIVACY"
 msgid "Priv"
 msgstr "加密"
+
+#: core/ui/ui_screens.c
+msgctxt "HOME_CHIP_NO_KEY"
+msgid "No key"
+msgstr "无密钥"
 
 #: core/ui/ui_screens.c
 msgctxt "TRUNK_OTHER_KIND"

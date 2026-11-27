@@ -1039,9 +1039,22 @@ bool ui_home_encrypted(const radio_view_t *v)
 		return false;
 #if CONFIG_DMR_AES
 	if (v->ch.kind == CODEPLUG_KIND_DMR_AES)
-		return v->ch.aes_ref != 0;	// no key bound: the radio refuses to transmit there, no lock to promise
+		return v->ch.aes_ref != 0 && v->dmr.privacy;	// the key loaded (radio_aes_configure), else ui_home_no_key
 #endif
 	return v->dmr.privacy;
+}
+
+// An AES channel the radio has no key for: none bound, or the bound one not in the key store (wiped, erased, or a
+// codeplug from another radio). The radio refuses to transmit there (TXDENY_AES_KEY) and plays nothing encrypted, so
+// Home says so rather than promising a lock
+bool ui_home_no_key(const radio_view_t *v)
+{
+#if CONFIG_DMR_AES
+	return v->ch.mode == RADIO_MODE_DMR && v->ch.kind == CODEPLUG_KIND_DMR_AES && !ui_home_encrypted(v);
+#else
+	(void)v;
+	return false;
+#endif
 }
 
 // The padlock, hand drawn at three sizes ('#' set): a round-topped shackle, a body with rounded corners and a keyhole
@@ -1125,6 +1138,8 @@ static const char *bp_name(bool shrt)
 // not translated); NULL when the channel is clear
 static const char *enc_badge_text(const radio_view_t *v)
 {
+	if (ui_home_no_key(v))
+		return TR(HOME_BADGE_NO_KEY, "NO KEY");	// in the warning color (draw_name)
 	if (!ui_home_encrypted(v))
 		return NULL;
 #if CONFIG_DMR_AES
@@ -1138,10 +1153,10 @@ static bool home_badge_drawn;	// this frame's name line has the type badge (the 
 
 // The type badge: the text in the background color on a filled block of the privacy color, its bottom on the name's
 // baseline. Returns its width
-static int draw_enc_badge(const font_t *f, int x, int base, const char *text)
+static int draw_enc_badge(const font_t *f, int x, int base, const char *text, color_t color)
 {
 	int w = gfx_text_width(f, text) + 4, h = f->ascent + 3;
-	gfx_round_fill(x, base - h + 1, w, h, ui_col.priv);
+	gfx_round_fill(x, base - h + 1, w, h, color);
 	gfx_text(f, x + 2, base - f->ascent - 1, text, ui_col.bg);
 	return w;
 }
@@ -1232,7 +1247,8 @@ static void draw_place(const radio_view_t *v, const ui_state_t *s)
 	// An encrypted channel: its type in a reverse badge after the name (AES256, BP), or a padlock where the badge would
 	// squeeze the name below the small font; the medium font's height either way
 	const char *badge = enc_badge_text(v);
-	bool lock = badge != NULL;
+	bool no_key = ui_home_no_key(v);
+	bool lock = badge != NULL && !no_key;	// no padlock without a key: the chips line says "No key" instead
 	int lock_h = L->medium->ascent;
 	int badge_w = badge != NULL ? gfx_text_width(L->small, badge) + 4 : 0;
 	home_badge_drawn = false;
@@ -1250,7 +1266,7 @@ static void draw_place(const radio_view_t *v, const ui_state_t *s)
 	gfx_text_fit(nf, v->ch.name, avail, fit, sizeof fit);
 	x = gfx_text(nf, x, nf == L->large ? y : base - nf->ascent, fit, ui_col.fg);
 	if (home_badge_drawn)
-		draw_enc_badge(L->small, w - badge_w, base, badge);	// right aligned, the name keeps its place
+		draw_enc_badge(L->small, w - badge_w, base, badge, no_key ? ui_col.warn : ui_col.priv);	// right aligned
 	else if (lock)
 		draw_padlock(w - padlock_width(lock_h), base - lock_h, lock_h, ui_col.priv);
 	if (v->temporary)
@@ -2040,6 +2056,12 @@ static void draw_chips_dmr(const radio_view_t *v, const ui_state_t *s)
 	// AES256, BP Moto or BP Anytone (the scheme's own names, not translated)
 	const char *enc = NULL;
 #if CONFIG_DMR_AES
+	if (ui_home_no_key(v)) {
+		const char *nk = TR(HOME_CHIP_NO_KEY, "No key");
+		if (!home_badge_drawn && x + gfx_text_width(f, nk) <= gfx_width())
+			gfx_text(f, x, L->chips_y, nk, ui_col.warn);
+		return;
+	}
 	if (v->ch.kind == CODEPLUG_KIND_DMR_AES && v->ch.aes_ref != 0)
 		enc = home_badge_drawn ? NULL : "AES256";	// the name's badge says it already
 	else
