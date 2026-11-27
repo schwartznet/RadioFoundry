@@ -5588,6 +5588,16 @@ msgid "revoked"
 msgstr "revocada"
 
 #: core/ui/ui_menus.c
+msgctxt "NM_ASK_REVOKE"
+msgid "Revoke it? This can't be undone"
+msgstr "¿Revocarla? No se puede deshacer"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_ASK_WIPE"
+msgid "Wipe its keys? It leaves the net"
+msgstr "¿Borrar sus claves? Sale de la red"
+
+#: core/ui/ui_menus.c
 msgctxt "NM_SYNC"
 msgid "Out of sync: rejoin"
 msgstr "Desincronizada: volver a unir"

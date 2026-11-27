@@ -9621,6 +9621,9 @@ static void members_select(uint16_t i, bool hold)
 // ask which keys it holds (INVENTORY: the body shows the answer)
 enum { NM_RANK, NM_REVOKE, NM_WIPE, NM_INV, NM_ROWS };
 #define OTAR_RANK_MAX_UI	4u	// net controls 1-4 (otar_net.h OTAR_RANK_MAX)
+// A row that waits for OK, as the Net screen's (net_ask): Revoke (never undone) and Wipe its keys (its radio leaves the
+// net). Found on the bench: a single stray press sent a wipe. NM_ROWS: none
+static uint8_t nm_ask = NM_ROWS;
 
 static bool nm_member(uint32_t *id, uint8_t *rank, uint8_t *flags, uint8_t fp[3])
 {
@@ -9672,6 +9675,12 @@ static const char *nm_body(void)
 	sb_u32(&b, id, 1);
 	sb_str(&b, "  ");
 	net_fp(&b, fp);
+	if (nm_ask == NM_REVOKE || nm_ask == NM_WIPE) {
+		sb_chr(&b, '\n');
+		sb_str(&b, nm_ask == NM_REVOKE ? TR(NM_ASK_REVOKE, "Revoke it? This can't be undone") :
+						TR(NM_ASK_WIPE, "Wipe its keys? It leaves the net"));
+		return id_body;
+	}
 	if (ui_svc_net_out_of_sync(id)) {	// its message numbers from this radio are ahead (otar.md 7.6)
 		sb_chr(&b, '\n');
 		sb_str(&b, TR(NM_SYNC, "Out of sync: rejoin"));
@@ -9709,9 +9718,9 @@ static const char *nm_body(void)
 	return id_body;
 }
 
-static void nm_select(uint16_t i, bool hold)
+// A row confirmed with OK (nm_ask), or one that needs no question
+static void nm_do(uint16_t i)
 {
-	(void)hold;
 	const radio_view_t *v = ui_view();
 	uint32_t id;
 	uint8_t r, f, fp[3];
@@ -9742,13 +9751,47 @@ static void nm_select(uint16_t i, bool hold)
 			 res == UI_NET_BUSY ? TR(NM_INV_BUSY, "Still asking") : TR(NM_WHY_MEMBER, "Not for this radio"));
 		break;
 	}
+}
+
+static void nm_select(uint16_t i, bool hold)
+{
+	(void)hold;
+	if (i == NM_REVOKE || i == NM_WIPE)
+		nm_ask = (uint8_t)i;
+	else
+		nm_do(i);
 	ui_dirty();
 }
 
+static bool nm_key(const input_event_t *ev)
+{
+	if (nm_ask == NM_ROWS)
+		return false;
+	// Only OK says yes: a digit (SF_NUMBERED picks rows) or any other key never does
+	if (ev->gesture != GESTURE_PRESS)
+		return true;
+	if (ev->action == ACT_SELECT) {
+		uint8_t row = nm_ask;
+		nm_ask = NM_ROWS;
+		nm_do(row);
+	} else if (ev->action == ACT_BACK) {
+		nm_ask = NM_ROWS;
+	}
+	ui_dirty();
+	return true;
+}
+
+static const char *nm_hint(void)
+{
+	return nm_ask != NM_ROWS ? TR(HINT_OK_YES_BACK_NO, "OK yes  Back no") : TR(HINT_OK_PICK_BACK, "OK pick  Back");
+}
+
+static void nm_enter(void) { nm_ask = NM_ROWS; }
+
 static const ui_scr_def_t net_member_screen = {
-	.name = "net-member", .flags = SF_LIST | SF_NUMBERED, .prefix = TRN(NET_MEMBER_TITLE, "Member"),
-	.hint = TRN(HINT_OK_PICK_BACK, "OK pick  Back"), .empty = TRN(NET_MEMBER_NONE, "Nothing to do for this radio"),
-	.count = nm_count, .item = nm_item, .select = nm_select, .body = nm_body,
+	.name = "net-member", .flags = SF_LIST | SF_NUMBERED | SF_HINT_FN, .prefix = TRN(NET_MEMBER_TITLE, "Member"),
+	.hint_fn = nm_hint, .empty = TRN(NET_MEMBER_NONE, "Nothing to do for this radio"),
+	.count = nm_count, .item = nm_item, .select = nm_select, .body = nm_body, .key = nm_key, .enter = nm_enter,
 };
 
 // Net status (otar.md 9): the rekey run's key and progress, each member: OK, waiting, sent, or failed (tried again)

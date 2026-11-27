@@ -5590,6 +5590,16 @@ msgid "revoked"
 msgstr "已撤销"
 
 #: core/ui/ui_menus.c
+msgctxt "NM_ASK_REVOKE"
+msgid "Revoke it? This can't be undone"
+msgstr "撤销？无法恢复"
+
+#: core/ui/ui_menus.c
+msgctxt "NM_ASK_WIPE"
+msgid "Wipe its keys? It leaves the net"
+msgstr "擦除其密钥？其会退出网络"
+
+#: core/ui/ui_menus.c
 msgctxt "NM_SYNC"
 msgid "Out of sync: rejoin"
 msgstr "不同步: 需重新加入"
