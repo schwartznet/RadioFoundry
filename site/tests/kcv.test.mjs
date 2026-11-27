@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 
 import { kcvPrivacy, kcvHashed, kcvAes, kcvTrafficRecord, KCV_CLASS } from "../static/js/codeplug/kcv.js";
 import { nxdnSystem } from "../static/js/codeplug/mode_nxdn.js";
+import { aesSystem } from "../static/js/codeplug/mode_aes.js";
 
 const VECTORS = new URL("../../tests/vectors/key-check.txt", import.meta.url);
 const bytes = (s) => Uint8Array.from(s.match(/../g) ?? [], (x) => parseInt(x, 16));
@@ -40,4 +41,14 @@ test("an NXDN key record as the editor encodes it", async () => {
 	const other = nxdnSystem.traffic.encode(3, { id: 9, seed: 0x1234 });
 	assert.equal(await kcvTrafficRecord(nxdnSystem.id, other), "51588D");
 	assert.notEqual(await kcvTrafficRecord(nxdnSystem.id, nxdnSystem.traffic.encode(0, { id: 5, seed: 0x1235 })), "51588D");
+});
+
+test("an AES key record as the editor encodes it: AES's check value, as the radio's", async () => {
+	// The Key check column passes traffic.kcv === "aes" (modesview.js); without it the record would get the hashed
+	// form, which never matches what the radio shows for an AES key (kcv.c AES_ALGS: system type 5, algorithm 0x25)
+	assert.equal(aesSystem.traffic.kcv, "aes");
+	const [[key, want]] = vectors("aes");
+	const rec = aesSystem.traffic.encode(0, { id: 7, key });
+	assert.equal(await kcvTrafficRecord(aesSystem.id, rec, aesSystem.traffic.kcv === "aes"), want);
+	assert.notEqual(await kcvTrafficRecord(aesSystem.id, rec, false), want);
 });
