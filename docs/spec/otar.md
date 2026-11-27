@@ -957,3 +957,18 @@ the REKEY sent again, the cancel here with its key erased and the number kept, a
 keeps the change, a move by the clocks needs one, the cancelled run in Net status and a member's answer counted, and
 a cancelled change can't be changed over. Eighteen parts of the change were each taken out in turn, and the test fails
 every time.
+
+## 27. Radio silence (as built, 2026-11-27)
+
+Under radio silence ([radio-silence.md](radio-silence.md) 3) OTAR sends only what its user starts. A member sends no
+answers at all (its ACKs, POSITION, "old message number"), though it still takes what a message carries (a REKEY's
+key is stored, a WITHDRAW drops the keyset, a ZEROIZE wipes); its HELLO at start waits until silence ends, and Net >
+Request keys goes. A net control answers no HELLO, sends no ACK or POSITION, skips the CHANGEOVER it would send by
+itself at a changeover by the clocks, and holds a scheduled rekey until silence ends; Rekey now, Change over the net,
+Send the roster, Send the time, a wipe, Ask its keys, Get location, the net's channel and Move or Cancel the change go,
+with their retries. A reply is dropped, not held (`silenced`, counted in `eng.silence_dropped`).
+
+Tests: `otarEngineTest` (327 checks) adds a member under silence (no HELLO at start, a REKEY stored without its ACK,
+an INVENTORY unanswered, Request keys sent, answers again once silence ends, a ZEROIZE wiping with no ACK) and a net
+control (no answer to a HELLO behind or up to date, Rekey now and its retry sent, a HELLO answered again after). Each
+gate was taken out in turn and the test fails each time.
