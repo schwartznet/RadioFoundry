@@ -439,8 +439,11 @@ bool dmrAesCallHook(uint8_t ambe27[27], const struct dmr_crypt_pos *pos, bool tx
 	if (st == NULL || pos == NULL || pos->voice_index >= 6 || pos->superframe >= DMR_AES_SF_MAX)
 		return false;
 
-	// A heard call may use any key held; our overs only the TX key, never another key of the system
-	int8_t slot = tx ? st->tx_slot : dmrAesFindKey(st, pos->alg, pos->key_id);
+	// A heard call may use any key held; our overs only the TX key, never another key of the system. Some senders put
+	// the short ALG value in their PI header: only RX aliases it (provisioned keys and our PI headers keep the full
+	// AES-256 ID, and unrelated algorithms still fail closed)
+	uint8_t alg = !tx && pos->alg == 0x05 ? DMR_AES_ALG_AES256 : pos->alg;
+	int8_t slot = tx ? st->tx_slot : dmrAesFindKey(st, alg, pos->key_id);
 
 	if (slot < 0 || st->keys[slot].alg == 0 || st->keys[slot].alg != pos->alg ||
 	    st->keys[slot].key_id != pos->key_id)
