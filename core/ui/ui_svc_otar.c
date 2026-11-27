@@ -403,6 +403,7 @@ static struct {
 	bool tek_reset;		// ... OTAR_RK_RESET: the keysets start again from this one (a radio that joined again, 7.12)
 	bool cu_reset;		// a net control: the catch-up to cu_to flagged reset (its HELLO named a keyset this net never had)
 	uint32_t joined_at;	// a member: when it last joined by key fill (0 never): a reset is taken OTAR_RESET_MS after
+	uint32_t fresh_id, fresh_at;	// a net control: the member it last added by key fill, and when (7.12)
 	uint32_t tek_ks;	// its keyset number, the net's
 	uint32_t tek_at;	// the changeover
 	uint32_t cu_to;		// a net control: the net's active key to send this member, which said HELLO without it
@@ -1623,6 +1624,12 @@ static __attribute__((noinline)) void hello_answer(const radio_view_t *v, const 
 	uint32_t cut_ks = cut_get(&ckid);
 	bool ahead = v->otar.on && v->dmr.own_id == authority() && m->keyset > v->otar.keyset &&
 		     !(v->otar.has_next && m->keyset == v->otar.next_keyset) && m->keyset != cut_ks;
+	// ... or just added by key fill: whatever number it names, its keys may be another net's or a throwaway under the
+	// net's own number (a HELLO names numbers, not keys). Found on the bench: a radio on a throwaway keyset 17 joined
+	// again after the net itself had reached keyset 17 with another key, and was told "up to date"
+	if (v->otar.on && v->dmr.own_id == authority() && src == eng.fresh_id &&
+	    (uint32_t)(now - eng.fresh_at) < OTAR_RESET_MS)
+		ahead = true;
 	bool answered = false;
 	for (uint8_t i = 0; rk != NULL && i < rk->n; i++) {
 		rk_member_t *mm = &rk->m[i];
@@ -3065,9 +3072,12 @@ bool ui_svc_net_rekey_member(uint16_t i, uint32_t *id, uint8_t *state, uint8_t *
 }
 // A member added (again) by key fill: what was asked of the radio before (a wipe, silence, a silent revoke, its keys,
 // its location) is no longer shown on its screen; one still under way is left to finish. Found on the bench: a radio
-// wiped and joined again still showed "Radio wipe: wiped"
+// wiped and joined again still showed "Radio wipe: wiped". Its HELLOs in the next OTAR_RESET_MS get the net's active
+// key flagged reset (hello_answer)
 void ui_svc_net_member_added(uint32_t id)
 {
+	eng.fresh_id = id;	// its first HELLOs get the net's active key flagged reset (7.12)
+	eng.fresh_at = hal_millis();
 	if (id == eng.zz.id && eng.zz.state != UI_ZZ_SENDING)
 		memset(&eng.zz, 0, sizeof eng.zz);
 	if (id == eng.sil.id && eng.sil.state != UI_SIL_SENDING)

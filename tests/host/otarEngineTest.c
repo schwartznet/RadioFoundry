@@ -1359,6 +1359,30 @@ static void test_rejoin_reset_nc(void)
 	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_HELLO, &m, buf));
 	run(2000);
 	CHECK(last_out(&r) && r.type == OTAR_REKEY && (r.flags & OTAR_RK_NOW) && !(r.flags & OTAR_RK_RESET) && r.keyset == 15);
+	// Just added by key fill, naming the net's own number (a throwaway under it): the active key flagged reset all the
+	// same, for the reset window; another radio naming that number is up to date
+	run(130000);
+	ui_svc_net_member_added(PEER_ID);
+	memset(&m, 0, sizeof m);
+	m.keyset = 15;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_HELLO, &m, buf));
+	run(2000);
+	CHECK(last_out(&r) && r.type == OTAR_REKEY && (r.flags & OTAR_RK_RESET) && r.keyset == 15 && r.kid == 77);
+	run(130000);
+	ui_svc_net_member_added(OTHER_NC);
+	memset(&m, 0, sizeof m);
+	m.keyset = 15;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_HELLO, &m, buf));
+	run(2000);
+	CHECK(last_out(&r) && r.type == OTAR_ACK && r.result == OTAR_ACK_CURRENT);
+	// Past the window after the add: up to date again
+	ui_svc_net_member_added(PEER_ID);
+	run(610000);
+	memset(&m, 0, sizeof m);
+	m.keyset = 15;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_HELLO, &m, buf));
+	run(2000);
+	CHECK(last_out(&r) && r.type == OTAR_ACK && r.result == OTAR_ACK_CURRENT);
 	// The net's next keyset (16) held already: up to date, no reset
 	CHECK(otar_set_next(&keys, 1, 78, 0, false));
 	keys.ks_next = 16;
