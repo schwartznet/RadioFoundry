@@ -17,7 +17,12 @@
 #include "otar/otar_keys.h"
 #include "otar/otar_msg.h"
 #include "otar/otar_net.h"
+#include "dmr/call/dmr_lc.h"
 #include "radio/radio.h"
+#include "radio/silence.h"
+#if CONFIG_POSITION
+#include "position/position.h"
+#endif
 #include "support/kcv.h"
 #include "settings/settings.h"
 #include "storage/storage.h"
@@ -105,6 +110,7 @@ void ui_svc_net_view(ui_net_view_t *v)
 	v->presses = net.starting && bits < ENTROPY_FULL ?
 		(uint8_t)((ENTROPY_FULL - bits + ENTROPY_KEY_BITS - 1u) / ENTROPY_KEY_BITS) : 0;
 	v->remote_wipe = SETTINGS_FIELD(otar_wipe) == 1u;
+	v->share_location = SETTINGS_FIELD(otar_locate) == 1u;
 	v->removed = (n.flags & OTAR_NET_REMOVED) != 0;
 	eng_view(v);
 	crypto_wipe(&n, sizeof n);
@@ -165,6 +171,7 @@ static void start_now(uint32_t now)
 	st->otar_net.rank = 1;
 	st->otar_net.flags = OTAR_NET_IN;
 	st->otar_wipe = 1u;	// Remote wipe on in a net (otar.md 7.5): a backup net control may be wiped by net control 1
+	st->otar_locate = 1u;	// ... and Share location (7.7)
 	otar_seen_clear(st);
 	otar_net_t n = st->otar_net;
 	settings_end(now);
@@ -397,6 +404,23 @@ static struct {
 		uint16_t keyset[2];
 		bool same[2];
 	} inv;
+	// A net control: the LOCATE asked for (ui_svc_net_locate), sent up to LOC_TRIES times until its POSITION comes, and
+	// what that said (otar.md 7.7)
+	struct {
+		uint32_t id;		// the member (0 none)
+		uint8_t state;		// UI_LOC_*
+		bool send, waiting;	// a try to send; one sent, its POSITION awaited
+		uint8_t tries;
+		uint32_t sent_num, ans_by;
+		int32_t lat, lon;
+		int16_t alt_m;
+		uint16_t age_s;		// the member's fix's age when it answered
+		uint32_t got_at;	// ... and when that was
+	} loc;
+	// A member: the net controls whose LOCATE it answered last, and when (loc_slot)
+	struct {
+		uint32_t id, at;
+	} lans[4];
 	bool inv_next;		// a member: the next keyset's ACK of an INVENTORY still to send
 	bool manage_due;	// a member just joined: manage the channel's keys if it doesn't yet (ui_svc_net_joined)
 	bool co_hand;		// Change over the net by hand: the run's end sends no CHANGEOVER of its own
@@ -411,6 +435,8 @@ static bool pool_wanted(void)
 
 #define ROS_TRIES	3u	// a roster entry no ACK came for is sent this many times, then counted as failed
 #define ZZ_TRIES	3u	// ... and a ZEROIZE, then shown as no answer
+#define LOC_TRIES	3u	// ... and a LOCATE
+#define LOC_GAP_MS	10000u	// a member answers one net control's LOCATE at most this often (on_locate)
 #define ZZ_SEND_MS	60000u	// a member wiping: its ACK's send given this long (the transport's own limit is 10 s)
 #define OOS_GAP_MS	300000u	// a member says "old message number" to one net control at most this often (7.6)
 #define MSGNUM_SKIP_MAX	65536u	// a net control skips its numbers past a member's at most this far (oos_got)
@@ -1016,6 +1042,145 @@ static __attribute__((noinline)) void inv_send(const radio_view_t *v, const otar
 	eng.inv.by = now + ACK_WAIT_MS;
 }
 
+// A member: where it is now, from the position service, as an LRRP answer gets it (the GPS, a host, or the fixed
+// position; the ambiguity setting applied). False: none. A short copy under the service's lock: never a wait
+static bool own_fix(otar_msg_t *m, uint32_t now)
+{
+#if CONFIG_POSITION
+	position_fix_t f;
+	uint32_t err_m;
+	if (position_report(&f, &err_m, now) == POSITION_SRC_NONE)
+		return false;
+	m->lat = f.lat;
+	m->lon = f.lon;
+	m->alt_m = f.alt_m == POSITION_ALT_NONE ? OTAR_ALT_NONE :
+		   f.alt_m < -32767 ? (int16_t)-32767 : f.alt_m > 32767 ? (int16_t)32767 : (int16_t)f.alt_m;
+	uint32_t age = (int32_t)(now - f.ms) < 0 ? 0u : (uint32_t)(now - f.ms) / 1000u;
+	m->age_s = age > 0xFFFFu ? (uint16_t)0xFFFFu : (uint16_t)age;
+	return true;
+#else
+	(void)m;
+	(void)now;
+	return false;
+#endif
+}
+
+// A member: the slot of eng.lans for answering net control src's LOCATE now, -1 when it answered it less than
+// LOC_GAP_MS ago (or the four slots all did, each that recently). A LOCATE played back (its number already taken) gets
+// at most the rate-limited "old message number"; this keeps even a net control's fresh ones to one answer per 10 s
+static int loc_slot(uint32_t src, uint32_t now)
+{
+	const unsigned n = sizeof eng.lans / sizeof eng.lans[0];
+	for (unsigned i = 0; i < n; i++)
+		if (eng.lans[i].id == src)
+			return (uint32_t)(now - eng.lans[i].at) >= LOC_GAP_MS ? (int)i : -1;
+	for (unsigned i = 0; i < n; i++)
+		if (eng.lans[i].id == 0 || (uint32_t)(now - eng.lans[i].at) >= LOC_GAP_MS)
+			return (int)i;
+	return -1;
+}
+
+// LOCATE (7.7) from a net control on the roster, not revoked: POSITION back to it under the pair's keys, its body
+// encrypted, echoing the LOCATE. Refused when Share location is off; no fix when the radio has no position. Never under
+// radio silence (radio-silence.md): a radio that keeps quiet doesn't say where it is by itself
+static __attribute__((noinline)) void on_locate(const radio_view_t *v, const uint8_t *msg, int len, uint32_t src,
+						 const otar_net_t *n, uint32_t now)
+{
+	otar_member_t nc;
+	if (radio_silent() || !otar_roster_find(src, &nc) || nc.rank == 0 || (nc.flags & OTAR_M_REVOKED) ||
+	    eng.out_len != 0 || eng.tek_due || eng.ros_due)
+		return;
+	int slot = loc_slot(src, now);
+	if (slot < 0)
+		return;
+	if (!eng.pair_ok || eng.pair_id != src) {
+		eng.pair_ok = pair_keys(v->dmr.own_id, src, n->net_id, eng.ukek, eng.kmac);
+		eng.pair_id = src;
+		if (!eng.pair_ok)
+			return;
+	}
+	otar_addr_t a = { src, v->dmr.own_id };
+	otar_msg_t *m = &eng.ros_m;
+	if (!otar_open(msg, len, &a, NULL, eng.kmac, m) || m->net_id != n->net_id || !fresh_or_tell(v, n, src, m->msgnum, now))
+		return;
+	uint32_t echo = m->msgnum;
+	memset(m, 0, sizeof *m);
+	m->net_id = n->net_id;
+	m->rank = n->rank;
+	m->echo = echo;
+	if (SETTINGS_FIELD(otar_locate) != 1u)
+		m->result = OTAR_POS_REFUSED;
+	else if (!own_fix(m, now))
+		m->result = OTAR_POS_NO_FIX;
+	else
+		m->result = OTAR_POS_OK;
+	m->msgnum = next_msgnum(now);
+	otar_addr_t back = { v->dmr.own_id, src };
+	out_set(src, false, otar_position_build(eng.out, &back, eng.kmac, m));
+	crypto_wipe(m, sizeof *m);
+	if (eng.out_len != 0) {
+		eng.lans[slot].id = src;
+		eng.lans[slot].at = now;
+	}
+}
+
+// A net control: a try of the LOCATE asked for (ui_svc_net_locate), once the transport is free; its POSITION within
+// ACK_WAIT_MS (on_position), else another try (engine_tick)
+static __attribute__((noinline)) void loc_send(const radio_view_t *v, const otar_net_t *n, uint32_t now)
+{
+	uint32_t to = eng.loc.id;
+	eng.loc.send = false;
+	if (!eng.pair_ok || eng.pair_id != to) {
+		eng.pair_ok = pair_keys(v->dmr.own_id, to, n->net_id, eng.ukek, eng.kmac);
+		eng.pair_id = to;
+	}
+	if (!eng.pair_ok) {
+		eng.loc.state = UI_LOC_NO_ANSWER;
+		return;
+	}
+	otar_msg_t *m = &eng.ros_m;
+	memset(m, 0, sizeof *m);
+	m->net_id = n->net_id;
+	m->rank = n->rank;
+	m->msgnum = next_msgnum(now);
+	otar_addr_t a = { v->dmr.own_id, to };
+	out_set(to, false, otar_locate_build(eng.out, &a, eng.kmac, m));
+	eng.loc.sent_num = m->msgnum;
+	eng.loc.waiting = true;
+	eng.loc.tries++;
+	eng.loc.ans_by = now + ACK_WAIT_MS;
+}
+
+// A net control: the POSITION it waits for, from the member it asked, echoing its last LOCATE. Anything else is
+// dropped before the X25519 its MAC needs: a stream of forged ones can't tie this radio up
+static __attribute__((noinline)) void on_position(const radio_view_t *v, const uint8_t *msg, int len, uint32_t src,
+						   const otar_net_t *n, uint32_t now)
+{
+	if (!eng.loc.waiting || src != eng.loc.id)
+		return;
+	uint8_t ukek[OTAR_KEY_LEN], kmac[OTAR_KEY_LEN];
+	if (!pair_keys(v->dmr.own_id, src, n->net_id, ukek, kmac))
+		return;
+	crypto_wipe(ukek, sizeof ukek);
+	otar_addr_t a = { src, v->dmr.own_id };
+	otar_msg_t *m = &eng.ros_m;
+	bool ok = otar_open(msg, len, &a, NULL, kmac, m) && m->net_id == n->net_id && m->echo == eng.loc.sent_num;
+	crypto_wipe(kmac, sizeof kmac);
+	if (ok) {
+		bool pos = m->result == OTAR_POS_OK;
+		eng.loc.waiting = false;
+		eng.loc.state = pos ? UI_LOC_GOT : m->result == OTAR_POS_NO_FIX ? UI_LOC_NO_FIX : UI_LOC_REFUSED;
+		eng.loc.lat = pos ? m->lat : 0;
+		eng.loc.lon = pos ? m->lon : 0;
+		eng.loc.alt_m = pos ? m->alt_m : OTAR_ALT_NONE;
+		eng.loc.age_s = m->age_s;
+		eng.loc.got_at = now;
+		if (src == eng.oos_id)
+			eng.oos_id = 0;		// it answers again
+	}
+	crypto_wipe(m, sizeof *m);
+}
+
 // A net control: an INVENTORY's ACK, one keyset the member holds, checked against this radio's key of that keyset
 static void inv_got(const radio_view_t *v, const otar_msg_t *m)
 {
@@ -1138,7 +1303,8 @@ static __attribute__((noinline)) void oos_got(const otar_msg_t *m, uint32_t src,
 	bool ros = eng.ros.waiting && eng.ros.dst == src && eng.ros.sent_num == echo;
 	bool inv = eng.inv.state == UI_INV_ASKING && eng.inv.id == src && eng.inv.sent_num == echo;
 	bool zz = eng.zz.waiting && eng.zz.id == src && eng.zz.sent_num == echo;
-	if (last < echo || (mm == NULL && !ros && !inv && !zz))
+	bool loc = eng.loc.waiting && eng.loc.id == src && eng.loc.sent_num == echo;
+	if (last < echo || (mm == NULL && !ros && !inv && !zz && !loc))
 		return;		// not about a message this radio waits on
 	bool skipped = msgnum_skip(last);
 	if (!skipped)
@@ -1166,6 +1332,14 @@ static __attribute__((noinline)) void oos_got(const otar_msg_t *m, uint32_t src,
 			eng.zz.state = UI_ZZ_NO_ANSWER;
 		}
 	}
+	if (loc) {
+		if (skipped) {
+			eng.loc.ans_by = now;
+		} else {
+			eng.loc.waiting = false;
+			eng.loc.state = UI_LOC_NO_ANSWER;
+		}
+	}
 }
 
 // The net control: an ACK or a HELLO from a member
@@ -1176,7 +1350,8 @@ __attribute__((noinline)) static void on_member(const radio_view_t *v, const uin
 	// before its MAC can be checked, so a stream of forged ones (any member's ID as the source) can't tie up this radio
 	bool want = msg[2] == OTAR_ACK &&
 		    ((rk != NULL && rk->cur != 0xFF && rk->m[rk->cur].id == src) || (eng.ros.waiting && eng.ros.dst == src) ||
-		     (eng.inv.state != UI_INV_NONE && eng.inv.id == src) || (eng.zz.waiting && eng.zz.id == src));
+		     (eng.inv.state != UI_INV_NONE && eng.inv.id == src) || (eng.zz.waiting && eng.zz.id == src) ||
+	     (eng.loc.waiting && eng.loc.id == src));	// a LOCATE's "old message number"
 	if (msg[2] == OTAR_HELLO && (uint32_t)(now - eng.hello_at) >= HELLO_GAP_MS) {
 		eng.hello_at = now;
 		want = true;
@@ -1487,12 +1662,14 @@ static __attribute__((noinline)) void cu_send(const radio_view_t *v, const otar_
 	crypto_wipe(kmac, sizeof kmac);
 }
 
-// Joined: Remote wipe on (otar.md 7.5), as every net control's other remote controls are; the user may turn it off
+// Joined: Remote wipe and Share location on (otar.md 7.5, 7.7), as every net control's other remote controls are; the
+// user may turn them off
 void ui_svc_net_joined(void)
 {
 	eng.manage_due = true;
 	settings_t *st = settings_begin();
 	st->otar_wipe = 1u;
+	st->otar_locate = 1u;	// Share location the same (7.7)
 	settings_end(hal_millis());
 }
 
@@ -1665,6 +1842,8 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 		eng.ros_due = false;
 		eng.pend.on = false;
 		memset(&eng.zz, 0, sizeof eng.zz);
+		memset(&eng.loc, 0, sizeof eng.loc);
+		memset(eng.lans, 0, sizeof eng.lans);
 		eng.inv_to = 0;
 		eng.cu_to = 0;
 		eng.inv_next = false;
@@ -1696,6 +1875,8 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 				eng.ros.ack_by = now;	// not delivered: a try gone
 			if (st == OTAR_SEND_FAILED && eng.zz.waiting)
 				eng.zz.ack_by = now;
+			if (st == OTAR_SEND_FAILED && eng.loc.waiting)
+				eng.loc.ans_by = now;
 
 		}
 	}
@@ -1750,6 +1931,10 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 				on_inventory(v, msg, len, src, &n, now);
 			else if (h.type == OTAR_TIME && !group && src != v->dmr.own_id)
 				on_time(v, msg, len, src, &n, now);
+			else if (h.type == OTAR_LOCATE && !group && src != v->dmr.own_id)
+				on_locate(v, msg, len, src, &n, now);
+			else if (h.type == OTAR_POSITION && !group && n.rank != 0)
+				on_position(v, msg, len, src, &n, now);
 			else if ((h.type == OTAR_ACK || h.type == OTAR_HELLO) && !group && n.rank != 0)
 				on_member(v, msg, len, src, &n, now);
 			else if (h.type == OTAR_ACK && !group && n.rank == 0)
@@ -1806,6 +1991,19 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 	}
 	if (eng.zz.send && n.rank != 0 && mn_ok && eng.out_len == 0 && !eng.sending && !eng.ros.waiting && eng.rk == NULL) {
 		zz_send(v, &n, now);
+		changed = true;
+	}
+	// A LOCATE asked for: the same
+	if (eng.loc.waiting && (int32_t)(now - eng.loc.ans_by) >= 0) {
+		eng.loc.waiting = false;
+		if (eng.loc.tries < LOC_TRIES)
+			eng.loc.send = true;
+		else
+			eng.loc.state = UI_LOC_NO_ANSWER;
+		changed = true;
+	}
+	if (eng.loc.send && n.rank != 0 && mn_ok && eng.out_len == 0 && !eng.sending && !eng.ros.waiting && eng.rk == NULL) {
+		loc_send(v, &n, now);
 		changed = true;
 	}
 	// CHANGEOVER copies, then this radio
@@ -2131,6 +2329,52 @@ void ui_svc_net_set_remote_wipe(bool on)
 	settings_t *st = settings_begin();
 	st->otar_wipe = on ? 1u : 0u;
 	settings_end(hal_millis());
+}
+
+void ui_svc_net_set_share_location(bool on)
+{
+	settings_t *st = settings_begin();
+	st->otar_locate = on ? 1u : 0u;
+	settings_end(hal_millis());
+}
+
+uint8_t ui_svc_net_locate(const radio_view_t *v, uint32_t id)
+{
+	if (own_rank() == 0)
+		return UI_NET_NOT_NC;
+	otar_member_t m;
+	if (id == v->dmr.own_id || !otar_roster_find(id, &m) || (m.flags & OTAR_M_REVOKED))
+		return UI_NET_NO_MEMBER;
+	if (eng.loc.state == UI_LOC_ASKING)
+		return UI_NET_BUSY;
+	memset(&eng.loc, 0, sizeof eng.loc);
+	eng.loc.id = id;
+	eng.loc.state = UI_LOC_ASKING;
+	eng.loc.send = true;
+	return UI_NET_OK;
+}
+
+void ui_svc_net_locate_view(uint32_t id, ui_loc_view_t *r)
+{
+	memset(r, 0, sizeof *r);
+	if (id == 0 || id != eng.loc.id)
+		return;
+	r->state = eng.loc.state;
+	if (r->state != UI_LOC_GOT)
+		return;
+	uint32_t now = hal_millis();
+	r->lat = eng.loc.lat;
+	r->lon = eng.loc.lon;
+	r->alt_m = eng.loc.alt_m;
+	r->age_s = eng.loc.age_s + (uint32_t)(now - eng.loc.got_at) / 1000u;
+#if CONFIG_POSITION
+	// From where this radio is, exactly (no ambiguity: it is only shown here)
+	position_fix_t f;
+	if (position_fix(&f, now) != POSITION_SRC_NONE) {
+		r->range = true;
+		dmr_gps_range(f.lat, f.lon, eng.loc.lat, eng.loc.lon, &r->dist_m, &r->bearing);
+	}
+#endif
 }
 
 uint8_t ui_svc_net_send_time(const radio_view_t *v)

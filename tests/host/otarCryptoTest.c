@@ -296,6 +296,58 @@ static void test_msgs(void)
 	CHECK(n == (int)OTAR_INVENTORY_LEN && otar_open(buf, n, &a, NULL, kmac, &got) && got.type == OTAR_INVENTORY);
 	CHECK(!otar_open(buf, n, &swapped, NULL, kmac, &got));
 
+	// LOCATE: no body either, its own type and length
+	memset(&m, 0, sizeof m);
+	m.net_id = 0xE721;
+	m.msgnum = 81;
+	m.rank = 2;
+	n = otar_locate_build(buf, &a, kmac, &m);
+	CHECK(n == (int)OTAR_LOCATE_LEN && otar_open(buf, n, &a, NULL, kmac, &got) && got.type == OTAR_LOCATE &&
+	      got.rank == 2 && got.msgnum == 81);
+	CHECK(!otar_open(buf, n, &swapped, NULL, kmac, &got));
+
+	// POSITION: south and west (negative), altitude unknown, back from the member; the body never in the clear
+	memset(&m, 0, sizeof m);
+	m.net_id = 0xE721;
+	m.msgnum = 82;
+	m.echo = 81;
+	m.result = OTAR_POS_OK;
+	m.lat = -338688500;
+	m.lon = -1512093000;
+	m.alt_m = OTAR_ALT_NONE;
+	m.age_s = 65535;
+	n = otar_position_build(buf, &swapped, kmac, &m);
+	CHECK(n == (int)OTAR_POSITION_LEN && n <= (int)OTAR_MSG_MAX);
+	uint8_t plain[4] = { (uint8_t)((uint32_t)m.lat >> 24), (uint8_t)((uint32_t)m.lat >> 16),
+			     (uint8_t)((uint32_t)m.lat >> 8), (uint8_t)m.lat };
+	CHECK(memcmp(&buf[OTAR_HDR + 5], plain, 4) != 0);
+	CHECK(otar_open(buf, n, &swapped, NULL, kmac, &got) && got.type == OTAR_POSITION && got.echo == 81 &&
+	      got.result == OTAR_POS_OK && got.lat == -338688500 && got.lon == -1512093000 &&
+	      got.alt_m == OTAR_ALT_NONE && got.age_s == 65535);
+	CHECK(!otar_open(buf, n, &a, NULL, kmac, &got));	// the other way round: the MAC doesn't check
+	// North and east, an altitude below the sea; then "no fix" and "refused" carry their result
+	m.lat = 900000000;
+	m.lon = 1800000000;
+	m.alt_m = -28;
+	m.age_s = 3;
+	n = otar_position_build(buf, &swapped, kmac, &m);
+	CHECK(otar_open(buf, n, &swapped, NULL, kmac, &got) && got.lat == 900000000 && got.lon == 1800000000 &&
+	      got.alt_m == -28 && got.age_s == 3);
+	m.result = OTAR_POS_REFUSED;
+	n = otar_position_build(buf, &swapped, kmac, &m);
+	CHECK(otar_open(buf, n, &swapped, NULL, kmac, &got) && got.result == OTAR_POS_REFUSED);
+	// Malformed though its MAC checks: an unknown result, a latitude past the pole
+	m.result = 3;
+	n = otar_position_build(buf, &swapped, kmac, &m);
+	CHECK(!otar_open(buf, n, &swapped, NULL, kmac, &got));
+	m.result = OTAR_POS_OK;
+	m.lat = 900000001;
+	n = otar_position_build(buf, &swapped, kmac, &m);
+	CHECK(!otar_open(buf, n, &swapped, NULL, kmac, &got));
+	m.lat = 0;
+	n = otar_position_build(buf, &swapped, kmac, &m);
+	CHECK(otar_open(buf, n, &swapped, NULL, kmac, &got));
+
 	// Headers: another version, magic, net 0, a rank past 4, an unknown type
 	uint8_t h[OTAR_MSG_MAX];
 	memcpy(h, buf, (size_t)n);

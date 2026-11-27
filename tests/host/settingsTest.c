@@ -944,6 +944,7 @@ static void test_settings_layout(void)
 		{ offsetof(settings_t, zz_salt), 416 },
 		{ offsetof(settings_t, zz_hash), 420 },
 		{ offsetof(settings_t, otar), 436 },	// OTAR keysets (otar.md 17), appended
+		{ offsetof(settings_t, otar_locate), 466 },	// Share location (otar.md 7.7), from the reserved octets
 		{ offsetof(settings_t, otar_net), 472 },	// OTAR net membership, page 2's first field
 		{ offsetof(settings_t, otar_msgnum), 508 },	// OTAR message numbers
 		{ offsetof(settings_t, otar_seen), 512 },

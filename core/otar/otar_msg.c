@@ -164,6 +164,27 @@ int otar_time_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR
 	return seal(out, (int)(OTAR_TIME_LEN - OTAR_MAC), a, k_mac);
 }
 
+int otar_locate_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m)
+{
+	header(out, OTAR_LOCATE, m);
+	return seal(out, (int)OTAR_HDR, a, k_mac);
+}
+
+int otar_position_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m)
+{
+	header(out, OTAR_POSITION, m);
+	uint8_t *p = &out[OTAR_HDR];
+	put32(p, m->echo);
+	p[4] = m->result;
+	put32(&p[5], (uint32_t)m->lat);
+	put32(&p[9], (uint32_t)m->lon);
+	p[13] = (uint8_t)((uint16_t)m->alt_m >> 8);
+	p[14] = (uint8_t)m->alt_m;
+	p[15] = (uint8_t)(m->age_s >> 8);
+	p[16] = (uint8_t)m->age_s;
+	return seal(out, (int)(OTAR_POSITION_LEN - OTAR_MAC), a, k_mac);
+}
+
 static int len_of(uint8_t type)
 {
 	switch (type) {
@@ -175,6 +196,8 @@ static int len_of(uint8_t type)
 	case OTAR_ZEROIZE: return (int)OTAR_ZEROIZE_LEN;
 	case OTAR_INVENTORY: return (int)OTAR_INVENTORY_LEN;
 	case OTAR_TIME: return (int)OTAR_TIME_LEN;
+	case OTAR_LOCATE: return (int)OTAR_LOCATE_LEN;
+	case OTAR_POSITION: return (int)OTAR_POSITION_LEN;
 	default: return -1;
 	}
 }
@@ -253,6 +276,20 @@ static bool parse(otar_msg_t *m, const uint8_t *p, const uint8_t *ukek)
 	case OTAR_TIME:
 		m->time_s = get32(p);
 		return true;
+	case OTAR_LOCATE:
+		return true;
+	case OTAR_POSITION:
+		m->echo = get32(p);
+		m->result = p[4];
+		m->lat = (int32_t)get32(&p[5]);
+		m->lon = (int32_t)get32(&p[9]);
+		m->alt_m = (int16_t)(uint16_t)((p[13] << 8) | p[14]);
+		m->age_s = (uint16_t)((p[15] << 8) | p[16]);
+		// A known result, and a position on the globe (another result carries none)
+		if (m->result > OTAR_POS_REFUSED)
+			return false;
+		return m->result != OTAR_POS_OK ||
+		       (m->lat >= -900000000 && m->lat <= 900000000 && m->lon >= -1800000000 && m->lon <= 1800000000);
 	default:
 		return false;
 	}

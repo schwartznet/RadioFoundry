@@ -145,6 +145,7 @@ typedef struct {
 	bool pend;
 	uint8_t pend_from, pend_lost;
 	bool remote_wipe;	// a net control may wipe this radio's keys (Remote wipe)
+	bool share_location;	// a net control may ask where this radio is (Share location, LOCATE)
 	bool removed;		// a net control revoked this radio: "Removed from the net"
 	uint8_t sched_days;	// a net control's rekey schedule: every this many days, 0 by hand
 	uint32_t sched_at;	// ... the next one, UTC minutes (0: none yet)
@@ -221,6 +222,23 @@ bool ui_svc_net_out_of_sync(uint32_t id);
 // A take over waiting (ui_net_view_t.pend): accepted (the lost net control revoked here) or refused
 void ui_svc_net_accept(bool yes);
 void ui_svc_net_set_remote_wipe(bool on);
+void ui_svc_net_set_share_location(bool on);
+// A net control: LOCATE to member id (otar.md 7.7), tried up to 3 times 20 s apart until its POSITION comes. One at a
+// time. UI_NET_OK, NOT_NC, NO_MEMBER (this radio, not on the roster, or revoked), BUSY (one is still asking)
+uint8_t ui_svc_net_locate(const radio_view_t *v, uint32_t id);
+// ... and what member id answered, as its member screen shows it: where it is, no fix, refused (its Share location
+// off), or no answer after the tries (off, out of range, under radio silence, or a radio from before LOCATE)
+enum { UI_LOC_NONE, UI_LOC_ASKING, UI_LOC_GOT, UI_LOC_NO_FIX, UI_LOC_REFUSED, UI_LOC_NO_ANSWER };
+typedef struct {
+	uint8_t state;		// UI_LOC_*
+	int32_t lat, lon;	// GOT: 1e-7 degree
+	int16_t alt_m;		// INT16_MIN unknown
+	uint32_t age_s;		// the member's fix's age now
+	bool range;		// this radio knows where it is: dist_m and bearing (from here to the member) hold
+	uint32_t dist_m;
+	uint16_t bearing;	// degrees from north
+} ui_loc_view_t;
+void ui_svc_net_locate_view(uint32_t id, ui_loc_view_t *r);
 // A net control: TIME to the talkgroup (otar.md 7.4), from a clock that isn't the net's. UI_NET_OK, NOT_NC, NO_TG,
 // NO_CLOCK, BUSY
 uint8_t ui_svc_net_send_time(const radio_view_t *v);

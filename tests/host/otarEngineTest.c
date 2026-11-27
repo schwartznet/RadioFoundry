@@ -24,6 +24,11 @@
 #include "support/hkdf.h"
 #include "support/kcv.h"
 #include "support/utc_clock.h"
+#include "dmr/call/dmr_lc.h"
+#include "radio/silence.h"
+#if CONFIG_POSITION
+#include "position/position.h"
+#endif
 #include "FreeRTOS.h"
 
 static int failures, checks;
@@ -196,6 +201,37 @@ static const radio_view_t *v_now(void)
 	return &view;
 }
 
+// --- radio silence, and where the radio is (the position service: fake_fix, or none)
+#if CONFIG_RADIO_SILENCE
+volatile bool radio_silence_flag;
+#endif
+static bool fake_fix;
+static int32_t fake_lat, fake_lon, fake_alt;
+static uint32_t fake_ms;
+#if CONFIG_POSITION
+static uint8_t fake_position(position_fix_t *out)
+{
+	memset(out, 0, sizeof *out);
+	if (!fake_fix)
+		return POSITION_SRC_NONE;
+	out->lat = fake_lat;
+	out->lon = fake_lon;
+	out->alt_m = fake_alt;
+	out->ms = fake_ms;
+	return POSITION_SRC_GPS;
+}
+uint8_t position_report(position_fix_t *out, uint32_t *err_m, uint32_t now) { (void)now; *err_m = 5; return fake_position(out); }
+uint8_t position_fix(position_fix_t *out, uint32_t now) { (void)now; return fake_position(out); }
+#endif
+// From here to there: 1 m per 100 units (1e-5 degree) of latitude, the bearing north or south (enough to see it carried)
+void dmr_gps_range(int32_t lat1, int32_t lon1, int32_t lat2, int32_t lon2, uint32_t *meters, uint16_t *bearing)
+{
+	(void)lon1; (void)lon2;
+	int32_t d = lat2 - lat1;
+	*meters = (uint32_t)(d < 0 ? -d : d) / 100u;
+	*bearing = d < 0 ? 180u : 0u;
+}
+
 // --- the transport
 typedef struct { uint32_t src, dst; bool group; int len; uint8_t m[OTAR_MSG_MAX]; uint32_t at; } pkt_t;
 static pkt_t inbox[8], outbox[16];
@@ -296,6 +332,8 @@ static int build(uint8_t type, otar_msg_t *m, uint8_t *out)
 	case OTAR_TIME: return otar_time_build(out, &a, kmac, m);
 	case OTAR_ZEROIZE: return otar_zeroize_build(out, &a, kmac, m);
 	case OTAR_INVENTORY: return otar_inventory_build(out, &a, kmac, m);
+	case OTAR_LOCATE: return otar_locate_build(out, &a, kmac, m);
+	case OTAR_POSITION: return otar_position_build(out, &a, kmac, m);
 	default: return 0;
 	}
 }
@@ -1136,6 +1174,254 @@ static void test_oos_nc(void)
 	CHECK(out_n == 2);
 }
 
+// The engine's POSITIONs to the test's radio so far
+static int positions(void)
+{
+	int k = 0;
+	otar_msg_t q;
+	for (int i = 0; i < out_n; i++)
+		k += out_open(i, &q) && q.type == OTAR_POSITION;
+	return k;
+}
+
+static int locate_msg(otar_msg_t *m, uint8_t *buf)
+{
+	memset(m, 0, sizeof *m);
+	m->rank = 1;
+	return build(OTAR_LOCATE, m, buf);
+}
+
+// ===================== LOCATE answered (otar.md 7.7): the engine a member, the test its net control
+static void test_locate_member(void)
+{
+	setup(0);
+	roster_add(PEER_ID, 1, peer_pub);
+	roster_add(ENGINE_ID, 0, eng_pub);
+	uint32_t other;
+	uint8_t other_pub[32], other_km[32];
+	other_member(3, &other, other_pub, other_km);
+	roster_add(other, 0, other_pub);
+	live.otar_locate = 1;
+	saved = live;
+	run(1000);
+	uint8_t buf[OTAR_MSG_MAX], buf2[OTAR_MSG_MAX];
+	otar_msg_t m, r;
+	CHECK(ui_svc_net_locate(v_now(), PEER_ID) == UI_NET_NOT_NC);	// a member asks no one
+
+	// A fix 40 s old, south of the equator, east: POSITION under the pair's keys, echoing the LOCATE
+	fake_fix = true;
+	fake_lat = -338688500;
+	fake_lon = 1512093000;
+	fake_alt = 58;
+	fake_ms = now_ms - 40000u;
+	out_n = 0;
+	int n1 = locate_msg(&m, buf);
+	deliver(PEER_ID, ENGINE_ID, false, buf, n1);
+	run(1000);
+	CHECK(out_n == 1 && last_out(&r) && r.type == OTAR_POSITION && r.echo == m.msgnum && r.result == OTAR_POS_OK &&
+	      r.lat == -338688500 && r.lon == 1512093000 && r.alt_m == 58 && r.age_s >= 40 && r.age_s <= 41);
+	CHECK(outbox[0].dst == PEER_ID && !outbox[0].group);
+	// The same LOCATE played back at once, and 11 s on: never a second POSITION (at most "old message number")
+	deliver(PEER_ID, ENGINE_ID, false, buf, n1);
+	run(1000);
+	CHECK(out_n == 1);
+	run(10000);
+	deliver(PEER_ID, ENGINE_ID, false, buf, n1);
+	run(1000);
+	CHECK(positions() == 1);
+	// A fresh one within 10 s of an answer: not answered; past the 10 s: answered (altitude unknown, a fix of now)
+	run(10000);
+	fake_alt = POSITION_ALT_NONE;
+	fake_ms = now_ms;
+	deliver(PEER_ID, ENGINE_ID, false, buf, locate_msg(&m, buf));
+	run(1000);
+	CHECK(positions() == 2 && last_out(&r) && r.echo == m.msgnum && r.alt_m == OTAR_ALT_NONE && r.age_s <= 1);
+	int before = out_n;
+	deliver(PEER_ID, ENGINE_ID, false, buf, locate_msg(&m, buf));
+	run(2000);
+	CHECK(out_n == before);
+
+	// Share location off: refused, and no position in it
+	live.otar_locate = 0;
+	ui_net_view_t nv;
+	ui_svc_net_view(&nv);
+	CHECK(!nv.share_location);
+	run(10000);
+	deliver(PEER_ID, ENGINE_ID, false, buf, locate_msg(&m, buf));
+	run(1000);
+	CHECK(last_out(&r) && r.type == OTAR_POSITION && r.echo == m.msgnum && r.result == OTAR_POS_REFUSED &&
+	      r.lat == 0 && r.lon == 0);
+	// On again, no fix: "no fix"
+	ui_svc_net_set_share_location(true);
+	CHECK(live.otar_locate == 1 && saved.otar_locate == 1);
+	ui_svc_net_view(&nv);
+	CHECK(nv.share_location);
+	fake_fix = false;
+	run(11000);
+	deliver(PEER_ID, ENGINE_ID, false, buf, locate_msg(&m, buf));
+	run(1000);
+	CHECK(last_out(&r) && r.type == OTAR_POSITION && r.echo == m.msgnum && r.result == OTAR_POS_NO_FIX && r.lat == 0);
+	fake_fix = true;
+
+	// Radio silence: nothing at all
+	run(11000);
+	before = out_n;
+#if CONFIG_RADIO_SILENCE
+	radio_silence_flag = true;
+	deliver(PEER_ID, ENGINE_ID, false, buf, locate_msg(&m, buf));
+	run(2000);
+	CHECK(out_n == before);
+	radio_silence_flag = false;
+#endif
+
+	// Not from a net control: a member of the roster saying it is one, a radio off the roster, a bad MAC
+	memset(&m, 0, sizeof m);
+	m.net_id = NET_ID;
+	m.rank = 1;
+	m.msgnum = 900;
+	otar_addr_t oa = { other, ENGINE_ID };
+	deliver(other, ENGINE_ID, false, buf2, otar_locate_build(buf2, &oa, other_km, &m));
+	run(2000);
+	CHECK(out_n == before);
+	otar_addr_t xa = { 4699999u, ENGINE_ID };
+	deliver(4699999u, ENGINE_ID, false, buf2, otar_locate_build(buf2, &xa, other_km, &m));
+	run(2000);
+	CHECK(out_n == before);
+	int n = locate_msg(&m, buf);
+	buf[n - 1] ^= 1u;
+	deliver(PEER_ID, ENGINE_ID, false, buf, n);
+	run(2000);
+	CHECK(out_n == before);
+	// ... and the net control's next one is answered as ever
+	deliver(PEER_ID, ENGINE_ID, false, buf, locate_msg(&m, buf));
+	run(1000);
+	CHECK(out_n == before + 1 && last_out(&r) && r.type == OTAR_POSITION && r.result == OTAR_POS_OK);
+
+	// A join sets Share location on again
+	live.otar_locate = 0;
+	ui_svc_net_joined();
+	CHECK(live.otar_locate == 1 && saved.otar_locate == 1);
+	fake_fix = false;
+}
+
+// A POSITION from the test's radio, answering LOCATE number echo
+static int position_msg(uint32_t echo, uint8_t result, int32_t lat, int32_t lon, uint16_t age, uint8_t *buf)
+{
+	otar_msg_t m;
+	memset(&m, 0, sizeof m);
+	m.echo = echo;
+	m.result = result;
+	m.lat = lat;
+	m.lon = lon;
+	m.alt_m = 12;
+	m.age_s = age;
+	return build(OTAR_POSITION, &m, buf);
+}
+
+// ===================== LOCATE asked until answered (otar.md 7.7): the engine net control 1, the test a member
+static void test_locate_nc(void)
+{
+	setup(1);
+	roster_add(ENGINE_ID, 1, eng_pub);
+	roster_add(PEER_ID, 0, peer_pub);
+	uint32_t other;
+	uint8_t other_pub[32], other_km[32];
+	other_member(4, &other, other_pub, other_km);
+	roster_add(other, 0, other_pub);
+	run(3000);
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t r;
+	ui_loc_view_t lv;
+	fake_fix = false;
+
+	// A POSITION nobody asked for: nothing shown
+	deliver(PEER_ID, ENGINE_ID, false, buf, position_msg(1, OTAR_POS_OK, 1, 1, 0, buf));
+	run(500);
+	ui_svc_net_locate_view(PEER_ID, &lv);
+	CHECK(lv.state == UI_LOC_NONE);
+
+	out_n = 0;
+	CHECK(ui_svc_net_locate(v_now(), ENGINE_ID) == UI_NET_NO_MEMBER);
+	CHECK(ui_svc_net_locate(v_now(), 4699999u) == UI_NET_NO_MEMBER);
+	CHECK(ui_svc_net_locate(v_now(), PEER_ID) == UI_NET_OK);
+	CHECK(ui_svc_net_locate(v_now(), other) == UI_NET_BUSY);	// one at a time
+	run(1000);
+	CHECK(out_n == 1 && last_out(&r) && r.type == OTAR_LOCATE && r.rank == 1);
+	ui_svc_net_locate_view(PEER_ID, &lv);
+	CHECK(lv.state == UI_LOC_ASKING);
+	uint32_t asked = r.msgnum;
+	// Echoing another number, or from a radio it didn't ask: not the answer
+	deliver(PEER_ID, ENGINE_ID, false, buf, position_msg(asked - 1u, OTAR_POS_OK, 1, 1, 0, buf));
+	run(500);
+	otar_msg_t m;
+	memset(&m, 0, sizeof m);
+	m.net_id = NET_ID;
+	m.msgnum = 77;
+	m.echo = asked;
+	m.lat = 5;
+	otar_addr_t oa = { other, ENGINE_ID };
+	deliver(other, ENGINE_ID, false, buf, otar_position_build(buf, &oa, other_km, &m));
+	run(500);
+	ui_svc_net_locate_view(PEER_ID, &lv);
+	CHECK(lv.state == UI_LOC_ASKING);
+	ui_svc_net_locate_view(other, &lv);
+	CHECK(lv.state == UI_LOC_NONE);
+	// The answer: shown with its age, which goes on counting; no range without this radio's own position
+	deliver(PEER_ID, ENGINE_ID, false, buf, position_msg(asked, OTAR_POS_OK, -338688500, -1512093000, 40, buf));
+	run(500);
+	ui_svc_net_locate_view(PEER_ID, &lv);
+	CHECK(lv.state == UI_LOC_GOT && lv.lat == -338688500 && lv.lon == -1512093000 && lv.alt_m == 12 &&
+	      lv.age_s >= 40 && lv.age_s <= 41 && !lv.range);
+	run(60000);
+	ui_svc_net_locate_view(PEER_ID, &lv);
+	CHECK(lv.age_s >= 100 && lv.age_s <= 101 && out_n == 1);	// and no more tries
+#if CONFIG_POSITION
+	// With this radio's own position: the distance and bearing from it
+	fake_fix = true;
+	fake_lat = -338688500 + 85000;	// 850 m north of the member
+	fake_lon = -1512093000;
+	fake_alt = 0;
+	fake_ms = now_ms;
+	ui_svc_net_locate_view(PEER_ID, &lv);
+	CHECK(lv.range && lv.dist_m == 850 && lv.bearing == 180);
+	fake_fix = false;
+#endif
+	// Another POSITION echoing the same LOCATE (a replay): changes nothing
+	run(1000);
+	deliver(PEER_ID, ENGINE_ID, false, buf, position_msg(asked, OTAR_POS_REFUSED, 0, 0, 0, buf));
+	run(500);
+	ui_svc_net_locate_view(PEER_ID, &lv);
+	CHECK(lv.state == UI_LOC_GOT);
+
+	// No answer: 3 tries, 20 s apart, then shown as no answer (a radio from before drops type 10 unread)
+	out_n = 0;
+	CHECK(ui_svc_net_locate(v_now(), PEER_ID) == UI_NET_OK);
+	run(90000);
+	int tries = 0;
+	for (int i = 0; i < out_n; i++)
+		tries += out_open(i, &r) && r.type == OTAR_LOCATE;
+	CHECK(tries == 3 && out_n == 3);
+	CHECK(out_n == 3 && outbox[1].at - outbox[0].at >= 20000u && outbox[2].at - outbox[1].at >= 20000u);
+	ui_svc_net_locate_view(PEER_ID, &lv);
+	CHECK(lv.state == UI_LOC_NO_ANSWER);
+
+	// Refused, and no fix, as the member says; a second try's answer counts (each echoes its own try)
+	CHECK(ui_svc_net_locate(v_now(), PEER_ID) == UI_NET_OK);
+	run(1000);
+	CHECK(last_out(&r) && r.type == OTAR_LOCATE);
+	deliver(PEER_ID, ENGINE_ID, false, buf, position_msg(r.msgnum, OTAR_POS_REFUSED, 0, 0, 0, buf));
+	run(500);
+	ui_svc_net_locate_view(PEER_ID, &lv);
+	CHECK(lv.state == UI_LOC_REFUSED);
+	CHECK(ui_svc_net_locate(v_now(), PEER_ID) == UI_NET_OK);
+	run(21000);
+	CHECK(out_n == 6 && last_out(&r) && r.type == OTAR_LOCATE);
+	deliver(PEER_ID, ENGINE_ID, false, buf, position_msg(r.msgnum, OTAR_POS_NO_FIX, 0, 0, 0, buf));
+	run(500);
+	ui_svc_net_locate_view(PEER_ID, &lv);
+	CHECK(lv.state == UI_LOC_NO_FIX);
+}
+
 int main(void)
 {
 	test_msgnum();
@@ -1149,6 +1435,8 @@ int main(void)
 	test_hello_member();
 	test_oos_member();
 	test_oos_nc();
+	test_locate_member();
+	test_locate_nc();
 	printf("otarEngineTest: %d checks, %d failures\n", checks, failures);
 	return failures != 0;
 }

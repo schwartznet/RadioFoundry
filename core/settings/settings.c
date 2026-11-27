@@ -66,6 +66,7 @@ void settings_defaults(settings_t *s)
 	s->satellite_index = SETTINGS_UNSET8;
 	s->power_levels = board.power_count;
 	s->otar_wipe = 1;		// a net control may wipe this radio's keys (otar.md 7.5): on in a net, Off by choice
+	s->otar_locate = 1;		// ... and ask where it is (otar.md 7.7): the same
 }
 
 // Power levels stored against another level count (an older record, or a board whose levels changed) may name a

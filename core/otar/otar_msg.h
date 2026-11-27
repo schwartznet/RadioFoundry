@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
-// OTAR key management messages (docs/spec/otar.md 7): REKEY, ACK, HELLO, CHANGEOVER, INVENTORY, ROSTER, TIME and
-// ZEROIZE, built and checked.
+// OTAR key management messages (docs/spec/otar.md 7): REKEY, ACK, HELLO, CHANGEOVER, INVENTORY, ROSTER, TIME,
+// ZEROIZE, LOCATE and POSITION, built and checked.
 // Pure: no RTOS, no allocation. Every message: a 10-octet header in the clear, a body encrypted with AES-256-CTR under
 // a key from the MAC key, and the first 8 octets of an AES-256-CMAC over the sender's and receiver's DMR IDs (3 + 3)
 // and every octet before it (encrypt then MAC, otar.md 7). REKEY, ACK and HELLO go between two radios under their
@@ -17,7 +17,9 @@
 #define OTAR_PORT		4103u	// UDP source and destination port
 // 4: ACK echoes its request's number; 3: HELLO keysets, TIME per member; 2: body encrypted. ACK results 8-10 came
 // later without a new version: a version 4 radio ignores an ACK it doesn't wait for, and counts one it waits for with
-// CKR 0 and another result as a roster entry not stored, so a net part-way through an update keeps working (otar.md 7.2)
+// CKR 0 and another result as a roster entry not stored, so a net part-way through an update keeps working (otar.md 7.2).
+// LOCATE and POSITION (types 10, 11) came the same way: a version 4 radio from before drops a type it doesn't know
+// (otar_peek), so a net control asking one sees "no answer" (otar.md 7.7)
 #define OTAR_VERSION		4u
 #define OTAR_ENC_LABEL		"RFOTAR2 enc"	// HKDF info of the body's key
 #define OTAR_HDR		10u
@@ -25,7 +27,11 @@
 #define OTAR_MSG_MAX		72u
 
 enum { OTAR_REKEY = 1, OTAR_ACK = 2, OTAR_CHANGEOVER = 3, OTAR_HELLO = 4, OTAR_INVENTORY = 5, OTAR_ROSTER = 6,
-       OTAR_TIME = 7, OTAR_ZEROIZE = 8 };
+       OTAR_TIME = 7, OTAR_ZEROIZE = 8, OTAR_LOCATE = 10, OTAR_POSITION = 11 };	// 9: TAKEOVER, reserved (otar.md 22)
+
+// POSITION results (7.7)
+enum { OTAR_POS_OK = 0, OTAR_POS_NO_FIX = 1, OTAR_POS_REFUSED = 2 };
+#define OTAR_ALT_NONE	INT16_MIN	// POSITION: altitude not known (0x8000)
 
 // REKEY flags (7.1)
 #define OTAR_RK_CLOCK	0x01u	// change over at the changeover time by the member's clock
@@ -48,6 +54,8 @@ enum { OTAR_ACK_STORED = 0, OTAR_ACK_HELD = 1, OTAR_ACK_OLD = 2, OTAR_ACK_STORE_
 #define OTAR_ZEROIZE_LEN	(OTAR_HDR + 3u + OTAR_MAC)				// 21
 #define OTAR_INVENTORY_LEN	(OTAR_HDR + OTAR_MAC)					// 18
 #define OTAR_TIME_LEN		(OTAR_HDR + 4u + OTAR_MAC)				// 22
+#define OTAR_LOCATE_LEN		(OTAR_HDR + OTAR_MAC)					// 18
+#define OTAR_POSITION_LEN	(OTAR_HDR + 4u + 1u + 4u + 4u + 2u + 2u + OTAR_MAC)	// 35
 
 typedef struct {
 	uint8_t type;
@@ -74,6 +82,11 @@ typedef struct {
 	uint32_t target;
 	// TIME: UTC seconds since 2026-01-01
 	uint32_t time_s;
+	// POSITION (result OTAR_POS_* in result, the LOCATE's number in echo): 1e-7 degree, meters (OTAR_ALT_NONE), and
+	// the fix's age in seconds (at most 65535)
+	int32_t lat, lon;
+	int16_t alt_m;
+	uint16_t age_s;
 } otar_msg_t;
 
 // The addresses a MAC covers: the sender's DMR ID and the receiver's (a radio's, or the talkgroup's)
@@ -95,6 +108,10 @@ int otar_inventory_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac
 // TIME (otar.md 7.4): a net control's UTC to one member, under the pair's MAC key (a group key would let any radio
 // holding the traffic key forge it)
 int otar_time_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m);
+// LOCATE (otar.md 7.7): a net control asks one member where it is, under the pair's MAC key; no body
+int otar_locate_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m);
+// POSITION (otar.md 7.7): the member's answer to that net control, under the pair's keys, its body encrypted
+int otar_position_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m);
 
 // The header of a message (no MAC checked yet): its type, net, message number and rank. False for one that isn't an
 // OTAR message of this version, or has another length for its type
