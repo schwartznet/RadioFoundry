@@ -9523,6 +9523,10 @@ static void net_confirmed(uint8_t row)
 			ui_toast(TR(NK_WHY_CLOCK, "No clock: set it, or wait for GPS"));
 		else if (r == UI_NET_NOT_NC)
 			ui_toast(TR(NET_WHY_NC_ONLY, "Only a net control does that"));
+		else if (r == UI_NET_NOT_FIRST)
+			ui_toast(TR(NET_WHY_CANCEL_FIRST, "Only net control 1 cancels"));
+		else if (r == UI_NET_TOO_LATE)
+			ui_toast(TR(NET_WHY_TOO_LATE, "Too close to the change over"));
 		else
 			ui_toast(TR(NET_NO_REKEY, "No rekey running"));
 	} else if (row == NET_CHAN) {

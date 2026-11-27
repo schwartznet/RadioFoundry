@@ -5570,6 +5570,16 @@ msgid "Telling every member"
 msgstr "正在发给全部电台"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_WHY_CANCEL_FIRST"
+msgid "Only net control 1 cancels"
+msgstr "只有主台 1 能取消"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_WHY_TOO_LATE"
+msgid "Too close to the change over"
+msgstr "离切换太近"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_NO_REKEY"
 msgid "No rekey running"
 msgstr "未在更换密钥"

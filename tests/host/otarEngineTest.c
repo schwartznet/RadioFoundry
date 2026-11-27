@@ -171,6 +171,9 @@ void entropy_stir(const void *d, size_t n, unsigned bits) { (void)d; (void)n; (v
 // --- the radio core: the engine's requests applied to a keyset state, as radio_aes.c does
 static otar_keys_t keys;
 static int req_time, req_now;
+static int drop_mode;		// DROP_NEXT: 0 made, 1 the next one lost, 2 held until drop_release, 3 never made
+static int drop_asks;
+static uint32_t drop_held = 0xFFFFu;
 void radio_req_otar(uint8_t op, uint32_t value)
 {
 	switch (op) {
@@ -182,6 +185,17 @@ void radio_req_otar(uint8_t op, uint32_t value)
 		break;
 	case RADIO_OTAR_NOW: (void)otar_change_over(&keys); req_now++; break;
 	case RADIO_OTAR_DROP_NEXT:
+		drop_asks++;
+		if (drop_mode == 1) {	// lost
+			drop_mode = 0;
+			break;
+		}
+		if (drop_mode == 2) {	// held: the radio task hasn't got to it yet (drop_release)
+			drop_held = value;
+			break;
+		}
+		if (drop_mode == 3)	// never made (the request keeps being lost)
+			break;
 		// As radio_aes.c: only the next keyset named, its key erased
 		if ((keys.flags & OTAR_F_NEXT) && keys.kid_next[0] == (uint8_t)value) {
 			otar_clear_next(&keys);
@@ -1991,6 +2005,277 @@ static void test_silence_sched(void)
 }
 #endif
 
+// ===================== the second review (2026-11-27): cancel and move, made safe
+static int count_type(uint8_t type)
+{
+	int k = 0;
+	otar_msg_t r;
+	for (int i = 0; i < out_n; i++)
+		k += out_open(i, &r) && r.type == type;
+	return k;
+}
+
+static void drop_release(void)
+{
+	uint32_t v = drop_held;
+	drop_held = 0xFFFFu;
+	drop_mode = 0;
+	if (v != 0xFFFFu)
+		radio_req_otar(RADIO_OTAR_DROP_NEXT, v);
+}
+
+static void nc_with_next(uint16_t mins, otar_msg_t *sent, uint8_t *buf)
+{
+	setup(1);
+	roster_add(ENGINE_ID, 1, eng_pub);
+	roster_add(PEER_ID, 0, peer_pub);
+	otar_start(&keys, 0, 77);
+	tek[77].used = true;
+	keys.ks_active = 4;
+	drop_mode = 0;
+	run(3000);
+	CHECK(ui_svc_net_rekey(v_now(), mins) == UI_NET_OK);
+	run(3000);
+	CHECK(last_out(sent) && sent->type == OTAR_REKEY && sent->keyset == 5);
+	ack_rekey(5, sent, OTAR_ACK_STORED, buf);
+	run(500);
+}
+
+static void test_review2_nc(void)
+{
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t r, a;
+	ui_rekey_view_t rv;
+
+	// A cancel run stays open past the withdrawn changeover, so a member on air that missed it is still told before
+	// its clock would change it over; its tries back off (1, 2, 5, 15 minutes)
+	nc_with_next(60, &r, buf);
+	CHECK(ui_svc_net_cancel_change(v_now()) == UI_NET_OK);
+	out_n = 0;
+	for (int i = 0; i < 30; i++)
+		run(60000);	// 30 minutes, the member silent
+	ui_svc_net_rekey_view(&rv);
+	CHECK(rv.on && rv.cancel);
+	int tries = count_type(OTAR_WITHDRAW);
+	CHECK(tries >= 3 && tries <= 7);
+	for (int i = 0; i < 40; i++)
+		run(60000);	// past the changeover (60 min) and its 5 min spare
+	ui_svc_net_rekey_view(&rv);
+	CHECK(!rv.on);
+
+	// Not within 2 minutes of the changeover by the clocks
+	nc_with_next(5, &r, buf);
+	run(4u * 60000u);
+	CHECK(ui_svc_net_cancel_change(v_now()) == UI_NET_TOO_LATE);
+	ui_svc_net_rekey_view(&rv);
+	CHECK(rv.on && !rv.cancel);
+
+	// This radio's own drop lost: asked again until made
+	nc_with_next(60, &r, buf);
+	drop_mode = 1;
+	drop_asks = 0;
+	CHECK(ui_svc_net_cancel_change(v_now()) == UI_NET_OK);
+	CHECK(keys.flags & OTAR_F_NEXT);	// the first request lost
+	run(5000);
+	CHECK(drop_asks >= 2 && !(keys.flags & OTAR_F_NEXT));
+
+	// Too late on this radio (it changed over before its drop was made): the cancel becomes the key sent flagged now,
+	// the withdrawn number forgotten
+	nc_with_next(60, &r, buf);
+	drop_mode = 3;
+	uint8_t kid = r.kid;
+	CHECK(ui_svc_net_cancel_change(v_now()) == UI_NET_OK);
+	(void)otar_change_over(&keys);	// its clock, first
+	out_n = 0;
+	run(5000);
+	CHECK(last_out(&a) && a.type == OTAR_REKEY && a.keyset == 5 && a.kid == kid && (a.flags & OTAR_RK_NOW));
+	CHECK(live.otar_cut[0] == 0 && live.otar_cut[1] == 0);
+	CHECK(count_type(OTAR_WITHDRAW) == 0);
+	drop_mode = 0;
+	ack_rekey(5, &a, OTAR_ACK_HELD, buf);
+	run(1000);
+	ui_svc_net_rekey_view(&rv);
+	CHECK(!rv.on);
+
+	// A scheduled rekey doesn't replace a cancel run; Rekey now does, once its run exists
+	nc_with_next(60, &r, buf);
+	CHECK(ui_svc_net_cancel_change(v_now()) == UI_NET_OK);
+	uint32_t due = v_now()->otar.now_min;
+	live.otar_sched = 1;
+	live.otar_sched_at[0] = (uint8_t)(due >> 16);
+	live.otar_sched_at[1] = (uint8_t)(due >> 8);
+	live.otar_sched_at[2] = (uint8_t)due;
+	saved = live;
+	run(15000);
+	ui_svc_net_rekey_view(&rv);
+	CHECK(rv.on && rv.cancel);
+	live.otar_sched = 0;
+	memset(live.otar_sched_at, 0, sizeof live.otar_sched_at);
+	saved = live;
+
+	// A failed send is its own job's: a LOCATE that fails while a REKEY's ACK is awaited leaves the REKEY waiting
+	nc_with_next(0, &r, buf);
+	CHECK(ui_svc_net_move(v_now(), 60) == UI_NET_OK);
+	run(3000);	// the REKEY again, its ACK awaited
+	CHECK(last_out(&r) && r.type == OTAR_REKEY);
+	CHECK(ui_svc_net_locate(v_now(), PEER_ID) == UI_NET_OK);
+	send_state = OTAR_SEND_FAILED;
+	run(1500);
+	send_state = OTAR_SEND_SENT;
+	uint32_t id;
+	uint8_t state, t2;
+	CHECK(ui_svc_net_rekey_member(0, &id, &state, &t2) && state == UI_RK_SENT);
+
+	// After a move, an ACK of the REKEY sent before it never counts, even while another request makes ACKs wanted
+	nc_with_next(0, &r, buf);
+	uint32_t old = r.msgnum;
+	CHECK(ui_svc_net_inventory(v_now(), PEER_ID) == UI_NET_OK);
+	run(1000);
+	CHECK(ui_svc_net_move(v_now(), 60) == UI_NET_OK);
+	memset(&a, 0, sizeof a);
+	a.keyset = 5;
+	a.ckr = 1;
+	a.result = OTAR_ACK_STORED;
+	a.echo = old;
+	(void)kcv_traffic(CODEPLUG_SYSTYPE_DMR_AES, DMR_AES_ALG_AES256, r.tek, 32, a.kcv);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &a, buf));
+	run(300);
+	CHECK(ui_svc_net_rekey_member(0, &id, &state, &t2) && state != UI_RK_OK);
+
+	// Only net control 1 cancels: a backup net control is refused
+	nc_with_next(60, &r, buf);
+	uint32_t nc1;
+	uint8_t nc1_pub[32], nc1_km[32];
+	other_member(5, &nc1, nc1_pub, nc1_km);
+	roster_add(nc1, 1, nc1_pub);
+	roster_add(ENGINE_ID, 2, eng_pub);
+	CHECK(ui_svc_net_cancel_change(v_now()) == UI_NET_NOT_FIRST);
+}
+
+// The member's side: DROPPED only once the drop is made; OLD when its clock got there first; WITHDRAW from net control
+// 1 only; an INVENTORY's answers apart from a REKEY's ACK; a changeover past 24 bits refused
+static void test_review2_member(void)
+{
+	setup(0);
+	roster_add(PEER_ID, 1, peer_pub);
+	roster_add(ENGINE_ID, 0, eng_pub);
+	otar_start(&keys, 0, 77);
+	tek[77].used = true;
+	keys.ks_active = 4;
+	drop_mode = 0;
+	run(25000);
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t m, r;
+	rekey_msg(&m, 5, 78, 0x55, OTAR_RK_CLOCK);
+	m.changeover = v_now()->otar.now_min + 60u;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(1000);
+	CHECK(keys.ks_next == 5);
+
+	// Held: no answer yet; made: DROPPED
+	drop_mode = 2;
+	out_n = 0;
+	withdraw_msg(&m, 5, 78);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_WITHDRAW, &m, buf));
+	run(1000);
+	CHECK(out_n == 0);
+	drop_release();
+	run(1000);
+	CHECK(out_n == 1 && last_out(&r) && r.result == OTAR_ACK_DROPPED && r.echo == m.msgnum);
+
+	// The clock first: the drop comes too late, the answer is OLD
+	rekey_msg(&m, 6, 79, 0x66, OTAR_RK_CLOCK);
+	m.changeover = v_now()->otar.now_min + 60u;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(1000);
+	CHECK(keys.ks_next == 6);
+	drop_mode = 2;
+	out_n = 0;
+	withdraw_msg(&m, 6, 79);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_WITHDRAW, &m, buf));
+	run(500);
+	(void)otar_change_over(&keys);
+	drop_release();
+	run(3000);
+	CHECK(last_out(&r) && r.result == OTAR_ACK_OLD && keys.ks_active == 6);
+
+	// A changeover past the radio's 24 bits: refused
+	rekey_msg(&m, 7, 80, 0x77, OTAR_RK_CLOCK);
+	m.changeover = 0x1000000u;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(1000);
+	CHECK(last_out(&r) && r.result == OTAR_ACK_REFUSED && !(keys.flags & OTAR_F_NEXT));
+
+	// INVENTORY, then a REKEY before its second answer: each ACK echoes its own message, the REKEY's its own keyset
+	rekey_msg(&m, 7, 80, 0x77, 0);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(1000);
+	CHECK(keys.ks_next == 7);
+	out_n = 0;
+	otar_msg_t inv;
+	memset(&inv, 0, sizeof inv);
+	inv.rank = 1;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_INVENTORY, &inv, buf));
+	rekey_msg(&m, 8, 81, 0x88, 0);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(3000);
+	uint8_t k8[3];
+	kcv_of(0x88, k8);
+	bool rk_ok = true, inv_ok = true;
+	int rk_n = 0, inv_n = 0;
+	for (int i = 0; i < out_n; i++) {
+		if (!out_open(i, &r) || r.type != OTAR_ACK)
+			continue;
+		if (r.echo == m.msgnum) {
+			rk_n++;
+			rk_ok &= r.keyset == 8 && memcmp(r.kcv, k8, 3) == 0;
+		} else if (r.echo == inv.msgnum) {
+			inv_n++;
+			inv_ok &= r.keyset == 6 || r.keyset == 7;
+		}
+	}
+	CHECK(rk_n == 1 && rk_ok && inv_n >= 1 && inv_ok);
+
+	// WITHDRAW from a backup net control (not net control 1): not answered, nothing dropped
+	uint32_t nc2;
+	uint8_t nc2_pub[32], nc2_km[32];
+	other_member(6, &nc2, nc2_pub, nc2_km);
+	roster_add(nc2, 2, nc2_pub);
+	out_n = 0;
+	memset(&m, 0, sizeof m);
+	m.net_id = NET_ID;
+	m.rank = 2;
+	m.msgnum = 500;
+	m.keyset = 8;
+	m.kid = 81;
+	otar_addr_t a2 = { nc2, ENGINE_ID };
+	int wn = otar_withdraw_build(buf, &a2, nc2_km, &m);
+	deliver(nc2, ENGINE_ID, false, buf, wn);
+	run(2000);
+	CHECK(out_n == 0 && keys.ks_next == 8);
+}
+
+#if CONFIG_RADIO_SILENCE
+// Request keys under radio silence: a few HELLOs only, as no answer comes under it
+static void test_review2_silence(void)
+{
+	setup(0);
+	roster_add(PEER_ID, 1, peer_pub);
+	roster_add(ENGINE_ID, 0, eng_pub);
+	otar_start(&keys, 0, 77);
+	tek[77].used = true;
+	keys.ks_active = 4;
+	radio_silence_flag = true;
+	run(25000);
+	out_n = 0;
+	CHECK(ui_svc_net_request_keys(v_now()) == UI_NET_OK);
+	for (int i = 0; i < 120; i++)
+		run(60000);	// two hours
+	CHECK(count_type(OTAR_HELLO) == 3);
+	radio_silence_flag = false;
+}
+#endif
+
 int main(void)
 {
 	test_msgnum();
@@ -2014,6 +2299,11 @@ int main(void)
 	test_silence_member();
 	test_silence_nc();
 	test_silence_sched();
+#endif
+	test_review2_nc();
+	test_review2_member();
+#if CONFIG_RADIO_SILENCE
+	test_review2_silence();
 #endif
 	printf("otarEngineTest: %d checks, %d failures\n", checks, failures);
 	return failures != 0;

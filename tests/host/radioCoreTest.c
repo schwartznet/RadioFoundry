@@ -3889,6 +3889,76 @@ static void test_dmr_voice_features(void)
 		CHECK(sm.view.otar.kid == 5 && sm.view.otar.has_next);
 		poll_for(2u * 60u * 1000u);
 		CHECK(sm.view.otar.kid == 0 && !sm.view.otar.has_next && sm.view.otar.keyset == 3);
+		// A withdrawn next keyset (otar.md 7.9): its key erased even while the overlap's erase is still running, the
+		// pending erase saved over a restart, and a replaced next keyset's old key erased too
+		{
+			uint8_t traffic7[sizeof traffic], traffic8[sizeof traffic];
+			memcpy(traffic7, traffic, sizeof traffic);
+			traffic7[2] = 7;
+			traffic7[CODEPLUG_TRAFFIC_HDR] ^= 0x77;
+			memcpy(traffic8, traffic, sizeof traffic);
+			traffic8[2] = 8;
+			traffic8[CODEPLUG_TRAFFIC_HDR] ^= 0x88;
+			kv_t3_set(CODEPLUG_KEY_TRAFFIC + 2, traffic7, sizeof traffic7);
+			kv_t3_set(CODEPLUG_KEY_TRAFFIC + 3, traffic8, sizeof traffic8);
+			o.arg = RADIO_OTAR_NEXT;
+			o.arg2 = 7;
+			radio_sm_request(&sm, &o, now);
+			run(50);
+			CHECK(sm.view.otar.has_next && sm.view.otar.next_kid == 7 && sm.view.otar.has_prev);
+			poll_for(OTAR_GRACE_MS + 1000u);	// the overlap ends: key 5's erase posted, not run yet
+			CHECK(!sm.view.otar.has_prev);
+			o.arg = RADIO_OTAR_DROP_NEXT;
+			o.arg2 = 7;
+			radio_sm_request(&sm, &o, now);
+			run(50);
+			CHECK(!sm.view.otar.has_next);
+			settings_read(&sv);
+			CHECK(sv.otar_erase[0] == 1 && sv.otar_erase[1] == 7);	// saved until erased
+			for (int i = 0; i < 4; i++) {
+				storage_job_poll();
+				poll_for(200);
+			}
+			bool w5 = false, k7 = false, w0 = false;
+			for (uint8_t i = 0; i < kv_t3_n; i++) {
+				if (kv_t3[i].key < CODEPLUG_KEY_TRAFFIC || kv_t3[i].key >= 0x1D00u || kv_t3[i].len <= CODEPLUG_TRAFFIC_HDR)
+					continue;
+				w0 = w0 || kv_t3[i].v[2] == 0;
+				w5 = w5 || kv_t3[i].v[2] == 5;
+				k7 = k7 || kv_t3[i].v[2] == 7;
+			}
+			CHECK(w0 && !w5 && !k7);
+			settings_read(&sv);
+			CHECK(sv.otar_erase[0] == 0);
+			// Next key 7 again, replaced by key 8 under the same keyset: key 7 erased, key 8 kept
+			kv_t3_set(CODEPLUG_KEY_TRAFFIC + 2, traffic7, sizeof traffic7);
+			o.arg = RADIO_OTAR_NEXT;
+			o.arg2 = 7;
+			radio_sm_request(&sm, &o, now);
+			run(50);
+			o.arg = RADIO_OTAR_NEXT_AT;
+			o.arg2 = 8;
+			radio_sm_request(&sm, &o, now);
+			run(50);
+			CHECK(sm.view.otar.has_next && sm.view.otar.next_kid == 8);
+			for (int i = 0; i < 3; i++) {
+				storage_job_poll();
+				poll_for(200);
+			}
+			bool k8 = false;
+			k7 = false;
+			for (uint8_t i = 0; i < kv_t3_n; i++) {
+				if (kv_t3[i].key < CODEPLUG_KEY_TRAFFIC || kv_t3[i].key >= 0x1D00u || kv_t3[i].len <= CODEPLUG_TRAFFIC_HDR)
+					continue;
+				k7 = k7 || kv_t3[i].v[2] == 7;
+				k8 = k8 || kv_t3[i].v[2] == 8;
+			}
+			CHECK(!k7 && k8);
+			o.arg = RADIO_OTAR_CLEAR_NEXT;
+			o.arg2 = 0;
+			radio_sm_request(&sm, &o, now);
+			run(50);
+		}
 		// Stop: the channel's own key reference again (key ID 0 here)
 		o.arg = RADIO_OTAR_STOP;
 		o.arg2 = 0;

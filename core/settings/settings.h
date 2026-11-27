@@ -279,7 +279,8 @@ typedef struct {
 	uint8_t otar_cut[2];		// a net control: the last next keyset it withdrew (otar.md 7.9; big-endian), 0 none: a member
 					// still holding it is told at its HELLO, and the next rekey takes a number above it
 	uint8_t otar_cut_kid;		// ... its key ID
-	uint8_t reserved_otar[2];	// 0: otar_net starts page 2
+	uint8_t otar_erase[2];		// a withdrawn key still to erase from the codeplug (otar.md 7.9): [0] 1 pending, [1] its key ID;
+					// 0 none (also in a record from before). Erased again after a restart (radio_aes_start)
 	// OTAR net membership (otar.md 5, 6), appended: an older record reads no key pair and no net
 	otar_net_t otar_net;
 	// OTAR message numbers (otar.md 7), appended: this radio's last sent, and the last taken from net control 1

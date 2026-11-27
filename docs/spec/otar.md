@@ -973,3 +973,39 @@ an INVENTORY unanswered, Request keys sent, answers again once silence ends, a Z
 control (no answer to a HELLO behind or up to date, Rekey now and its retry sent, a HELLO answered again after), and a
 scheduled rekey under silence (its REKEY sent, then its CHANGEOVER to the talkgroup). Each gate was taken out in turn,
 and the scheduled rekey and its CHANGEOVER held back in turn, and the test fails each time.
+
+## 28. Third review: moving and cancelling made safe (2026-11-27)
+
+Two independent reviews of 7.9, 26 and 27 (one by another model, given only the code and this spec) found ways a
+cancel could leave members on a withdrawn key while the net control stayed on the old one, and smaller holes. Each was
+traced in the code before it was fixed; each fix has a test that fails without it.
+
+| Found | Fix |
+|---|---|
+| A cancel run gave up after 10 minutes. A member on air but out of reach meanwhile kept the withdrawn keyset and changed over to it alone by its clock (only a HELLO, at start, would have told it) | The run stays open until 5 minutes past the withdrawn changeover by the clocks (at least 10 minutes), its tries backing off to 1, 2, 5, then every 15 minutes. After a restart net control 1 takes the run up again while the withdrawn keyset is above the active one (`cut_resume`, open 25 hours: its changeover isn't known any more) |
+| Rekey now ended a cancel run before its own checks, so a refused rekey (BUSY) left no run; a scheduled rekey fell due over a cancel run | The cancel run ends only once the new run exists. A schedule waits while any run is open |
+| The net control's own drop of the keyset was asked once and never checked: lost, or made after its clock changed it over | The cancel run asks it again every 2 s until the view shows the keyset gone. If this radio changed over first, the cancel is too late: no more WITHDRAW, the withdrawn number forgotten, and every member sent the key flagged now instead, so the net stays together. Cancel the change is refused within 2 minutes of a changeover by the clocks ("Too close to the change over") |
+| A member answered DROPPED as soon as it asked its radio task to drop the keyset; its clock could change it over first | DROPPED is answered once the view shows the keyset gone, OLD if it became the active one; asked again twice, then REFUSED (`wd_answer`). The answer is built under the pair keys of the net control that sent the WITHDRAW, worked out again if other traffic came meanwhile |
+| Request keys under radio silence repeated its HELLO every 15 minutes for as long as silence lasted (no answer comes under it) | At most 3 HELLOs under silence; the HELLO waits for silence to end after that |
+| A failed send was blamed on every job waiting for an answer (a LOCATE's failure marked the member in the rekey run as failed) | The transport's failure counts only for the job whose message it was (its type and receiver) |
+| A member's INVENTORY answers were built in the REKEY ACK's fields: a REKEY between the two answers took the INVENTORY's echo or keyset | The INVENTORY's answers have their own fields |
+| A withdrawn key stayed in the codeplug when the overlap's erase was running, the job couldn't be posted, or the remove failed; a next keyset replaced by another key ID left its old key | Erases are queued and made one job at a time; a key still there after its remove is queued again; a replaced next keyset's key is queued; a key a keyset names again is kept. The withdrawn key is saved as pending (settings `otar_erase`, [settings-store.md](settings-store.md)) and erased again after a restart |
+| Any net control could cancel, but only net control 1's withdrawn number is known to members' HELLOs and to the next rekey | Cancel the change is net control 1's (the authority, 10) alone ("Only net control 1 cancels"); members take WITHDRAW from it alone |
+| After a move, an ACK of the REKEY sent before it could still count when another request made that member's ACKs wanted | Move clears each member's last message number, so only an answer to the moved REKEY counts |
+| A REKEY's changeover past the radio's 24-bit minute count would wrap | Refused |
+| A catch-up REKEY, NETCHAN or WITHDRAW queued in answer to a HELLO went out after radio silence began | Dropped when silence begins |
+
+Not changed, and why: the review's request IDs and generations for the radio task's requests (the request queue is in
+order and each drop names the key ID it may drop, checked when made); a keyset number pushed past the 8-step window by
+many cancels in a row without a changeover (each later rekey numbers above the last cut; past the window the next one
+falls back to the active one plus one, which only a member that missed several WITHDRAWs and every later REKEY could
+still hold).
+
+Tests: `otarEngineTest` (420 checks) adds the cancel run past 10 minutes and its back-off, a cancel too late refused,
+the own drop lost and asked again, a cancel overtaken by the clock turned into the key flagged now, a schedule over a
+cancel run, a LOCATE's failure during a rekey's ACK, a stale ACK after a move with Ask its keys outstanding, a backup
+net control refused, the member's DROPPED held until the drop and OLD when the clock came first, a changeover past 24
+bits refused, an INVENTORY and a REKEY interleaved, a WITHDRAW from a backup net control ignored, and three HELLOs only
+for Request keys under silence. `radioCoreTest` adds the withdrawn key erased while the overlap's erase runs, the
+pending erase saved and cleared, and a replaced next key erased. Every fix was taken out in turn, and a test fails each
+time.

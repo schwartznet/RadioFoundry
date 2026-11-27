@@ -5568,6 +5568,16 @@ msgid "Telling every member"
 msgstr "Avisando a cada miembro"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_WHY_CANCEL_FIRST"
+msgid "Only net control 1 cancels"
+msgstr "Solo el control de red 1 cancela"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_WHY_TOO_LATE"
+msgid "Too close to the change over"
+msgstr "Demasiado cerca del cambio"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_NO_REKEY"
 msgid "No rekey running"
 msgstr "Ningún cambio de clave en curso"

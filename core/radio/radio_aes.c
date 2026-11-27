@@ -53,11 +53,14 @@ static void rtc_keep(int64_t unix_s, uint32_t now_ms)
 	st->otar_rtc = 1;
 	settings_end(mark ? now_ms : 0);
 }
-// The previous keyset's keys to erase, by the housekeeping task (a storage job)
+// The previous keyset's keys to erase, by the housekeeping task (a storage job). failed: the keys whose record is still
+// there after the job (a flash error): queued again (radio_aes_poll)
 static struct {
 	volatile bool posted;
 	uint8_t system, n;
 	uint8_t kids[OTAR_CKRS];
+	uint8_t failed[OTAR_CKRS], nfailed;
+	volatile bool done;	// a job ran (posted went false): poll looks at failed and the saved pending key
 } erase;
 
 static void otar_save(uint32_t now_ms)
@@ -67,13 +70,45 @@ static void otar_save(uint32_t now_ms)
 	settings_end(now_ms);
 }
 
+// Keys named by no keyset any more (a withdrawn next keyset, a next keyset replaced by another key ID), erased once
+// no other erase is running (radio_aes_poll): a key thought compromised must not stay in the codeplug
+static uint8_t erase_q[OTAR_CKRS * 2u];
+static uint8_t erase_qn;
+
+static void erase_later(uint8_t kid)
+{
+	for (uint8_t i = 0; i < erase_qn; i++)
+		if (erase_q[i] == kid)
+			return;
+	if (erase_qn < sizeof erase_q)
+		erase_q[erase_qn++] = kid;
+}
+
 static void erase_job(void *ctx)
 {
 	(void)ctx;
-	for (uint8_t j = 0; j < erase.n; j++)
-		(void)codeplug_traffic_key_remove(erase.system, DMR_AES_ALG_AES256, erase.kids[j]);
+	uint8_t probe[32];
+	erase.nfailed = 0;
+	for (uint8_t j = 0; j < erase.n; j++) {
+		// Removed, or not there: done. Still there after a refused remove: failed, tried again
+		if (!codeplug_traffic_key_remove(erase.system, DMR_AES_ALG_AES256, erase.kids[j]) &&
+		    codeplug_traffic_key(erase.system, DMR_AES_ALG_AES256, erase.kids[j], probe, sizeof probe) > 0)
+			erase.failed[erase.nfailed++] = erase.kids[j];
+	}
+	memset(probe, 0, sizeof probe);
 	erase.n = 0;
+	erase.done = true;
 	erase.posted = false;
+}
+
+// The withdrawn key saved as still to erase (settings otar_erase), so a power loss before the erase can't leave it
+static void erase_mark(uint8_t kid, bool pending, uint32_t now_ms)
+{
+	settings_t *st = settings_begin();
+	bool change = st->otar_erase[0] != (pending ? 1u : 0u) || (pending && st->otar_erase[1] != kid);
+	st->otar_erase[0] = pending ? 1u : 0u;
+	st->otar_erase[1] = pending ? kid : 0u;
+	settings_end(change ? now_ms : 0);
 }
 
 // The previous keyset ends: no longer heard, and its keys that no keyset still names erased from the codeplug
@@ -173,6 +208,44 @@ static bool otar_poll(uint32_t now_ms)
 		drop_prev(now_ms);	// held from before a restart, or an erase that couldn't be posted
 		return true;
 	}
+	// A finished job: its failed keys queued again; the saved withdrawn key cleared once erased (nothing queued for it)
+	if (erase.done && !erase.posted) {
+		erase.done = false;
+		for (uint8_t i = 0; i < erase.nfailed; i++)
+			erase_later(erase.failed[i]);
+		erase.nfailed = 0;
+		settings_t *st = settings_begin();
+		uint8_t pend = st->otar_erase[0], pk = st->otar_erase[1];
+		settings_end(0);
+		bool queued = false;
+		for (uint8_t i = 0; i < erase_qn; i++)
+			queued |= erase_q[i] == pk;
+		if (pend && !queued)
+			erase_mark(0, false, now_ms);
+	}
+	// Keys queued by DROP_NEXT and NEXT_AT (erase_later), one erase at a time; a key a keyset names again stays
+	if (erase_qn != 0 && !erase.posted) {
+		erase.system = otar_system(&otar);
+		erase.n = 0;
+		for (uint8_t i = 0; i < erase_qn && erase.n < OTAR_CKRS; i++) {
+			uint8_t k = erase_q[i], have;
+			bool named = (otar_kid(&otar, OTAR_ACTIVE, 1, &have) && have == k) ||
+				     (otar_kid(&otar, OTAR_NEXT, 1, &have) && have == k) ||
+				     (otar_kid(&otar, OTAR_PREV, 1, &have) && have == k);
+			if (!named)
+				erase.kids[erase.n++] = k;
+		}
+		erase_qn = 0;
+		if (erase.n != 0) {
+			erase.posted = true;
+			if (!storage_job_post(erase_job, NULL)) {
+				erase.posted = false;	// asked again at the next poll
+				for (uint8_t i = 0; i < erase.n; i++)
+					erase_later(erase.kids[i]);
+				erase.n = 0;
+			}
+		}
+	}
 	return false;
 }
 
@@ -201,8 +274,12 @@ bool radio_aes_otar_request(uint8_t op, uint32_t value, const channel_t *ch, uin
 	}
 	case RADIO_OTAR_NEXT_AT: {
 		uint32_t at = value >> 8;	// UTC minutes since 2026, 24 bits: 31 years
+		uint8_t old;
+		bool replaced = otar_kid(&otar, OTAR_NEXT, 1, &old) && old != (uint8_t)value;
 		if (!otar_set_next(&otar, 1, (uint8_t)value, at, at != 0))
 			return false;
+		if (replaced)
+			erase_later(old);	// the next keyset's old key, named by no keyset now
 		break;
 	}
 	case RADIO_OTAR_CLEAR_NEXT:
@@ -214,16 +291,8 @@ bool radio_aes_otar_request(uint8_t op, uint32_t value, const channel_t *ch, uin
 		if (!(otar.flags & OTAR_F_NEXT) || otar.kid_next[0] != (uint8_t)value)
 			return false;
 		otar_clear_next(&otar);
-		if (!erase.posted) {
-			erase.system = otar_system(&otar);
-			erase.kids[0] = (uint8_t)value;
-			erase.n = 1;
-			erase.posted = true;
-			if (!storage_job_post(erase_job, NULL)) {
-				erase.posted = false;	// the key stays in the codeplug, named by no keyset
-				erase.n = 0;
-			}
-		}
+		erase_mark((uint8_t)value, true, now_ms);	// kept until erased, over a restart too
+		erase_later((uint8_t)value);	// erased at the next poll, after any erase still running
 		break;
 	case RADIO_OTAR_NEXT_KS:
 		// The net's keyset number for the next keyset (otar.md 7.1): only above the active one, so a radio never goes
@@ -297,8 +366,12 @@ void radio_aes_start(uint32_t saved)
 #if CONFIG_OTAR
 	settings_t *st = settings_begin();
 	otar = st->otar;
+	bool pend = st->otar_erase[0] != 0;
+	uint8_t pk = st->otar_erase[1];
 	settings_end(0);
 	prev_live = false;	// a previous keyset kept over a restart is dropped at the first poll
+	if (pend)
+		erase_later(pk);	// a withdrawn key whose erase a power loss cut short (radio_aes_poll checks no keyset names it)
 #endif
 }
 
