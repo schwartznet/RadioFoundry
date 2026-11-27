@@ -7,11 +7,14 @@
 // The emergency wipe (CONFIG_ZEROIZE) clears a running session from the housekeeping task: zeroize_ram_hook below.
 #include "config.h"
 
+// keyfill.h outside the #if: a build without key fill still lists it, so tools/stack_check.py, which reads the code
+// below either way, knows kf_item_t (unknown, it.key would join every field named key)
+#include "keyfill/keyfill.h"
+
 #if CONFIG_KEY_FILL
 #include <string.h>
 #include "board.h"
 #include "ui_svc.h"
-#include "keyfill/keyfill.h"
 #include "keyfill/keyfill_api.h"
 #if CONFIG_GROUP_KEY_FILL
 #include "keyfill/groupkey_api.h"
