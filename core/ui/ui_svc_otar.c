@@ -335,6 +335,8 @@ uint8_t ui_svc_net_member_flags(uint16_t i)
 #define WD_TRIES	3u
 #define HELLO_ASKED_MAX	3u	// Request keys under radio silence: at most this many HELLOs (no answer comes under it)
 #define AUTO_REQ_GAP_MS	180000u	// a member asks for keys by itself, on its net's voice it can't decrypt, at most this often
+#define RC_TRIES	3u	// Check all members: a member that doesn't answer its INVENTORY is asked this many times
+#define RC_NEXT_MS	8000u	// ... and after its active keyset's answer, its next keyset's is waited for this long
 
 typedef struct {
 	uint32_t id;
@@ -374,6 +376,24 @@ static uint32_t rk_retry(const rekey_t *rk, const rk_member_t *mm)
 		return RETRY_MS;
 	return mm->tries <= 1u ? RETRY_MS : mm->tries == 2u ? 120000u : mm->tries == 3u ? 300000u : 900000u;
 }
+
+// A net control's Check all members (otar.md 30): INVENTORY to each member in turn, one at a time, and what each holds
+typedef struct {
+	uint32_t id;
+	uint16_t keyset;	// its answer: its active keyset
+	uint16_t next;		// ... its next keyset when this radio's next is the same key, else 0
+	uint8_t state;		// UI_RC_*
+	uint8_t tries;
+} rc_member_t;
+
+typedef struct {
+	bool on;		// running; once done the answers stay until the next check or the net is left
+	bool got;		// the member asked has sent its first answer ...
+	uint32_t got_at;	// ... at this time
+	uint8_t n;
+	uint8_t cur;		// the member asked now, 0xFF none
+	rc_member_t m[OTAR_ROSTER_MAX - 1u];
+} rollcall_t;
 
 static void cut_resume(const radio_view_t *v, uint32_t now);
 static void run_again(rekey_t *rk, uint32_t now);
@@ -520,6 +540,7 @@ static struct {
 	uint16_t miss_seen;
 	bool auto_asked;
 	uint32_t auto_at;
+	rollcall_t *rc;		// a net control's Check all members, on the heap
 } eng;
 
 // A rekey's key or a new net's key pair still waits for randomness
@@ -1312,6 +1333,16 @@ static __attribute__((noinline)) void inv_send(const radio_view_t *v, const otar
 	out_set(to, false, otar_inventory_build(eng.out, &a, eng.kmac, m));
 	eng.inv.sent_num = m->msgnum;
 	eng.inv.by = now + ACK_WAIT_MS;
+}
+
+// A net control: INVENTORY to member id, sent once the transport is free (inv_send); answered within ACK_WAIT_MS of it
+static void inv_ask(uint32_t id, uint32_t now)
+{
+	memset(&eng.inv, 0, sizeof eng.inv);
+	eng.inv.id = id;
+	eng.inv.state = UI_INV_ASKING;
+	eng.inv.by = now + 2u * ACK_WAIT_MS;	// a rekey or a roster run may go first
+	eng.inv_to = id;
 }
 
 // A member: where it is now, from the position service, as an LRRP answer gets it (the GPS, a host, or the fixed
@@ -2304,6 +2335,75 @@ static void zz_wipe_start(void)
 #endif
 }
 
+// Check all members: member mm's INVENTORY answered (eng.inv), against this radio's keysets. OK: its active keyset is
+// this radio's, the same key; behind: an older one; else another key (the same number with another key, or ahead).
+// A member that manages no keys answers none
+static void rc_result(const radio_view_t *v, rc_member_t *mm)
+{
+	if (eng.inv.n == 0) {
+		mm->state = UI_RC_NO_KEYS;
+		return;
+	}
+	// Its active keyset is the lower of the two it holds (the next is always above it, 7.1)
+	unsigned a = eng.inv.n == 2u && eng.inv.keyset[1] < eng.inv.keyset[0] ? 1u : 0u;
+	mm->keyset = eng.inv.keyset[a];
+	if (v->otar.on && mm->keyset == v->otar.keyset && eng.inv.same[a]) {
+		mm->state = UI_RC_OK;
+		unsigned b = 1u - a;
+		if (eng.inv.n == 2u && eng.inv.same[b] && v->otar.has_next && eng.inv.keyset[b] == v->otar.next_keyset)
+			mm->next = eng.inv.keyset[b];
+	} else {
+		mm->state = v->otar.on && mm->keyset < v->otar.keyset ? UI_RC_BEHIND : UI_RC_OTHER;
+	}
+}
+
+// Check all members' step: one INVENTORY in flight (eng.inv, as Ask its keys), each member asked in turn, the one asked
+// least first, so every member is asked once before one that didn't answer is asked again. INVENTORY goes during a
+// rekey run (engine_tick), whose REKEYs take the transport between: a check waits for each answer, a run doesn't
+static __attribute__((noinline)) bool rc_step(const radio_view_t *v, uint32_t now)
+{
+	rollcall_t *rc = eng.rc;
+	if (rc == NULL || !rc->on)
+		return false;
+	if (rc->cur != 0xFF) {
+		rc_member_t *mm = &rc->m[rc->cur];
+		if (eng.inv.id != mm->id || eng.inv.state == UI_INV_NO_ANSWER || eng.inv.state == UI_INV_NONE) {
+			mm->state = mm->tries < RC_TRIES ? UI_RC_WAIT : UI_RC_NO_ANSWER;	// asked again after the others
+			rc->cur = 0xFF;
+			return true;
+		}
+		if (eng.inv.state != UI_INV_GOT)
+			return false;
+		if (!rc->got) {
+			rc->got = true;
+			rc->got_at = now;
+		}
+		// The active keyset's answer: the next keyset's follows it when the member holds one
+		if (eng.inv.n == 1u && (uint32_t)(now - rc->got_at) < RC_NEXT_MS)
+			return false;
+		rc_result(v, mm);
+		rc->cur = 0xFF;
+		return true;
+	}
+	if (eng.inv_to != 0 || eng.inv.state == UI_INV_ASKING)
+		return false;
+	int best = -1;
+	for (uint8_t i = 0; i < rc->n; i++)
+		if (rc->m[i].state == UI_RC_WAIT && (best < 0 || rc->m[i].tries < rc->m[best].tries))
+			best = i;
+	if (best < 0) {
+		rc->on = false;		// done: each member answered or was asked RC_TRIES times
+		return true;
+	}
+	rc_member_t *mm = &rc->m[best];
+	mm->tries++;
+	mm->state = UI_RC_ASKING;
+	rc->cur = (uint8_t)best;
+	rc->got = false;
+	inv_ask(mm->id, now);
+	return true;
+}
+
 static bool engine_tick(const radio_view_t *v, uint32_t now)
 {
 	bool changed = false;
@@ -2335,8 +2435,12 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 		memset(&eng.inv, 0, sizeof eng.inv);
 		memset(&eng.wda, 0, sizeof eng.wda);
 		eng.cut_resume = in;	// a cancel run pending from before a restart (cut_resume)
-		if (!in)
+		if (!in) {
 			rk_free();
+			if (eng.rc != NULL)
+				vPortFree(eng.rc);	// Check all members' answers go with the net
+			eng.rc = NULL;
+		}
 	}
 	if (!in) {
 		eng.miss_seen = v->dmr.key_missed;	// calls heard out of a net don't ask for keys once in one
@@ -2554,6 +2658,7 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 	if (n.rank != 0 && mn_ok) {
 		changed = rk_step(v, &n, now) || changed;
 		changed = ros_step(v, &n, now) || changed;
+		changed = rc_step(v, now) || changed;
 	}
 	crypto_wipe(&n, sizeof n);
 	return changed;
@@ -3092,14 +3197,64 @@ uint8_t ui_svc_net_inventory(const radio_view_t *v, uint32_t id)
 	otar_member_t m;
 	if (id == v->dmr.own_id || !otar_roster_find(id, &m) || (m.flags & OTAR_M_REVOKED))
 		return UI_NET_NO_MEMBER;
-	if (eng.inv_to != 0 || eng.inv.state == UI_INV_ASKING)
-		return UI_NET_BUSY;
-	memset(&eng.inv, 0, sizeof eng.inv);
-	eng.inv.id = id;
-	eng.inv.state = UI_INV_ASKING;
-	eng.inv.by = hal_millis() + 2u * ACK_WAIT_MS;	// a rekey or a roster run may go first
-	eng.inv_to = id;
+	if (eng.inv_to != 0 || eng.inv.state == UI_INV_ASKING || (eng.rc != NULL && eng.rc->on))
+		return UI_NET_BUSY;	// one INVENTORY at a time: Check all members asks each in turn
+	inv_ask(id, hal_millis());
 	return UI_NET_OK;
+}
+
+uint8_t ui_svc_net_rollcall(const radio_view_t *v)
+{
+	if (own_rank() == 0)
+		return UI_NET_NOT_NC;
+	if (eng.rc != NULL && eng.rc->on)
+		return UI_NET_BUSY;	// running: its progress shows; once done, another starts
+	if (eng.rc == NULL)
+		eng.rc = pvPortMalloc(sizeof *eng.rc);
+	rollcall_t *rc = eng.rc;
+	if (rc == NULL)
+		return UI_NET_BUSY;
+	memset(rc, 0, sizeof *rc);
+	rc->cur = 0xFF;
+	// Every member but this radio and the revoked, in roster order
+	otar_member_t m;
+	uint16_t total = 0;
+	for (uint16_t i = 0; otar_roster_window(i, &m, 1, &total) == 1 && rc->n < OTAR_ROSTER_MAX - 1u; i++)
+		if (m.id != v->dmr.own_id && !(m.flags & OTAR_M_REVOKED))
+			rc->m[rc->n++] = (rc_member_t){ .id = m.id, .state = UI_RC_WAIT };
+	if (rc->n == 0) {
+		vPortFree(rc);
+		eng.rc = NULL;
+		return UI_NET_NO_MEMBER;
+	}
+	rc->on = true;
+	return UI_NET_OK;
+}
+
+void ui_svc_net_rollcall_view(ui_rc_view_t *r)
+{
+	memset(r, 0, sizeof *r);
+	const rollcall_t *rc = eng.rc;
+	if (rc == NULL)
+		return;
+	r->on = rc->on;
+	r->done = !rc->on;
+	r->members = rc->n;
+	for (uint8_t i = 0; i < rc->n; i++)
+		r->ok = (uint8_t)(r->ok + (rc->m[i].state == UI_RC_OK));
+}
+
+bool ui_svc_net_rollcall_member(uint16_t i, ui_rc_member_t *m)
+{
+	memset(m, 0, sizeof *m);
+	const rollcall_t *rc = eng.rc;
+	if (rc == NULL || i >= rc->n)
+		return false;
+	m->id = rc->m[i].id;
+	m->state = rc->m[i].state;
+	m->keyset = rc->m[i].keyset;
+	m->next = rc->m[i].next;
+	return true;
 }
 
 void ui_svc_net_inventory_view(uint32_t id, ui_inv_view_t *r)

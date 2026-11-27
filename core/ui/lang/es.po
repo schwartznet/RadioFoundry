@@ -5363,6 +5363,11 @@ msgid "Cancel the change"
 msgstr "Cancelar el cambio"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_CHECK"
+msgid "Check all members"
+msgstr "Comprobar todos"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_ON"
 msgid "On"
 msgstr "Sí"
@@ -5678,6 +5683,11 @@ msgid "Sending the roster"
 msgstr "Enviando la lista"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_NO_MEMBERS"
+msgid "No members"
+msgstr "Sin miembros"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_CHAN_BY_NC"
 msgid "Set by the net control"
 msgstr "Lo fija el control de red"
@@ -5933,14 +5943,64 @@ msgid "Net status"
 msgstr "Estado de la red"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_RC_OK_NEXT"
+msgid "OK, next "
+msgstr "OK, siguiente "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_RC_KEY"
+msgid "key "
+msgstr "juego "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_RC_KEY_OK"
+msgid " OK"
+msgstr " OK"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_RC_BEHIND"
+msgid "behind (keyset "
+msgstr "atrasado (juego "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_RC_OTHER"
+msgid "other key (keyset "
+msgstr "otra clave (juego "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_RC_NO_KEYS"
+msgid "no keys"
+msgstr "sin claves"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_RC_ASKING"
+msgid "asking..."
+msgstr "preguntando..."
+
+#: core/ui/ui_menus.c
+msgctxt "NET_RC_OF_OK"
+msgid " OK"
+msgstr " OK"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_RC_CHECKING"
+msgid ", checking"
+msgstr ", comprobando"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_RC_TITLE"
+msgid "Roll call"
+msgstr "Comprobación"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_RC_NONE"
+msgid "Nothing checked yet"
+msgstr "Nada comprobado aún"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_MEMBERS_TITLE"
 msgid "Members"
 msgstr "Miembros"
-
-#: core/ui/ui_menus.c
-msgctxt "NET_NO_MEMBERS"
-msgid "No members"
-msgstr "Sin miembros"
 
 #: core/ui/ui_menus.c
 msgctxt "NK_TITLE"

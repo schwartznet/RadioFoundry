@@ -56,6 +56,7 @@ typedef enum {
 	SCR_NET_STATUS,			// Net status (CONFIG_OTAR): the net control's rekey run, member by member
 	SCR_NET_MEMBER,			// a roster member's actions (CONFIG_OTAR, net control): rank, revoke, wipe its keys
 	SCR_NET_LOCATION,		// ... and where it is: Get location's answer (arg: the member, as SCR_NET_MEMBER's)
+	SCR_NET_ROLLCALL,		// Roll call (CONFIG_OTAR, net control): Check all members, member by member
 	SCR_WIPE_CODE, SCR_WIPE,	// the emergency wipe (CONFIG_ZEROIZE): its code; the confirmation and the wipe
 	SCR_KEY_FILL_MENU,		// Tools > Key fill: receive, send (CONFIG_KEY_FILL)
 	SCR_MSG_NEW, SCR_MSG_TO,	// Messages > New message: whom to (CONFIG_DMR_SMS); a contact or a typed ID

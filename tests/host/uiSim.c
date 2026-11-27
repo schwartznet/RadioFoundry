@@ -373,6 +373,15 @@ static const struct { const char *name, *script; } worst_screens[] = {
 		"kf:peer back 1 down ok 5" },
 	// A member's Net screen: Share location under Remote wipe
 	{ "w_net_member_rows", "ok 6 up ok 6 2 kf:full kf:peer ok kf:peer back" },
+	// Roll call (otar.md 30.2): asking, then the longest answers (another key, behind, OK with the next keyset)
+	{ "w_net_rollcall_asking", "aeschan ok 6 up ok 5 ok back 6 1 net:full 2 4 6 7 5 8 1 0 ok kf:full kf:peer ok "
+		"kf:peer back 8" },
+	{ "w_net_rollcall_other", "aeschan ok 6 up ok 5 ok back 6 1 net:full 2 4 6 7 5 8 1 0 ok kf:full kf:peer ok "
+		"kf:peer back 8 rc:other" },
+	{ "w_net_rollcall_behind", "aeschan ok 6 up ok 5 ok back 6 1 net:full 2 4 6 7 5 8 1 0 ok kf:full kf:peer ok "
+		"kf:peer back 8 rc:behind" },
+	{ "w_net_rollcall_next", "aeschan ok 6 up ok 5 ok back 6 1 net:full 2 4 6 7 5 8 1 0 ok kf:full kf:peer ok "
+		"kf:peer back 8 rc:next" },
 #endif
 	{ "w_hotspot_tx", "hotspot:on pttdown" },
 };

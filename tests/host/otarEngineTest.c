@@ -2400,6 +2400,209 @@ static void test_auto_request(void)
 	memset(&view.ch, 0, sizeof view.ch);
 }
 
+// ===================== Check all members (otar.md 30): the engine net control 1, the test its members
+// The engine's message i to member id, opened under that pair's MAC key
+static bool open_to(int i, uint32_t id, const uint8_t km[32], otar_msg_t *r)
+{
+	otar_addr_t a = { ENGINE_ID, id };
+	return i >= 0 && i < out_n && outbox[i].dst == id && otar_open(outbox[i].m, outbox[i].len, &a, NULL, km, r);
+}
+
+// Member id's ACK of an INVENTORY (echo) for one keyset
+static void inv_answer(uint32_t id, const uint8_t km[32], uint32_t echo, uint8_t result, uint32_t keyset,
+		       const uint8_t kcv[3])
+{
+	otar_msg_t m;
+	uint8_t buf[OTAR_MSG_MAX];
+	memset(&m, 0, sizeof m);
+	m.net_id = NET_ID;
+	m.msgnum = ++peer_msgnum;
+	m.ckr = 1;
+	m.result = result;
+	m.keyset = keyset;
+	m.echo = echo;
+	if (kcv != NULL)
+		memcpy(m.kcv, kcv, 3);
+	otar_addr_t a = { id, ENGINE_ID };
+	deliver(id, ENGINE_ID, false, buf, otar_ack_build(buf, &a, km, &m));
+}
+
+static int rc_asking(void)
+{
+	int k = 0;
+	ui_rc_member_t m;
+	for (uint16_t i = 0; ui_svc_net_rollcall_member(i, &m); i++)
+		k += m.state == UI_RC_ASKING;
+	return k;
+}
+
+static bool rc_of(uint32_t id, ui_rc_member_t *out)
+{
+	for (uint16_t i = 0; ui_svc_net_rollcall_member(i, out); i++)
+		if (out->id == id)
+			return true;
+	return false;
+}
+
+static void test_rollcall(void)
+{
+	setup(1);
+	roster_add(ENGINE_ID, 1, eng_pub);
+	uint32_t ids[4];
+	uint8_t pubs[4][32], kms[4][32];
+	ids[0] = PEER_ID;
+	memcpy(pubs[0], peer_pub, 32);
+	memcpy(kms[0], kmac, 32);
+	roster_add(PEER_ID, 0, peer_pub);
+	for (int k = 1; k < 4; k++) {
+		other_member(k, &ids[k], pubs[k], kms[k]);
+		roster_add(ids[k], 0, pubs[k]);
+	}
+	otar_member_t rv;	// the fourth revoked: never asked
+	CHECK(otar_roster_find(ids[3], &rv));
+	rv.flags |= OTAR_M_REVOKED;
+	CHECK(otar_roster_put(&rv));
+	otar_start(&keys, 0, 77);
+	tek[77].used = true;
+	keys.ks_active = 4;
+	CHECK(otar_set_next(&keys, 1, 78, 0, false));	// a next keyset, 5, here
+	keys.ks_next = 5;
+	tek[78].used = true;
+	memset(tek[78].k, 0x78, 32);
+	uint8_t kcv4[3], kcv5[3], kcv_x[3];
+	CHECK(kcv_traffic(CODEPLUG_SYSTYPE_DMR_AES, DMR_AES_ALG_AES256, tek[77].k, 32, kcv4));
+	kcv_of(0x78, kcv5);
+	kcv_of(0x31, kcv_x);
+	run(3000);
+	out_n = 0;
+
+	CHECK(ui_svc_net_rollcall(v_now()) == UI_NET_OK);
+	CHECK(ui_svc_net_rollcall(v_now()) == UI_NET_BUSY);		// running: not started again
+	CHECK(ui_svc_net_inventory(v_now(), PEER_ID) == UI_NET_BUSY);	// one INVENTORY at a time
+	ui_rc_view_t cv;
+	ui_svc_net_rollcall_view(&cv);
+	CHECK(cv.on && !cv.done && cv.members == 3 && cv.ok == 0);
+	// One in flight: the first member asked, unanswered for 15 s, and no one else
+	run(15000);
+	int inv = 0;
+	otar_msg_t r;
+	for (int i = 0; i < out_n; i++)
+		for (int k = 0; k < 4; k++)
+			inv += open_to(i, ids[k], kms[k], &r) && r.type == OTAR_INVENTORY;
+	CHECK(inv == 1 && rc_asking() == 1);
+
+	// The first on the roster doesn't answer at all (asked 3 times); the second answers its active keyset, 3 (behind);
+	// the third its active and next keysets, both this radio's (OK, next 5)
+	int asked[4] = { 0 }, order[16], on = 0, seen = 0, most = 0;
+	for (int step = 0; step < 600 && cv.on; step++) {
+		for (; seen < out_n; seen++) {
+			for (int k = 0; k < 4; k++) {
+				if (!open_to(seen, ids[k], kms[k], &r) || r.type != OTAR_INVENTORY)
+					continue;
+				asked[k]++;
+				if (on < 16)
+					order[on++] = k;
+				if (k == 2) {
+					inv_answer(ids[2], kms[2], r.msgnum, OTAR_ACK_HELD, 4, kcv4);
+					inv_answer(ids[2], kms[2], r.msgnum, OTAR_ACK_HELD, 5, kcv5);
+				} else if (k == 1) {
+					inv_answer(ids[1], kms[1], r.msgnum, OTAR_ACK_HELD, 3, kcv_x);
+				}
+			}
+		}
+		run(500);
+		int a = rc_asking();
+		most = a > most ? a : most;
+		ui_svc_net_rollcall_view(&cv);
+	}
+	CHECK(!cv.on && cv.done && cv.members == 3 && cv.ok == 1);
+	CHECK(asked[0] == 3 && asked[1] == 1 && asked[2] == 1 && asked[3] == 0 && most == 1);
+	// Each member asked once before one is asked again (the first, unanswered, not again at once)
+	CHECK(on >= 3 && order[0] != order[1] && order[1] != order[2] && order[0] != order[2]);
+	ui_rc_member_t mr;
+	CHECK(rc_of(ids[2], &mr) && mr.state == UI_RC_OK && mr.keyset == 4 && mr.next == 5);
+	CHECK(rc_of(ids[1], &mr) && mr.state == UI_RC_BEHIND && mr.keyset == 3);
+	CHECK(rc_of(ids[0], &mr) && mr.state == UI_RC_NO_ANSWER);
+	CHECK(!rc_of(ids[3], &mr));
+	// Done: the answers stay; Ask its keys goes again
+	run(60000);
+	ui_svc_net_rollcall_view(&cv);
+	CHECK(cv.done && cv.ok == 1);
+	CHECK(ui_svc_net_inventory(v_now(), PEER_ID) == UI_NET_OK);
+	run(21000);
+
+	// Started again once done: every member waiting, then asked again. The first holds its active keyset alone (OK, no
+	// next); the second keyset 4 under another key; the third manages no keys
+	CHECK(ui_svc_net_rollcall(v_now()) == UI_NET_OK);
+	ui_svc_net_rollcall_view(&cv);
+	CHECK(cv.on && cv.ok == 0);
+	CHECK(rc_of(ids[0], &mr) && (mr.state == UI_RC_WAIT || mr.state == UI_RC_ASKING));
+	memset(asked, 0, sizeof asked);
+	seen = out_n;
+	for (int step = 0; step < 600 && cv.on; step++) {
+		for (; seen < out_n; seen++) {
+			for (int k = 0; k < 4; k++) {
+				if (!open_to(seen, ids[k], kms[k], &r) || r.type != OTAR_INVENTORY)
+					continue;
+				asked[k]++;
+				if (k == 0)
+					inv_answer(ids[0], kms[0], r.msgnum, OTAR_ACK_HELD, 4, kcv4);
+				else if (k == 1)
+					inv_answer(ids[1], kms[1], r.msgnum, OTAR_ACK_HELD, 4, kcv_x);
+				else if (k == 2)
+					inv_answer(ids[2], kms[2], r.msgnum, OTAR_ACK_NOT_MANAGED, 0, NULL);
+			}
+		}
+		run(500);
+		ui_svc_net_rollcall_view(&cv);
+	}
+	CHECK(!cv.on && cv.ok == 1 && asked[0] == 1 && asked[1] == 1 && asked[2] == 1);
+	CHECK(rc_of(ids[0], &mr) && mr.state == UI_RC_OK && mr.keyset == 4 && mr.next == 0);
+	CHECK(rc_of(ids[1], &mr) && mr.state == UI_RC_OTHER && mr.keyset == 4);
+	CHECK(rc_of(ids[2], &mr) && mr.state == UI_RC_NO_KEYS);
+
+#if CONFIG_RADIO_SILENCE
+	// Under radio silence: the user started it, so it goes
+	radio_silence_flag = true;
+	out_n = 0;
+	CHECK(ui_svc_net_rollcall(v_now()) == UI_NET_OK);
+	run(1000);
+	inv = 0;
+	for (int i = 0; i < out_n; i++)
+		for (int k = 0; k < 4; k++)
+			inv += open_to(i, ids[k], kms[k], &r) && r.type == OTAR_INVENTORY;
+	CHECK(inv == 1);
+	radio_silence_flag = false;
+#endif
+
+	// Alongside a rekey run: its REKEYs go while the check waits for an answer
+	setup(1);
+	roster_add(ENGINE_ID, 1, eng_pub);
+	roster_add(PEER_ID, 0, peer_pub);
+	for (int k = 1; k < 3; k++)
+		roster_add(ids[k], 0, pubs[k]);
+	otar_start(&keys, 0, 77);
+	keys.ks_active = 4;
+	run(3000);
+	out_n = 0;
+	CHECK(ui_svc_net_rollcall(v_now()) == UI_NET_OK);
+	run(1000);
+	CHECK(ui_svc_net_rekey(v_now(), 0) == UI_NET_OK);
+	run(5000);
+	int rekeys = 0;
+	inv = 0;
+	for (int i = 0; i < out_n; i++)
+		for (int k = 0; k < 3; k++) {
+			rekeys += outbox[i].dst == ids[k] && outbox[i].m[2] == OTAR_REKEY;	// its type, in the clear
+			inv += open_to(i, ids[k], kms[k], &r) && r.type == OTAR_INVENTORY;
+		}
+	CHECK(rekeys >= 1 && inv == 1);
+	// Leaving the net forgets it
+	ui_svc_net_leave();
+	run(1000);
+	ui_svc_net_rollcall_view(&cv);
+	CHECK(!cv.on && !cv.done && cv.members == 0);
+}
 
 int main(void)
 {
@@ -2431,6 +2634,7 @@ int main(void)
 	test_review2_silence();
 #endif
 	test_auto_request();
+	test_rollcall();
 	printf("otarEngineTest: %d checks, %d failures\n", checks, failures);
 	return failures != 0;
 }

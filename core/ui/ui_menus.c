@@ -9387,7 +9387,7 @@ static void nk_enter(void)
 // The fingerprint is the radio's public key's, which another radio's Members list shows for it
 enum { NET_START, NET_JOIN, NET_MEMBERS, NET_ADD, NET_REKEY, NET_RK_WHEN, NET_STATUS, NET_CHANGE_OVER, NET_ROSTER,
        NET_TAKE_OVER, NET_WIPE_OK, NET_ACCEPT, NET_REFUSE, NET_LEAVE, NET_SCHED, NET_TIME, NET_REQUEST, NET_SHARE_LOC,
-       NET_CHAN, NET_MOVE, NET_CANCEL, NET_ROWS };
+       NET_CHAN, NET_MOVE, NET_CANCEL, NET_CHECK, NET_ROWS };
 static const uint8_t net_sched_days[] = { 0, 1, 7, 30 };	// Rekey every (otar.md 9)
 static uint8_t net_rk_when = 1;	// Key change: index into nk_mins, 5 min each time Net opens
 static uint32_t net_typed;	// Add a member: the ID typed
@@ -9430,6 +9430,7 @@ static uint8_t net_rows(uint8_t out[NET_ROWS])
 				out[k++] = NET_CANCEL;
 			}
 		}
+		out[k++] = NET_CHECK;	// every member's keys, in turn (otar.md 30): after those, so rows 1-9 stay
 		if (n.rank > 1u)
 			out[k++] = NET_TAKE_OVER;
 		out[k++] = NET_SCHED;
@@ -9479,7 +9480,7 @@ static void net_item(uint16_t i, ui_item_t *it)
 					 TRN(NET_SCHED, "Rekey every"), TRN(NET_TIME, "Send the time"),
 					 TRN(NET_REQUEST, "Request keys"), TRN(NET_SHARE_LOC, "Share location"),
 					 TRN(NET_CHAN, "Net channel"), TRN(NET_MOVE, "Move the change"),
-					 TRN(NET_CANCEL, "Cancel the change") };
+					 TRN(NET_CANCEL, "Cancel the change"), TRN(NET_CHECK, "Check all members") };
 	uint8_t row = net_row(i);
 	str_copy(it->label, sizeof it->label, tr(names[row]));
 	if (row == NET_RK_WHEN) {
@@ -9816,6 +9817,15 @@ static void net_select(uint16_t i, bool hold)
 	case NET_LEAVE: net_ask = NET_LEAVE; break;
 	case NET_MOVE: net_ask = NET_MOVE; break;
 	case NET_CANCEL: net_ask = NET_CANCEL; break;
+	case NET_CHECK:
+		// Running: its progress shows; done: checked again
+		switch (ui_svc_net_rollcall(v)) {
+		case UI_NET_OK:
+		case UI_NET_BUSY: ui_push(SCR_NET_ROLLCALL, 0); break;
+		case UI_NET_NO_MEMBER: ui_toast(TR(NET_NO_MEMBERS, "No members")); break;
+		default: ui_toast(TR(NET_WHY_NC_ONLY, "Only a net control does that")); break;
+		}
+		break;
 	case NET_CHAN: {
 		// Net control: the channel on view becomes the net's, after OK. A member is told who sets it
 		ui_net_view_t n;
@@ -10288,6 +10298,79 @@ static const ui_scr_def_t net_status_screen = {
 	.count = status_count, .item = status_item, .body = status_body, .key = status_key,
 };
 
+// Roll call (otar.md 30): Check all members' answers, a row per member: its DMR ID and what it holds ("key 7 OK", "OK,
+// next 8" with this radio's next keyset too, "behind (keyset 6)"), or where its turn is; above, how many are OK and
+// this radio's keyset they are checked against. Back leaves it running
+static uint16_t rc_count(void)
+{
+	ui_rc_view_t r;
+	ui_svc_net_rollcall_view(&r);
+	return r.members;
+}
+
+static void rc_item(uint16_t i, ui_item_t *it)
+{
+	ui_rc_member_t m;
+	if (!ui_svc_net_rollcall_member(i, &m))
+		return;
+	sbuf_t b;
+	sb_init(&b, it->label, sizeof it->label);
+	sb_u32(&b, m.id, 1);
+	sb_init(&b, it->value, sizeof it->value);
+	switch (m.state) {
+	case UI_RC_OK:
+		if (m.next != 0) {
+			sb_str(&b, TR(NET_RC_OK_NEXT, "OK, next "));
+			sb_u32(&b, m.next, 1);
+		} else {
+			sb_str(&b, TR(NET_RC_KEY, "key "));
+			sb_u32(&b, m.keyset, 1);
+			sb_str(&b, TR(NET_RC_KEY_OK, " OK"));
+		}
+		break;
+	case UI_RC_BEHIND:
+	case UI_RC_OTHER:
+		sb_str(&b, m.state == UI_RC_BEHIND ? TR(NET_RC_BEHIND, "behind (keyset ") :
+						    TR(NET_RC_OTHER, "other key (keyset "));
+		sb_u32(&b, m.keyset, 1);
+		sb_chr(&b, ')');
+		break;
+	case UI_RC_NO_KEYS: sb_str(&b, TR(NET_RC_NO_KEYS, "no keys")); break;
+	case UI_RC_NO_ANSWER: sb_str(&b, TR(NET_ST_FAIL, "no answer")); break;
+	case UI_RC_ASKING: sb_str(&b, TR(NET_RC_ASKING, "asking...")); break;
+	default: sb_str(&b, TR(NET_ST_WAIT, "waiting")); break;
+	}
+}
+
+static const char *rc_body(void)
+{
+	ui_rc_view_t r;
+	ui_svc_net_rollcall_view(&r);
+	sbuf_t b;
+	sb_init(&b, id_body, sizeof id_body);
+	if (r.members == 0)
+		return id_body;
+	sb_u32(&b, r.ok, 1);
+	sb_str(&b, TR(NET_REKEY_OF, " of "));
+	sb_u32(&b, r.members, 1);
+	sb_str(&b, TR(NET_RC_OF_OK, " OK"));
+	if (r.on)
+		sb_str(&b, TR(NET_RC_CHECKING, ", checking"));
+	const radio_view_t *v = ui_view();
+	if (v->otar.on) {
+		sb_chr(&b, '\n');
+		sb_str(&b, TR(NET_THIS_RADIO, "This radio: "));
+		sb_str(&b, TR(NM_KEYSET, "keyset "));
+		sb_u32(&b, v->otar.keyset, 1);
+	}
+	return id_body;
+}
+
+static const ui_scr_def_t net_rollcall_screen = {
+	.name = "net-rollcall", .flags = SF_LIST, .prefix = TRN(NET_RC_TITLE, "Roll call"), .hint = TRN(HINT_BACK, "Back"),
+	.empty = TRN(NET_RC_NONE, "Nothing checked yet"), .count = rc_count, .item = rc_item, .body = rc_body,
+};
+
 static const ui_scr_def_t net_members_screen = {
 	.name = "net-members", .flags = SF_LIST, .prefix = TRN(NET_MEMBERS_TITLE, "Members"),
 	.hint = TRN(HINT_BACK, "Back"), .empty = TRN(NET_NO_MEMBERS, "No members"),
@@ -10646,7 +10729,7 @@ const ui_scr_def_t *const ui_scr[SCR_COUNT] = {
 #if CONFIG_OTAR
 	[SCR_NET_KEYS] = &net_keys_screen, [SCR_NET] = &net_screen, [SCR_NET_MEMBERS] = &net_members_screen,
 	[SCR_NET_STATUS] = &net_status_screen, [SCR_NET_MEMBER] = &net_member_screen,
-	[SCR_NET_LOCATION] = &net_location_screen,
+	[SCR_NET_LOCATION] = &net_location_screen, [SCR_NET_ROLLCALL] = &net_rollcall_screen,
 #endif
 #if CONFIG_ZEROIZE
 	[SCR_WIPE_CODE] = &wipe_code_screen, [SCR_WIPE] = &wipe_screen,

@@ -3018,6 +3018,73 @@ void ui_svc_net_inventory_view(uint32_t id, ui_inv_view_t *r)
 	r->same[0] = true;
 }
 
+// Check all members (otar.md 30): every member but this radio waiting, the first asking; tokens rc:ok (the one asked
+// holds keyset 1, the same key), rc:next (... and next keyset 2), rc:behind (keyset 0), rc:other, rc:nokeys, rc:none
+static struct {
+	bool on;
+	uint8_t n;
+	ui_rc_member_t m[8];
+} rc_sim;
+
+static void rc_sim_next(void)
+{
+	for (uint8_t i = 0; i < rc_sim.n; i++)
+		if (rc_sim.m[i].state == UI_RC_WAIT) {
+			rc_sim.m[i].state = UI_RC_ASKING;
+			return;
+		}
+	rc_sim.on = false;
+}
+uint8_t ui_svc_net_rollcall(const radio_view_t *v)
+{
+	if (!net_sim.in || net_sim.rank == 0)
+		return UI_NET_NOT_NC;
+	if (rc_sim.on)
+		return UI_NET_BUSY;
+	memset(&rc_sim, 0, sizeof rc_sim);
+	for (uint8_t i = 0; i < net_sim.n; i++)
+		if (net_sim.ids[i] != v->dmr.own_id && !net_sim.flags[i])
+			rc_sim.m[rc_sim.n++].id = net_sim.ids[i];
+	if (rc_sim.n == 0)
+		return UI_NET_NO_MEMBER;
+	rc_sim.on = true;
+	rc_sim_next();
+	return UI_NET_OK;
+}
+void ui_svc_net_rollcall_view(ui_rc_view_t *r)
+{
+	memset(r, 0, sizeof *r);
+	r->on = rc_sim.on;
+	r->done = !rc_sim.on && rc_sim.n != 0;
+	r->members = rc_sim.n;
+	for (uint8_t i = 0; i < rc_sim.n; i++)
+		r->ok = (uint8_t)(r->ok + (rc_sim.m[i].state == UI_RC_OK));
+}
+bool ui_svc_net_rollcall_member(uint16_t i, ui_rc_member_t *m)
+{
+	if (i >= rc_sim.n)
+		return false;
+	*m = rc_sim.m[i];
+	return true;
+}
+static bool rc_sim_token(const char *arg)
+{
+	for (uint8_t i = 0; i < rc_sim.n; i++) {
+		ui_rc_member_t *m = &rc_sim.m[i];
+		if (m->state != UI_RC_ASKING)
+			continue;
+		m->keyset = strcmp(arg, "behind") == 0 ? 0u : 1u;
+		m->next = strcmp(arg, "next") == 0 ? 2u : 0u;
+		m->state = strcmp(arg, "ok") == 0 || strcmp(arg, "next") == 0 ? UI_RC_OK :
+			   strcmp(arg, "behind") == 0 ? UI_RC_BEHIND : strcmp(arg, "other") == 0 ? UI_RC_OTHER :
+			   strcmp(arg, "nokeys") == 0 ? UI_RC_NO_KEYS : UI_RC_NO_ANSWER;
+		rc_sim_next();
+		changed();
+		return true;
+	}
+	return false;
+}
+
 // Rekeying: Rekey now runs at once with key 2 to every member but this radio; tokens rk:ack (the next member ACKs) and
 // rk:fail (it doesn't). Change over the net makes this radio's next key active
 static struct {
@@ -3733,6 +3800,7 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 	memset(&net_sim, 0, sizeof net_sim);
 	memset(&rk_sim, 0, sizeof rk_sim);
 	memset(&ros_sim, 0, sizeof ros_sim);
+	memset(&rc_sim, 0, sizeof rc_sim);
 	memset(&view.otar, 0, sizeof view.otar);
 #endif
 	ptt_blocked = false;
@@ -4612,6 +4680,14 @@ static bool run_token(char *t, char *err, size_t len)
 	if (strcmp(t, "rk") == 0 && arg != NULL) {	// rk:ack, rk:fail: the rekey run's next member
 		if (!rk_sim_token(arg)) {
 			snprintf(err, len, "rk:%s: not now", arg);
+			return false;
+		}
+		advance(200);
+		return true;
+	}
+	if (strcmp(t, "rc") == 0 && arg != NULL) {	// rc:ok, rc:next, rc:behind, rc:other, rc:nokeys, rc:none
+		if (!rc_sim_token(arg)) {
+			snprintf(err, len, "rc:%s: not now", arg);
 			return false;
 		}
 		advance(200);

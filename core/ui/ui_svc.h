@@ -275,6 +275,25 @@ typedef struct {
 	bool same[2];		// the member's key of that keyset is this radio's
 } ui_inv_view_t;
 void ui_svc_net_inventory_view(uint32_t id, ui_inv_view_t *r);
+// A net control: Check all members (otar.md 30): INVENTORY to every member but this radio and the revoked, one at a
+// time, each asked up to 3 times. UI_NET_OK, NOT_NC, NO_MEMBER (none to ask), BUSY (one is running: its progress shows;
+// a finished one starts again). Ask its keys is BUSY meanwhile
+uint8_t ui_svc_net_rollcall(const radio_view_t *v);
+// Each member's result: waiting, asking, OK (this radio's active keyset, the same key), behind (an older keyset), another
+// key (the same number with another key, or ahead), no keys (it manages none), no answer after the tries
+enum { UI_RC_WAIT, UI_RC_ASKING, UI_RC_OK, UI_RC_BEHIND, UI_RC_OTHER, UI_RC_NO_KEYS, UI_RC_NO_ANSWER };
+typedef struct {
+	bool on, done;		// running; finished (its answers kept until the next check)
+	uint8_t members, ok;	// members asked; members OK
+} ui_rc_view_t;
+typedef struct {
+	uint32_t id;
+	uint8_t state;		// UI_RC_*
+	uint16_t keyset;	// OK, BEHIND, OTHER: its active keyset
+	uint16_t next;		// OK: its next keyset when it is this radio's next too, else 0
+} ui_rc_member_t;
+void ui_svc_net_rollcall_view(ui_rc_view_t *r);
+bool ui_svc_net_rollcall_member(uint16_t i, ui_rc_member_t *m);
 // A join just stored (key fill): a radio not managing keys starts managing the AES channel's it is on, so its HELLO
 // gets the net's active key (otar.md 6, 9)
 void ui_svc_net_joined(void);

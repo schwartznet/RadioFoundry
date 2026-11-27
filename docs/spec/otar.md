@@ -966,7 +966,7 @@ key is stored, a WITHDRAW drops the keyset, a ZEROIZE wipes); its HELLO at start
 Request keys goes. A net control answers no HELLO and sends no ACK or POSITION. What its user starts or scheduled goes,
 with its retries: Rekey now and a scheduled rekey (Rekey every, the user's own schedule) with the CHANGEOVER at their
 changeover by the clocks (members without a clock wait for it), Change over the net, Send the roster, Send the time, a
-wipe, Ask its keys, Get location, the net's channel and Move or Cancel the change. A reply is dropped, not held (`silenced`, counted in `eng.silence_dropped`).
+wipe, Ask its keys, Check all members (30.2), Get location, the net's channel and Move or Cancel the change. A reply is dropped, not held (`silenced`, counted in `eng.silence_dropped`).
 
 Tests: `otarEngineTest` (333 checks) adds a member under silence (no HELLO at start, a REKEY stored without its ACK,
 an INVENTORY unanswered, Request keys sent, answers again once silence ends, a ZEROIZE wiping with no ACK) and a net
@@ -1010,7 +1010,7 @@ for Request keys under silence. `radioCoreTest` adds the withdrawn key erased wh
 pending erase saved and cleared, and a replaced next key erased. Every fix was taken out in turn, and a test fails each
 time.
 
-## 30. Asking for keys by itself (as built, 2026-11-27)
+## 30. Asking for keys by itself, and Check all members (as built, 2026-11-27)
 
 ### 30.1 Asking for keys on the net's voice
 
@@ -1034,3 +1034,30 @@ asking, the HELLO's own retries meanwhile, none again within 3 minutes, another 
 ask (a key the radio holds, another algorithm, another channel, under radio silence and after, keys not managed, a net
 control). `radioCoreTest` adds the count in the radio view: a call played isn't counted, one not played is counted
 once, with the call's algorithm and key ID.
+
+### 30.2 Check all members (roll call)
+
+Ask its keys (9) asks one member at a time, from the member's screen: checking a net before a change over meant
+opening each member in turn. Net > **Check all members** asks every member.
+
+| Part | What happens |
+|---|---|
+| Where | A net control's Net screen, after Send the roster and, while a rekey run has the key made, after Move and Cancel the change: row 8, or row 10 during such a run. Rows 1-7 (Change over the net at 6) stay where they were |
+| What goes out | INVENTORY (7, type 5) to each member on the roster but this radio and the revoked, one at a time, as Ask its keys sends one: the answers within 20 s of the send, the active keyset's ACK, then the next keyset's (waited for 8 s more). A member that doesn't answer is asked again after the others, up to 3 times. The member asked least goes first, so every member is asked once before any is asked again |
+| What shows | Roll call: a row per member, the DMR ID and "key 7 OK" (this radio's active keyset, the same key), "OK, next 8" (this radio's next keyset too, the same key), "behind (keyset 6)", "other key (keyset 7)" (the same number under another key, or ahead), "no keys" (the member manages none), "no answer", "asking..." or "waiting"; above, "3 of 4 OK" (", checking" while the check runs) and "This radio: keyset 7" |
+| Running | Back leaves the check running in the engine; the row opens the screen again on the progress. Once done, the answers stay until the row is chosen again, which starts a new check, or the net is left |
+| Alongside | One INVENTORY at a time: Ask its keys says "Still asking" while a check runs. INVENTORY goes during a rekey run (f25d4a0da), and the run's REKEYs take the transport between: a check waits for each answer, the run sends meanwhile |
+| Radio silence | The user starts the check, so the INVENTORYs go ([radio-silence.md](radio-silence.md) 3), as Ask its keys does; members under their own silence don't answer (27) and show "no answer" |
+| Protocol | Nothing new: INVENTORY and the ACKs as before (7.2), the version still 4 |
+
+The answers live in RAM, on the heap (about 770 octets for a full roster, `rollcall_t`), taken at the first check and
+freed when the net is left.
+
+Tests: `otarEngineTest` (489 checks) adds Check all members with three members and one revoked: one INVENTORY in
+flight, each member asked once before any is asked twice, OK with the next keyset, behind, no answer after 3 tries,
+the revoked member never asked, Ask its keys refused during the check and taken after, a second check refused while
+the first runs and started again once done (OK alone, another key, no keys), INVENTORY sent under radio silence, a
+rekey run's REKEY sent while the check waits, and Leave forgetting the answers. `uiFlowTest` adds the row (row 8 on a
+net control, row 10 during a rekey, none on a member, "No members" without any), the Roll call screen asking and each
+answer, the count, Back leaving the check running and a finished check started again. `uiSim --layout` checks the
+screen at every display size.
