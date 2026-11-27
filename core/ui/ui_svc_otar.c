@@ -1530,18 +1530,29 @@ __attribute__((noinline)) static void on_member(const radio_view_t *v, const uin
 		    ((rk != NULL && rk->cur != 0xFF && rk->m[rk->cur].id == src) || (eng.ros.waiting && eng.ros.dst == src) ||
 		     (eng.inv.state != UI_INV_NONE && eng.inv.id == src) || (eng.zz.waiting && eng.zz.id == src) ||
 	     (eng.loc.waiting && eng.loc.id == src));	// a LOCATE's "old message number"
+	bool ack = msg[2] == OTAR_ACK;
+	if (ack)
+		otar_note_ack(OTAR_AN_IN, 0);
 	if (msg[2] == OTAR_HELLO && (uint32_t)(now - eng.hello_at) >= HELLO_GAP_MS) {
 		eng.hello_at = now;
 		want = true;
 	}
-	if (!want)
+	if (!want) {
+		if (ack)
+			otar_note_ack(OTAR_AN_UNWANTED, 0);
 		return;
+	}
 	uint8_t ukek[OTAR_KEY_LEN], kmac[OTAR_KEY_LEN];
-	if (!pair_keys(v->dmr.own_id, src, n->net_id, ukek, kmac))
+	if (!pair_keys(v->dmr.own_id, src, n->net_id, ukek, kmac)) {
+		if (ack)
+			otar_note_ack(OTAR_AN_NO_PAIR, 0);
 		return;
+	}
 	otar_addr_t a = { src, v->dmr.own_id };
 	otar_msg_t m;
 	bool ok = otar_open(msg, len, &a, NULL, kmac, &m) && m.net_id == n->net_id;
+	if (ack && !ok)
+		otar_note_ack(OTAR_AN_BAD_MAC, 0);
 	crypto_wipe(ukek, sizeof ukek);
 	if (ok && m.type == OTAR_HELLO)
 		hello_answer(v, &m, src, n, kmac, now);
@@ -1578,16 +1589,19 @@ __attribute__((noinline)) static void on_member(const radio_view_t *v, const uin
 		inv_got(v, &m);
 	if (rk == NULL)
 		return;
+	bool counted = false;
 	for (uint8_t i = 0; i < rk->n; i++) {
 		rk_member_t *mm = &rk->m[i];
 		if (mm->id != src)
 			continue;
 		if (m.type == OTAR_ACK && m.keyset == rk->keyset && m.echo == mm->sent) {
+			counted = true;
 			// OK only with the check value of the key this run sent: an old ACK of the same keyset (a run stopped
 			// and started again) or another net control's key under the same number doesn't count
 			// A cancel run's WITHDRAW: OK once dropped; OLD (changed over already, too late) shows out of sync,
 			// not tried again (7.9)
 			bool same = memcmp(m.kcv, rk->kcv, sizeof rk->kcv) == 0;
+			otar_note_ack(OTAR_AN_COUNTED, (uint8_t)(m.result | (same ? 0u : 0x80u)));	// 0x80: another key's check value
 			if (rk->cancel)
 				mm->state = m.result == OTAR_ACK_DROPPED ? UI_RK_OK : m.result == OTAR_ACK_OLD ? UI_RK_SYNC : UI_RK_FAIL;
 			else
@@ -1598,6 +1612,8 @@ __attribute__((noinline)) static void on_member(const radio_view_t *v, const uin
 				mm->due = now + RETRY_MS;
 		}
 	}
+	if (!counted && m.type == OTAR_ACK)
+		otar_note_ack(OTAR_AN_NO_MATCH, 0);
 }
 
 static void rk_free(void)

@@ -258,6 +258,7 @@ bool otar_send(uint32_t dst, bool group, const uint8_t *msg, int len)
 }
 static otar_send_state_t send_state = OTAR_SEND_SENT;	// what the transport says of the last message
 otar_send_state_t otar_send_state(void) { return send_state; }
+void otar_note_ack(otar_ack_note_t what, uint8_t result) { (void)what; (void)result; }
 static int out_n_now(void) { return out_n; }
 int otar_take(uint8_t out[OTAR_MSG_MAX], uint32_t *src, uint32_t *dst, bool *group)
 {

@@ -14,6 +14,9 @@
 #if CONFIG_KEY_FILL
 #include "support/noise.h"
 #endif
+#if CONFIG_OTAR
+#include "otar/otar_api.h"
+#endif
 #endif
 #if CONFIG_DMR_IP_GATEWAY
 #include "dmr/ipGateway.h"
@@ -128,6 +131,17 @@ void debuglink_view_dmr_data(uint8_t part, dl_text_t *t)
 	dl_text(t, "data.privacy_rx=%u\ndata.privacy_rx_dropped=%u\ndata.privacy_tx=%u\ndata.privacy_blocked=%u\n",
 		(unsigned)s.rxPrivacy, (unsigned)s.rxPrivacyDropped, (unsigned)s.txPrivacy, (unsigned)s.txPrivacyBlocked);
 	dl_text(t, "data.clear_rx_dropped=%u\n", (unsigned)s.rxClearDropped);
+#if CONFIG_OTAR
+	// OTAR's transport, and a net control's ACKs from members by what came of them (otar.md 12)
+	otar_svc_stats_t os;
+	otar_get_stats(&os);
+	dl_text(t, "otar.rx=%u\notar.rx_closed=%u\notar.rx_full=%u\notar.sent=%u\notar.send_failed=%u\n", (unsigned)os.rx,
+		(unsigned)os.rx_closed, (unsigned)os.rx_full, (unsigned)os.sent, (unsigned)os.send_failed);
+	dl_text(t, "otar.ack_in=%u\notar.ack_unwanted=%u\notar.ack_no_pair=%u\notar.ack_bad_mac=%u\notar.ack_no_match=%u\n"
+		"otar.ack_counted=%u\notar.ack_last_result=%u\n", os.ack[OTAR_AN_IN], os.ack[OTAR_AN_UNWANTED],
+		os.ack[OTAR_AN_NO_PAIR], os.ack[OTAR_AN_BAD_MAC], os.ack[OTAR_AN_NO_MATCH], os.ack[OTAR_AN_COUNTED],
+		os.ack_last_result);
+#endif
 #if CONFIG_KEY_FILL
 	// The receiver's noise for key fill's randomness (key-fill.md 6.1): grabs, passed, failed by reason, stirred in
 	noise_stats_t ns;

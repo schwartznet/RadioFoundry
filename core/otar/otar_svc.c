@@ -41,6 +41,7 @@ void otar_svc_init(void)
 {
 	memset(held, 0, sizeof held);
 	memset(&stats, 0, sizeof stats);
+	stats.ack_last_result = 0xFFu;
 	open_rx = false;
 	send_state = OTAR_SEND_IDLE;
 	airqSetDone(AIRQ_OWNER_OTAR, send_done);
@@ -133,6 +134,16 @@ bool otar_send(uint32_t dst, bool group, const uint8_t *msg, int len)
 otar_send_state_t otar_send_state(void)
 {
 	return (otar_send_state_t)send_state;
+}
+
+void otar_note_ack(otar_ack_note_t what, uint8_t result)
+{
+	if (what >= OTAR_AN_COUNT)
+		return;
+	if (stats.ack[what] != 0xFFFFu)
+		stats.ack[what]++;
+	if (what == OTAR_AN_COUNTED)
+		stats.ack_last_result = result;
 }
 
 void otar_get_stats(otar_svc_stats_t *out)
