@@ -40,6 +40,7 @@ would send by itself does not. Each source checks the flag itself; a reply is dr
 | APRS beacon that falls due by itself (interval, SmartBeaconing, power on, after PTT), on FM or over DMR | Skipped, as if sent: the timers go on | `aprs.c` tick |
 | APRS: Send now, a status, the user's message and its retries | Sent | |
 | APRS ACK to a received message, digipeating, frames from a host (KISS) or the iGate | Not queued | `aprs_ax25.c` `silenced` |
+| OTAR: a member's POSITION answering a net control's LOCATE (Get location) | Not sent; the LOCATE is dropped unread, and the net control shows "no answer" ([otar.md](otar.md) 7.7) | `on_locate` (`ui_svc_otar.c`) |
 | DMR roaming wake probe | Not sent: the search listens only | `roam_probe` |
 | SFR repeater role (repeating, idle beacon, CW ID) | Waits, as with TX inhibit: the radio is an ordinary channel | `sfr_rpt_wait` |
 | Hotspot (MMDVM) and its CW ID | Not entered; a running hotspot's keying is dropped | `hotspot_enter`, `hotspot_arm` |

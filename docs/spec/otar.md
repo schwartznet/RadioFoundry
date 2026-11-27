@@ -69,6 +69,7 @@ its KID, still talks to the net.
 | Roster changes | NC adds, ranks and revokes members over the air; a new member joins in person (6) |
 | Time | NC broadcasts UTC for radios without a clock |
 | Zeroize | On by default in a net, and each radio's user may turn it off: NC tells one member to wipe its keys ([zeroize.md](zeroize.md)) |
+| Get location | On by default in a net, and each radio's user may turn it off: NC asks one member where it is, and the member answers with its position, encrypted and authenticated under their pair keys (7.7) |
 
 ## 4. Switches, files and size
 
@@ -163,6 +164,8 @@ every octet before the MAC, the encrypted body included (encrypt then MAC), trun
 | 7 | TIME | NC to each member in turn | Individual, confirmed | UTC seconds (4) | the pair's K_mac |
 | 8 | ZEROIZE | NC to a member | Individual, confirmed | the member's DMR ID (3) | the pair's K_mac |
 | 9 | TAKEOVER | NC to the talkgroup (reserved, not built: 22) | Group | DMR ID of the NC it replaces (3), the keyset number it will rekey to (4) | from the active keyset; each member then gets a ROSTER (10) |
+| 10 | LOCATE | NC to a member | Individual, confirmed | none: the member answers POSITION (7.7) | the pair's K_mac |
+| 11 | POSITION | member to the NC that asked | Individual, confirmed | the LOCATE's message number (4), result (1), latitude and longitude in 1e-7 degree (4 + 4, signed), altitude in meters (2, signed; 0x8000 unknown), the fix's age in seconds (2, at most 65535) | the pair's K_mac |
 
 A receiver drops and counts, and doesn't show, a message of another length, version or net, from a sender not on the
 roster or revoked, with a message number not above the last one taken from that sender, or whose MAC doesn't check
@@ -244,7 +247,7 @@ turn it Off. The reason: a net control is already trusted to rekey every member,
 (REKEY, CHANGEOVER, TIME, INVENTORY, ROSTER) is always taken from it, so it is trusted to wipe a lost radio too. A
 compromised net control is answered by revoking it (10), not by leaving every radio unwipeable; an owner who doesn't
 want it opts out. The
-member wipes its keys only ([zeroize.md](zeroize.md) 3.2).
+member wipes its keys only ([zeroize.md](zeroize.md) 3.2). Net > **Share location** (7.7), which lets a net control ask where the radio is, is set the same way: On by default, On again at each join or start, Off by the user's choice.
 
 It answers first, so NC learns the wipe happened: on a ZEROIZE it takes (MAC, fresh message number, its own ID) it
 builds an ACK with result 8 (wiped), under the pair keys, echoing the ZEROIZE. From then the engine holds nothing secret
@@ -311,6 +314,47 @@ message it sent. One case it doesn't fix: a net control restored from an old cop
 message after the restore to each member may repeat a counter block under that pair's key (its keystream) before the
 member's answer comes. Its body is mostly a wrapped key or public data, but avoiding that needs a restored radio to
 make a new key pair, left for later.
+
+### 7.7 LOCATE and POSITION
+
+A net control asks one member where it is: Net > Members > OK on a radio > 5 Get location. LOCATE (type 10, 18
+octets, no body) goes under the pair's MAC key; the member answers POSITION (type 11, 35 octets) under the same pair
+keys, so its position is encrypted (7.6) and authenticated like every other body: a listener sees only that a short
+message went from the member to that net control.
+
+The member takes a LOCATE only from a net control on its roster, not revoked, with a fresh message number (7.6), as it
+takes INVENTORY and ZEROIZE; a radio that is only a member can't ask, and one that merely holds the traffic key can't
+forge it. Its answer echoes the LOCATE's message number and carries a result:
+
+| Result | Meaning |
+|---|---|
+| 0 | position: latitude, longitude, altitude (0x8000 when not known) and how old the fix is |
+| 1 | no fix: the radio has no position now |
+| 2 | refused: its Share location is Off |
+
+The position is the one an LRRP answer would carry ([dmr-data.md](dmr-data.md)): the position service's (the board
+GPS, a host feeding NMEA, or the fixed position, by the Position source setting), with the ambiguity setting applied.
+A fixed position counts as a position, its age 0.
+
+Net > **Share location** on the member, under Remote wipe: On by default, and set On again whenever the radio joins
+or starts a net (`settings_t.otar_locate`), for the reason 7.5 gives for Remote wipe: a net control is trusted with
+far more than this already. The radio's user can turn it Off; the net control then sees "refused" rather than silence.
+
+Limits: a member answers one net control at most once every 10 s, whatever arrives; a LOCATE played back has an old
+number and gets at most the rate-limited "old message number" (7.6), never a POSITION. Under radio silence
+([radio-silence.md](radio-silence.md)) the member doesn't answer at all: where the radio is, said by itself, is the
+last thing a radio that keeps quiet should send. The net control sees "no answer".
+
+NC side: one LOCATE in flight at a time, tried up to 3 times 20 s apart until the POSITION echoing its last try comes;
+it checks the POSITION only when it waits for one from that radio (the X25519 a MAC needs isn't spent on others). A
+second Get location while one is asking says "Still asking". The answer shows on a screen of its own (the member
+screen's body has room for two lines on a 128x64 display) and under the member screen's other lines once back:
+"Location: asking", "no fix", "refused", "no answer", or "Location: -33.86885, 151.20930" (5 decimals) and below it the
+distance and compass point from this radio's own position when it has one ("850 m NE", "1.2 km NE") with the fix's age
+("40s ago", counting on while shown), or the age alone.
+
+A radio from before LOCATE drops type 10 unread (an unknown type, `otar_peek`), so asking it ends in "no answer".
+The protocol version stays 4, as for the ACK results of 7.2.
 
 ## 8. Keys in use
 
@@ -383,6 +427,7 @@ on voice.
 | A forged REKEY, ROSTER or ZEROIZE | Needs the pair's K_mac, which only that NC and that member can derive |
 | A forged CHANGEOVER | Needs the next keyset, which a radio left out of the rekey doesn't have; a revoked sender is refused |
 | A forged TIME | Needs the pair's K_mac (7.4): holding the traffic key isn't enough |
+| Tracking a member | Only a net control of its roster can ask where it is (LOCATE, 7.7), under the pair keys; the answer is encrypted to that net control. A replay gets no position, a member answers one net control at most every 10 s, and never under radio silence. Its owner can turn Share location off |
 | Replay | Message numbers per sender, kept by the sender's DMR ID (7.6), and keyset numbers only go up (7.1). A radio makes a new key pair for each net it joins or starts and Leave wipes it, so a message recorded before a rejoin doesn't check under the new pair keys |
 | A backup NC raising its rank | Refused by the members (10) |
 | A radio in the middle of a join | The six-digit code ([key-fill.md](key-fill.md) 4): the sender's fresh nonce is committed before the other radio answers, so even with long-lived public keys the code can't be steered (1 in a million) |
@@ -395,9 +440,9 @@ on voice.
 
 | Where | Rows |
 |---|---|
-| Net (member) | Members, Request keys (HELLO, 9; the status line under it), Remote wipe, Leave the net |
+| Net (member) | Members, Request keys (HELLO, 9; the status line under it), Remote wipe, Share location (7.7), Leave the net |
 | Tools > Net keys (NC adds) | Net status, Rekey now, Rekey schedule, Change over now, Add a member, Revoke a member, Take over, Send time |
-| Net | Remote wipe: On (default in a net) / Off |
+| Net | Remote wipe: On (default in a net) / Off; Share location the same (7.7) |
 | Settings > Privacy | Clock source |
 | Home | The AES256 badge as today; the KID on the chips line |
 
@@ -508,7 +553,7 @@ What succession needs before it can work, built on phase 3:
 | Take over | Net control 2-4: Net > Take over takes the highest-ranked net control above it that isn't revoked as lost: revoked in its own roster and sent to every member. A member that gets a lower net control's ROSTER revoking a higher one (only the revoked flag changed) doesn't store it: it answers ACK result 7 (asked) and its Net screen shows "NC 2 says NC 1 is lost" with Accept the take over and Refuse the take over. The net control's Net screen counts these ("asked 2"). Then the net control rekeys without the lost one. The TAKEOVER group message (7, type 9) is not built: the per-member ROSTER carries it |
 | Backup net controls | A net control takes REKEY and CHANGEOVER from another net control like any member, so a backup holds the net's keys; it doesn't while its own rekey run is going |
 | Remote wipe | Net > Remote wipe: On (the default, and set again at each join or start, 7.5) or Off, per radio (`settings_t.otar_wipe`). ZEROIZE (type 8, 21 octets: the target's DMR ID, under the pair's MAC key) from a net control on the roster, not revoked, with a fresh message number and this radio's ID wipes its keys as Clear all keys does ([zeroize.md](zeroize.md)) and restarts, after its ACK "wiped" has gone (7.5). With Remote wipe off it is answered "refused". A net control sends it with 3 Wipe its keys on a member, up to 3 times until answered |
-| Member screen | Net > Members > OK on a radio (a net control only): 1 Rank, 2 Revoke, 3 Wipe its keys, and the radio's ID and fingerprint. Members shows "revoked" after a revoked radio's ID |
+| Member screen | Net > Members > OK on a radio (a net control only): 1 Rank, 2 Revoke, 3 Wipe its keys, and the radio's ID and fingerprint (later 4 Ask its keys, 22, and 5 Get location, 25). Members shows "revoked" after a revoked radio's ID |
 
 Checked on air 2026-11-23/24 with three radios: net control 1 made 4678512 net control 2, which wiped net control 1's
 keys remotely, took over (the member asked first: "NC 2 says NC 1 is lost", then Accept), rekeyed to key 38 leaving
@@ -525,7 +570,7 @@ the revoked radio out ("Key 38: 1 of 1 have it"), and changed the net over: both
 | Removed from the net | Revoke now tells the revoked radio too: its own entry, revoked. It takes it from a net control above its own rank (any net control, for a member), stores it, ACKs, and its Net screen shows "Removed from the net"; it says no HELLO after that. Leave the net clears it. A take over still doesn't tell the lost net control |
 | Joining after a rekey | Key fill goes in the clear on the AES channel ([dmr-data.md](dmr-data.md) 13.5), so a radio whose codeplug holds only an older key can still join. Found on air: before, the joining radio dropped the net control's key fill under the new key and the join failed. The join itself carries no key: on air the joined radio stayed on its old key, its HELLO and the net control's REKEYs each dropped under the other's channel key. Section 23 fixes that |
 | TAKEOVER | Not built: the ROSTER each member gets (21) carries it and is answered member by member, which a group message wouldn't be. Type 9 stays reserved |
-| Net control's menu | 1 Members, 2 Add a member, 3 Rekey now, 4 Key change, 5 Net status, 6 Change over the net, 7 Send the roster, (8 Take over on net control 2-4), Rekey every, Send the time, Remote wipe, Leave the net |
+| Net control's menu | 1 Members, 2 Add a member, 3 Rekey now, 4 Key change, 5 Net status, 6 Change over the net, 7 Send the roster, (8 Take over on net control 2-4), Rekey every, Send the time, Remote wipe, Share location (25), Leave the net |
 
 Checked on air 2026-11-24 (net control 2 and one member): Ask its keys showed "Keys: keyset 7 OK"; Rekey every 1 day showed the next rekey a day on; Send the time went out (the member, with GPS, kept its own clock, as 7.4 says; the rule for a radio without a clock is host-tested in `radioCoreTest`); revoking the member made it show "Removed from the net". Then, in a fresh net: a rekey to key 78 "in 5 min"; the member, its GPS turned off and restarted (its board clock doesn't run), had no clock and changed over at 01:23 on the net control's CHANGEOVER (3 data bursts 2 s apart at the changeover); Send the time then set its clock (source "net"). A scheduled rekey firing is not yet seen on air (host flows only).
 
@@ -754,3 +799,25 @@ a bad MAC never answered; NC skipping its numbers and resending, and "out of syn
 after joining. Each fails against the engine from before (the behavior wasn't there); the old-number limit, the
 ZEROIZE's order and the 8-member HELLO limit were also taken out one at a time, and the test fails each time. Not
 checked on air yet.
+
+## 25. Get location (as built, 2026-11-26)
+
+| Part | What it does |
+|---|---|
+| LOCATE, POSITION | Types 10 and 11 (7, 7.7): a net control asks one member where it is, and the member answers under their pair keys, its position encrypted and authenticated. Type 9 stays reserved for TAKEOVER (22) |
+| Share location | Net > Share location on every radio in a net, under Remote wipe: On by default and set again at each join or start (`settings_t.otar_locate`, [settings-store.md](settings-store.md)); Off answers "refused" |
+| Get location | Net > Members > OK on a radio > 5 Get location: a screen with "Location: asking", then the position, the distance and compass point from this radio and the fix's age, or "no fix", "refused", "no answer" (3 tries, 20 s apart). Back returns to the member screen, which shows the same lines under its others |
+| Limits | One LOCATE asked at a time; a member answers each net control at most once per 10 s, never a replay, never under radio silence (7.7) |
+| Old radios | Drop type 10 (an unknown type): "no answer". The protocol version stays 4 |
+
+Tests: `otarEngineTest` adds the member's answer (position, south and west, altitude unknown, the fix's age), Share
+location off answered "refused", no fix answered "no fix", nothing under radio silence, a LOCATE from a roster member
+that isn't a net control, from a radio off the roster or with a bad MAC ignored, a replay never answered with a
+position, a fresh one within 10 s not answered; the net control's tries (3, 20 s apart, then "no answer"), a POSITION
+echoing another number or from a radio not asked ignored, the answer's age counting on, the distance from this radio's
+own position, and Share location set again at a join. The authority check, the 10 s limit, radio silence and the
+echo check were each taken out in turn, and the test fails each time. `otarCryptoTest` builds and opens both messages:
+negative coordinates, altitude unknown, the body not in the clear, a MAC the other way round refused, an unknown result
+or a latitude past the pole refused. `uiFlowTest` covers the row, asking, each answer, Back to the member screen, one
+at a time, and Share location On after joining and Off once chosen; `uiSim --layout` checks the screens at every
+display size. Not checked on air yet.
