@@ -1817,7 +1817,7 @@ static __attribute__((noinline)) void ch_send(const radio_view_t *v, const otar_
 void ui_svc_net_joined(void)
 {
 	eng.manage_due = true;
-	net.chan_due = false;	// the net's channel: the one it joined on, until its net control says another (7.8)
+	net.chan_due = true;	// the net's channel: the one it joined on, until its net control says another (7.8)
 	settings_t *st = settings_begin();
 	st->otar_wipe = 1u;
 	st->otar_loc_off = 0u;	// Share location the same (7.7)
