@@ -620,6 +620,8 @@ CONFIG_DMR_DATA_TX_GUARD_MS ?= 250
 # Auto DMR ID's range (docs/spec/auto-dmr-id.md): IDs BASE to BASE + SPAN - 1
 CONFIG_AUTO_DMR_ID_BASE ?= 4670000
 CONFIG_AUTO_DMR_ID_SPAN ?= 10000
-VALUES := DISPLAY_INSET_TOP DISPLAY_INSET_BOTTOM DISPLAY_INSET_LEFT DISPLAY_INSET_RIGHT DMR_AIR_QUEUE_BYTES \
-	  DMR_DATA_TX_GUARD_MS AUTO_DMR_ID_BASE AUTO_DMR_ID_SPAN
+# The traffic keys an AES channel holds (docs/spec/dmr-voice.md 5.1): its TX key and up to this many less one more
+# of its system's, so calls on any of them play, chosen by the PI header's key ID. 34 bytes of RAM each, 1 to 16
+CONFIG_DMR_AES_KEYS ?= 4
+VALUES := DISPLAY_INSET_TOP DISPLAY_INSET_BOTTOM DISPLAY_INSET_LEFT DISPLAY_INSET_RIGHT DMR_AIR_QUEUE_BYTES 	  DMR_DATA_TX_GUARD_MS AUTO_DMR_ID_BASE AUTO_DMR_ID_SPAN DMR_AES_KEYS
 FEATURE_DEFS += $(foreach v,$(VALUES),-DCONFIG_$(v)=$(strip $(CONFIG_$(v))))
