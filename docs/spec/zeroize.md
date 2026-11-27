@@ -22,7 +22,8 @@ any other radio still hold the keys. A group whose radio was lost must still cha
 | Secrets out of the codeplug settings area | `core/codeplug/codeplug_kv.c` (`codeplug_kv_remove_range`) |
 | The codeplug's regions | `core/codeplug/codeplug.c` (`codeplug_wipe`) |
 | NAND: superseded copies erased | `drivers/flash/nand_sectors` (`nand_sectors_purge`), `hal_flash_t.purge` |
-| RAM in the radio core | `core/radio/radio_sm.c` (`RREQ_ZEROIZE`), `core/radio/radio_nxdn.c` |
+| RAM in the radio core | `core/radio/radio_sm.c` (`RREQ_ZEROIZE`), `core/radio/radio_nxdn.c`, `core/radio/radio_aes.c` |
+| The AES channel's key schedule (`CONFIG_DMR_AES`) | The same request (`radio_aes_wipe`): zeroed, TX refused; the MI sequence stays, so no position is used twice. The second request finds no traffic key left in the codeplug to reload |
 | A key fill session (`CONFIG_KEY_FILL`) | `core/ui/ui_svc_keyfill.c` (`zeroize_ram_hook`), `core/support/entropy.c` (`entropy_wipe`) |
 | Radio UI | Settings > Privacy rows, the code screen and the wipe screen (`core/ui/ui_menus.c`), the key sequence (`core/ui/ui_app.c`), `core/ui/ui_svc_zeroize.c` |
 

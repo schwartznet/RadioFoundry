@@ -8884,6 +8884,9 @@ static void zeroize_keys(radio_sm_t *sm)
 	sm->privacy_key = 0;
 	memset(&privacy_key, 0, sizeof(privacy_key));
 	memset(&data_key, 0, sizeof(data_key));
+#if CONFIG_DMR_AES
+	radio_aes_wipe();	// the AES channel's key schedule; dmr_configure below reloads only what the codeplug still holds
+#endif
 	if (sm->dmr_running) {
 		dmr_configure(sm);	// the call stack's hook and service options without the key
 	}
