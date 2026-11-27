@@ -4001,10 +4001,16 @@ static void test_dmr_voice_features(void)
 	kv_t3_set(CODEPLUG_KEY_TRAFFIC + 1, traffic6, sizeof traffic6);
 	kv_t3_set(CODEPLUG_KEY_TRAFFIC + 2, traffic7, sizeof traffic7);
 	reload_channel();
+	uint16_t missed = sm.view.dmr.key_missed;
 	CHECK(hear_pi_call(9994001, 0, 0x11111111u) == 0);
 	CHECK(hear_pi_call(9994002, 6, 0x22222222u) == 0);
+	CHECK(sm.view.dmr.key_missed == missed);	// played: not counted as missed (otar.md 30.1)
 	CHECK(hear_pi_call(9994003, 7, 0x33333333u) == 12);
+	// A call not played for want of its key: counted once (not per burst), with the PI header's algorithm and key ID
+	CHECK(sm.view.dmr.key_missed == (uint16_t)(missed + 1u) && sm.view.dmr.key_missed_alg == 0x25 &&
+	      sm.view.dmr.key_missed_kid == 7);
 	CHECK(hear_pi_call(9994004, 9, 0x44444444u) == 12);
+	CHECK(sm.view.dmr.key_missed == (uint16_t)(missed + 2u) && sm.view.dmr.key_missed_kid == 9);
 	first = sim.air_count;
 	tx_once();
 	pi = false;

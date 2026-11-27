@@ -2276,6 +2276,131 @@ static void test_review2_silence(void)
 }
 #endif
 
+// ===================== asking for keys on voice it can't decrypt (otar.md 30): the engine a member
+// A call heard under key ID kid that the radio couldn't play (the call stack's count, through the radio view)
+static void key_missed(uint8_t kid)
+{
+	view.dmr.key_missed++;
+	view.dmr.key_missed_alg = DMR_AES_ALG_AES256;
+	view.dmr.key_missed_kid = kid;
+}
+
+// The net control's ACK of the engine's last HELLO: up to date
+static void hello_up_to_date(void)
+{
+	otar_msg_t r, m;
+	uint8_t buf[OTAR_MSG_MAX];
+	CHECK(last_out(&r) && r.type == OTAR_HELLO);
+	memset(&m, 0, sizeof m);
+	m.rank = 1;
+	m.result = OTAR_ACK_CURRENT;
+	m.echo = r.msgnum;
+	m.keyset = 4;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &m, buf));
+	run(1000);
+}
+
+static void test_auto_request(void)
+{
+	setup(0);
+	roster_add(PEER_ID, 1, peer_pub);
+	roster_add(ENGINE_ID, 0, eng_pub);
+	otar_start(&keys, 0, 77);
+	tek[77].used = true;
+	keys.ks_active = 4;
+	view.ch.mode = RADIO_MODE_DMR;	// on the channel whose keys it manages (system 0)
+	view.ch.kind = CODEPLUG_KIND_DMR_AES;
+	view.ch.system = 0;
+	run(25000);		// the HELLO at start, answered
+	hello_up_to_date();
+	ui_net_view_t nv;
+	ui_svc_net_view(&nv);
+	CHECK(nv.hello == UI_HELLO_CURRENT);
+	out_n = 0;
+
+	// The net's voice under key 90, which it doesn't hold: one HELLO, shown as asking
+	key_missed(90);
+	run(1000);
+	CHECK(count_type(OTAR_HELLO) == 1 && out_n == 1);
+	ui_svc_net_view(&nv);
+	CHECK(nv.hello == UI_HELLO_ASKING);
+	// ... unanswered: the HELLO's own retries, a minute on, and no more for further calls meanwhile
+	key_missed(90);
+	run(61000);
+	CHECK(count_type(OTAR_HELLO) == 2);
+	hello_up_to_date();
+	// Again within 3 minutes of the first: none
+	key_missed(90);
+	run(1000);
+	CHECK(count_type(OTAR_HELLO) == 2);
+	// Past them: another
+	run(120000);
+	key_missed(90);
+	run(1000);
+	CHECK(count_type(OTAR_HELLO) == 3);
+	// ... left unanswered: its retry a minute on; past 3 minutes a further call while it is still pending asks nothing
+	run(61000);
+	CHECK(count_type(OTAR_HELLO) == 4);
+	run(121000);
+	key_missed(90);
+	run(1000);
+	CHECK(count_type(OTAR_HELLO) == 4);
+	hello_up_to_date();
+	run(181000);
+	// Under a key it holds (a call it couldn't play for another reason): none
+	key_missed(77);
+	run(1000);
+	CHECK(count_type(OTAR_HELLO) == 4);
+	// Another algorithm: none
+	view.dmr.key_missed++;
+	view.dmr.key_missed_alg = 0x21;
+	view.dmr.key_missed_kid = 90;
+	run(1000);
+	CHECK(count_type(OTAR_HELLO) == 4);
+	// On another channel (not the managed system's): none
+	view.ch.system = 3;
+	key_missed(90);
+	run(1000);
+	CHECK(count_type(OTAR_HELLO) == 4);
+	view.ch.system = 0;
+#if CONFIG_RADIO_SILENCE
+	// Under radio silence: none, nor once it ends (the call was heard under it)
+	radio_silence_flag = true;
+	key_missed(90);
+	run(1000);
+	radio_silence_flag = false;
+	run(60000);
+	CHECK(count_type(OTAR_HELLO) == 4);
+#endif
+	// Not managing keys: none
+	otar_stop(&keys);
+	key_missed(90);
+	run(1000);
+	CHECK(count_type(OTAR_HELLO) == 4);
+	// ... nor later: managing keys again, nothing goes until such a call is heard again, which asks
+	otar_start(&keys, 0, 77);
+	keys.ks_active = 4;
+	run(1000);
+	CHECK(count_type(OTAR_HELLO) == 4);
+	key_missed(90);
+	run(1000);
+	CHECK(count_type(OTAR_HELLO) == 5);
+
+	// A net control: none
+	setup(1);
+	roster_add(ENGINE_ID, 1, eng_pub);
+	roster_add(PEER_ID, 0, peer_pub);
+	otar_start(&keys, 0, 77);
+	keys.ks_active = 4;
+	run(3000);
+	out_n = 0;
+	key_missed(90);
+	run(30000);
+	CHECK(out_n == 0);
+	memset(&view.ch, 0, sizeof view.ch);
+}
+
+
 int main(void)
 {
 	test_msgnum();
@@ -2305,6 +2430,7 @@ int main(void)
 #if CONFIG_RADIO_SILENCE
 	test_review2_silence();
 #endif
+	test_auto_request();
 	printf("otarEngineTest: %d checks, %d failures\n", checks, failures);
 	return failures != 0;
 }

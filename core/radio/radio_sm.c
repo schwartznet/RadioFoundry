@@ -2401,6 +2401,9 @@ static void dmr_publish(radio_sm_t *sm, uint32_t now_ms)
 		d->last_ms = cv->last_heard_ms;
 	}
 	d->underruns = cv->tx_underruns;
+	d->key_missed = cv->key_missed;
+	d->key_missed_alg = cv->key_missed_alg;
+	d->key_missed_kid = cv->key_missed_kid;
 	changed(sm);
 }
 

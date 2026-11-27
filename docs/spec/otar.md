@@ -1009,3 +1009,28 @@ bits refused, an INVENTORY and a REKEY interleaved, a WITHDRAW from a backup net
 for Request keys under silence. `radioCoreTest` adds the withdrawn key erased while the overlap's erase runs, the
 pending erase saved and cleared, and a replaced next key erased. Every fix was taken out in turn, and a test fails each
 time.
+
+## 30. Asking for keys by itself (as built, 2026-11-27)
+
+### 30.1 Asking for keys on the net's voice
+
+A member that missed a rekey (off, out of range, or on another channel while the rekey went out) heard the net's voice
+as silence until the next HELLO retry, up to 15 minutes later, or until the user thought of Net > Request keys. A member
+that hears the net's voice under a key the radio doesn't hold now asks at once.
+
+| Part | What happens |
+|---|---|
+| What is counted | The call stack counts a call not played for want of the key the call's PI header names, once per call, with the header's algorithm and key ID (`dmr_call_view_t.key_missed`, `_alg`, `_kid`; `rx_enc_dropped`, [dmr-voice.md](dmr-voice.md), counts the bursts). The radio task copies the three into the radio view (`radio_dmr_view_t`). A late entry heard without a PI header names no key and isn't counted: the radio may well hold the key |
+| When the member asks | The count went up, and: the radio is a member (rank 0, not removed) managing keys; the radio is on the channel whose system the radio manages (DMR, an AES channel, the managed system); the call was AES-256 under a key ID that none of the radio's keysets (active, next, previous in the overlap) names; no HELLO is pending; radio silence is off; and the last request of this kind was at least 3 minutes ago (`AUTO_REQ_GAP_MS`) |
+| What goes out | The HELLO of 9, as Request keys sends one but not marked as the user's: unanswered, the usual retries follow (1, 5, then 15 minutes), and radio silence holds them as the silence holds the HELLO at start. The Net screen shows "Asking for keys", then "Keys received" or "Keys up to date" |
+| What doesn't ask | Traffic on another system or another channel, a call under a key the radio holds (lost for another reason), a call heard under radio silence (no request later either) |
+
+The net's voice under an outsider's key on the same channel makes a member ask at most once every 3 minutes, each
+HELLO to the member's own net control under the pair keys: one short message, less than the HELLO retries cost
+already. The net control answers one member at most once every 2 minutes (9).
+
+Tests: `otarEngineTest` adds a member hearing the net's voice under a key the radio doesn't hold (one HELLO, shown as
+asking, the HELLO's own retries meanwhile, none again within 3 minutes, another after them) and the cases that don't
+ask (a key the radio holds, another algorithm, another channel, under radio silence and after, keys not managed, a net
+control). `radioCoreTest` adds the count in the radio view: a call played isn't counted, one not played is counted
+once, with the call's algorithm and key ID.

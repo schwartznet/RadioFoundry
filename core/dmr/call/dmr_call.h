@@ -261,6 +261,8 @@ typedef struct {
 	uint8_t wake_admits;		// counts repeater wake-ups answered after PTT was let go: the call would have been admitted
 	uint8_t permit_seq;		// counts talk permit holds (permit_hold_ms): play the talk permit now
 	uint8_t wake_sent;		// counts BS_Dwn_Act bursts sent (repeater wake-ups): the red LED blinks once per burst
+	uint16_t key_missed;		// counts calls not played for want of the key their PI header names (CONFIG_DMR_AES)
+	uint8_t key_missed_alg, key_missed_kid;	// ... the last one's algorithm and key ID
 } dmr_call_view_t;
 
 void dmr_call_config_default(dmr_call_config_t *cfg);

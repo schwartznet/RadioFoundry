@@ -43,6 +43,7 @@ would send by itself does not. Each source checks the flag itself; a reply is dr
 | OTAR: a member's POSITION answering a net control's LOCATE (Get location) | Not sent; the LOCATE is dropped unread, and the net control shows "no answer" ([otar.md](otar.md) 7.7) | `on_locate` (`ui_svc_otar.c`) |
 | OTAR: a member's other answers (the ACK of a REKEY, WITHDRAW, ROSTER, NETCHAN, ZEROIZE or INVENTORY, "old message number") | Not sent. What the message carries is still taken: a REKEY's key is stored, a WITHDRAW drops the keyset, a ZEROIZE wipes. The net control shows "no answer" and tries again later | `silenced` (`ui_svc_otar.c`) |
 | OTAR: a member's HELLO at start | Waits until silence ends. Net > Request keys (the user's own) goes | `engine_tick` |
+| OTAR: a member's HELLO on the net's voice under a key the radio doesn't hold ([otar.md](otar.md) 30.1) | Not started: a call heard under silence never makes the radio ask, then or later | `auto_req` |
 | OTAR: a net control's answers to a member's HELLO, an ACK or POSITION to a higher net control | Not sent | `hello_answer`, `silenced` |
 | OTAR: what the net control's user starts or scheduled (Rekey now and a scheduled rekey (Rekey every), their retries and the CHANGEOVER at a changeover by the clocks, Change over the net, Send the roster, Send the time, a wipe, Ask its keys, Get location, the net's channel, Move or Cancel the change) | Sent: a schedule is the user's own | |
 | DMR roaming wake probe | Not sent: the search listens only | `roam_probe` |

@@ -128,6 +128,7 @@ static struct {
 	bool crypt_have;	// crypt_n is known
 	uint32_t crypt_n;	// the last burst played, counted from burst A of superframe 0
 	uint32_t crypt_pi_ms;	// the PI header heard
+	bool key_missed;	// this call is counted in view.key_missed already
 #endif
 
 	// repeater outbound
@@ -691,6 +692,7 @@ static void rx_lc(const uint8_t lc[DMR_LC_BYTES], const dmr_burst_t *b, bool lat
 			c->pi_mi = 0;
 #if CONFIG_DMR_AES
 			s.crypt_have = false;
+			s.key_missed = false;
 #endif
 		}
 		// Only to a call whose LC says it is encrypted: a stray PI header must not send a clear call through the hook
@@ -865,6 +867,17 @@ static void rx_play(const dmr_burst_t *b, uint32_t now, uint32_t slot)
 #endif
 	if (enc && drop) {
 		stats.rx_enc_dropped++;
+#if CONFIG_DMR_AES
+		// A call under a key this radio doesn't hold, named by its PI header: counted once, with that key, so OTAR can
+		// ask for keys (otar.md 30). A late entry without the header names no key and isn't counted
+		if (pi && !s.key_missed) {
+			s.key_missed = true;
+			s.view.key_missed++;
+			s.view.key_missed_alg = s.view.caller.pi_alg;
+			s.view.key_missed_kid = s.view.caller.pi_key;
+			s.dirty = true;
+		}
+#endif
 		TR_WHAT('e');
 		sink_lost(DMR_AMBE_FRAMES_PER_BURST);
 		return;

@@ -233,6 +233,10 @@ typedef struct {
 	radio_dmr_call_t last;
 	uint32_t last_ms;	// hal_millis() of its last burst, 0 = none yet
 	uint32_t underruns;	// TX voice frames sent as silence (diagnostics)
+	// Calls not played for want of the key their PI header names, counted, and the last one's algorithm and key ID:
+	// OTAR asks for keys on them (docs/spec/otar.md 30)
+	uint16_t key_missed;
+	uint8_t key_missed_alg, key_missed_kid;
 } radio_dmr_view_t;
 #endif
 

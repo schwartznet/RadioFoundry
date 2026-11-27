@@ -334,6 +334,7 @@ uint8_t ui_svc_net_member_flags(uint16_t i)
 #define WD_WAIT_MS	2000u	// a member's WITHDRAW: its keyset seen gone before DROPPED is answered (else asked again)
 #define WD_TRIES	3u
 #define HELLO_ASKED_MAX	3u	// Request keys under radio silence: at most this many HELLOs (no answer comes under it)
+#define AUTO_REQ_GAP_MS	180000u	// a member asks for keys by itself, on its net's voice it can't decrypt, at most this often
 
 typedef struct {
 	uint32_t id;
@@ -514,6 +515,11 @@ static struct {
 	bool co_hand;		// Change over the net by hand: the run's end sends no CHANGEOVER of its own
 	uint32_t sched_ms;	// the schedule last looked at
 	uint16_t silence_dropped;	// replies not sent under radio silence (silenced)
+	// A member: the count of calls heard under a key it doesn't hold last looked at, and when it last asked for keys
+	// by itself on one (auto_req)
+	uint16_t miss_seen;
+	bool auto_asked;
+	uint32_t auto_at;
 } eng;
 
 // A rekey's key or a new net's key pair still waits for randomness
@@ -2218,6 +2224,32 @@ uint8_t ui_svc_net_request_keys(const radio_view_t *v)
 	return UI_NET_OK;
 }
 
+// A member that hears voice it can't decrypt asks for keys by itself (otar.md 30): a HELLO as Request keys sends, not
+// marked asked, so radio silence holds it as the HELLO at start. Only for a call on the channel whose keys it manages,
+// under an AES-256 key ID none of its keysets names (the PI header's), at most once per AUTO_REQ_GAP_MS, and not while
+// a HELLO is pending (its retries go on as they are). True: a HELLO is due
+static bool auto_req(const radio_view_t *v, const otar_net_t *n, uint32_t now)
+{
+	if (v->dmr.key_missed == eng.miss_seen)
+		return false;
+	eng.miss_seen = v->dmr.key_missed;
+	const radio_otar_view_t *o = &v->otar;
+	uint8_t kid = v->dmr.key_missed_kid;
+	bool held = (o->has_kid && kid == o->kid) || (o->has_next && kid == o->next_kid) || (o->has_prev && kid == o->prev_kid);
+	bool managed = v->ch.mode == RADIO_MODE_DMR && v->ch.kind == CODEPLUG_KIND_DMR_AES && v->ch.system == o->system;
+	if (n->rank != 0 || (n->flags & OTAR_NET_REMOVED) || !o->on || !managed || held ||
+	    v->dmr.key_missed_alg != DMR_AES_ALG_AES256 || eng.hello.on || radio_silent() ||
+	    (eng.auto_asked && (uint32_t)(now - eng.auto_at) < AUTO_REQ_GAP_MS))
+		return false;
+	eng.auto_asked = true;
+	eng.auto_at = now;
+	eng.hello.on = true;
+	eng.hello.asked = false;
+	eng.hello.n = 0;
+	eng.hello.due = now;
+	return true;
+}
+
 // The rekey schedule (settings_t.otar_sched, otar_sched_at): every this many days, and when the next is due
 static uint8_t sched_get(uint32_t *at)
 {
@@ -2307,6 +2339,7 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 			rk_free();
 	}
 	if (!in) {
+		eng.miss_seen = v->dmr.key_missed;	// calls heard out of a net don't ask for keys once in one
 		crypto_wipe(&n, sizeof n);
 		if (eng.zz_wipe)
 			zz_wipe_start();	// out of the net meanwhile: the wipe all the same
@@ -2429,7 +2462,9 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 		manage_joined(v);
 	// A member back on asks its net control for keys with HELLO (9), again until it is answered; not once it is
 	// removed from the net
-	// Radio silence (radio-silence.md 3): the automatic HELLO waits until it ends; the user's Request keys goes
+	// Radio silence (radio-silence.md 3): the automatic HELLO waits until it ends; the user's Request keys goes. Voice
+	// of the net it can't decrypt makes it ask too (otar.md 30)
+	changed = auto_req(v, &n, now) || changed;
 	if (n.rank == 0 && eng.hello.on && v->otar.on && !(n.flags & OTAR_NET_REMOVED) && mn_ok &&
 	    (int32_t)(now - eng.hello.due) >= 0 && eng.out_len == 0 && !eng.sending &&
 	    ((eng.hello.asked && eng.hello.n < HELLO_ASKED_MAX) || !radio_silent())) {
