@@ -9188,7 +9188,7 @@ static void nk_enter(void)
 // The fingerprint is the radio's public key's, which another radio's Members list shows for it
 enum { NET_START, NET_JOIN, NET_MEMBERS, NET_ADD, NET_REKEY, NET_RK_WHEN, NET_STATUS, NET_CHANGE_OVER, NET_ROSTER,
        NET_TAKE_OVER, NET_WIPE_OK, NET_ACCEPT, NET_REFUSE, NET_LEAVE, NET_SCHED, NET_TIME, NET_REQUEST, NET_SHARE_LOC,
-       NET_ROWS };
+       NET_CHAN, NET_ROWS };
 static const uint8_t net_sched_days[] = { 0, 1, 7, 30 };	// Rekey every (otar.md 9)
 static uint8_t net_rk_when = 1;	// Key change: index into nk_mins, 5 min each time Net opens
 static uint32_t net_typed;	// Add a member: the ID typed
@@ -9230,6 +9230,7 @@ static uint8_t net_rows(uint8_t out[NET_ROWS])
 	}
 	out[k++] = NET_WIPE_OK;
 	out[k++] = NET_SHARE_LOC;	// a net control may ask where this radio is (LOCATE, otar.md 7.7)
+	out[k++] = NET_CHAN;		// the net's channel (otar.md 7.8): net control 1 sets it
 	out[k++] = NET_LEAVE;
 	return k;
 }
@@ -9245,6 +9246,20 @@ static uint16_t net_count(void)
 	return net_rows(rows);
 }
 
+// The net's channel (otar.md 7.8) as the Net screen names it: its name, else its frequency; "None" when it has none
+static void net_chan_name(sbuf_t *b, const otar_chan_t *c)
+{
+	char name[OTAR_CHAN_NAME + 1];
+	memcpy(name, c->name, OTAR_CHAN_NAME);
+	name[OTAR_CHAN_NAME] = 0;
+	if (c->rx_hz == 0)
+		sb_str(b, TR(NET_CHAN_NONE, "None"));
+	else if (name[0] != 0)
+		sb_str(b, name);
+	else
+		sb_freq(b, c->rx_hz);
+}
+
 static void net_item(uint16_t i, ui_item_t *it)
 {
 	static const tr_id_t names[] = { TRN(NET_START, "Start a net"), TRN(NET_JOIN, "Join a net"),
@@ -9255,7 +9270,8 @@ static void net_item(uint16_t i, ui_item_t *it)
 					 TRN(NET_REMOTE_WIPE, "Remote wipe"), TRN(NET_ACCEPT, "Accept the take over"),
 					 TRN(NET_REFUSE, "Refuse the take over"), TRN(NET_LEAVE, "Leave the net"),
 					 TRN(NET_SCHED, "Rekey every"), TRN(NET_TIME, "Send the time"),
-					 TRN(NET_REQUEST, "Request keys"), TRN(NET_SHARE_LOC, "Share location") };
+					 TRN(NET_REQUEST, "Request keys"), TRN(NET_SHARE_LOC, "Share location"),
+					 TRN(NET_CHAN, "Net channel") };
 	uint8_t row = net_row(i);
 	str_copy(it->label, sizeof it->label, tr(names[row]));
 	if (row == NET_RK_WHEN) {
@@ -9270,6 +9286,12 @@ static void net_item(uint16_t i, ui_item_t *it)
 		ui_net_view_t n;
 		net_view_now(&n);
 		str_copy(it->value, sizeof it->value, n.share_location ? TR(NET_ON, "On") : TR(NET_OFF, "Off"));
+	} else if (row == NET_CHAN) {
+		ui_net_view_t n;
+		net_view_now(&n);
+		sbuf_t b;
+		sb_init(&b, it->value, sizeof it->value);
+		net_chan_name(&b, &n.chan);
 	} else if (row == NET_SCHED) {
 		ui_net_view_t n;
 		net_view_now(&n);
@@ -9330,6 +9352,18 @@ static const char *net_body(void)
 		sb_str(&b, TR(NET_ASK_LEAVE, "Leave the net? Rejoining needs a key fill"));
 		return id_body;
 	}
+	if (net_ask == NET_CHAN) {
+		otar_chan_t here;
+		memset(&here, 0, sizeof here);
+		const radio_view_t *v = ui_view();
+		here.rx_hz = v->ch.rx_hz;
+		size_t nl = strlen(v->ch.name);
+		memcpy(here.name, v->ch.name, nl < OTAR_CHAN_NAME ? nl : OTAR_CHAN_NAME);
+		sb_str(&b, TR(NET_ASK_CHAN, "Make "));
+		net_chan_name(&b, &here);
+		sb_str(&b, TR(NET_ASK_CHAN_END, " the net's channel? Every member is told"));
+		return id_body;
+	}
 	if (net_typing) {
 		sb_str(&b, TR(NET_TYPE_ID, "Member's DMR ID: "));
 		if (net_typed_n > 0)
@@ -9357,11 +9391,20 @@ static const char *net_body(void)
 		if (n.removed) {	// a net control revoked this radio (otar.md 7.5)
 			sb_chr(&b, '\n');
 			sb_str(&b, TR(NET_REMOVED, "Removed from the net"));
-		} else if (n.rank == 0 && n.hello != UI_HELLO_NONE) {	// its request for keys (otar.md 9)
-			sb_chr(&b, '\n');
-			sb_str(&b, n.hello == UI_HELLO_ASKING ? TR(NET_HELLO_ASKING, "Asking for keys") :
-				   n.hello == UI_HELLO_CURRENT ? TR(NET_HELLO_CURRENT, "Keys up to date") :
-				   TR(NET_HELLO_GOT, "Keys received"));
+		} else {
+			// Tuned away from the net's channel (otar.md 7.8): nothing of the net is heard here, so say where it is,
+			// first (a small screen shows two lines of this)
+			if (!ui_svc_net_on_chan(ui_view())) {
+				sb_chr(&b, '\n');
+				sb_str(&b, TR(NET_AWAY, "The net is on "));
+				net_chan_name(&b, &n.chan);
+			}
+			if (n.rank == 0 && n.hello != UI_HELLO_NONE) {	// its request for keys (otar.md 9)
+				sb_chr(&b, '\n');
+				sb_str(&b, n.hello == UI_HELLO_ASKING ? TR(NET_HELLO_ASKING, "Asking for keys") :
+					   n.hello == UI_HELLO_CURRENT ? TR(NET_HELLO_CURRENT, "Keys up to date") :
+					   TR(NET_HELLO_GOT, "Keys received"));
+			}
 		}
 	} else {
 		sb_str(&b, TR(NET_NOT_IN, "Not in a net"));
@@ -9382,7 +9425,10 @@ static const char *net_body(void)
 	ui_svc_net_roster_view(&r);
 	if (n.in_net && n.rank != 0 && (r.on || r.done)) {
 		sb_chr(&b, '\n');
-		sb_str(&b, r.on ? TR(NET_ROSTER_ON, "Roster: sending, ") : TR(NET_ROSTER_DONE, "Roster: "));
+		if (r.chan_only)
+			sb_str(&b, r.on ? TR(NET_CHAN_ON, "Channel: sending, ") : TR(NET_CHAN_DONE, "Channel: "));
+		else
+			sb_str(&b, r.on ? TR(NET_ROSTER_ON, "Roster: sending, ") : TR(NET_ROSTER_DONE, "Roster: "));
 		sb_u32(&b, r.sent, 1);
 		sb_str(&b, TR(NET_ROSTER_SENT, " sent"));
 		if (r.failed != 0) {
@@ -9418,6 +9464,14 @@ static void net_confirmed(uint8_t row)
 	} else if (row == NET_LEAVE) {
 		ui_svc_net_leave();
 		ui_toast(TR(NET_LEFT, "Left the net"));
+	} else if (row == NET_CHAN) {
+		switch (ui_svc_net_set_channel(v)) {
+		case UI_NET_OK: ui_toast(TR(NET_CHAN_SENDING, "Telling every member")); break;
+		case UI_NET_NOT_DMR: ui_toast(TR(NET_WHY_CHAN_DMR, "Needs a DMR channel")); break;
+		case UI_NET_NOT_FIRST: ui_toast(TR(NET_WHY_CHAN_FIRST, "Only net control 1 sets it")); break;
+		case UI_NET_BUSY: ui_toast(TR(NET_WHY_CHAN_BUSY, "Busy: a rekey or the roster is going out")); break;
+		default: ui_toast(TR(NET_WHY_NC_ONLY, "Only a net control does that")); break;
+		}
 	}
 }
 
@@ -9524,6 +9578,18 @@ static void net_select(uint16_t i, bool hold)
 			net_ask = NET_CHANGE_OVER;
 		break;
 	case NET_LEAVE: net_ask = NET_LEAVE; break;
+	case NET_CHAN: {
+		// Net control: the channel on view becomes the net's, after OK. A member is told who sets it
+		ui_net_view_t n;
+		net_view_now(&n);
+		if (n.rank == 0)
+			ui_toast(TR(NET_CHAN_BY_NC, "Set by the net control"));
+		else if (v->ch.mode != RADIO_MODE_DMR)
+			ui_toast(TR(NET_WHY_CHAN_DMR, "Needs a DMR channel"));
+		else
+			net_ask = NET_CHAN;
+		break;
+	}
 	case NET_REQUEST:
 		switch (ui_svc_net_request_keys(v)) {
 		case UI_NET_OK: ui_toast(TR(NET_HELLO_ASKING, "Asking for keys")); break;

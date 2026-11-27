@@ -130,6 +130,7 @@ void ui_svc_kf_end(void);
 bool ui_svc_kf_tick(const radio_view_t *v, uint32_t now);
 #endif
 #if CONFIG_OTAR
+#include "otar/otar_keys.h"
 // Whether AES system `system` holds an AES-256 traffic key under key ID kid (Net keys, docs/spec/otar.md 8)
 bool ui_svc_aes_key_there(uint8_t system, uint8_t kid);
 // The Net screen (otar.md 5, 6): this radio's net, rank and key pair's fingerprint
@@ -150,10 +151,13 @@ typedef struct {
 	uint8_t sched_days;	// a net control's rekey schedule: every this many days, 0 by hand
 	uint32_t sched_at;	// ... the next one, UTC minutes (0: none yet)
 	uint8_t hello;		// a member's request for keys (HELLO, otar.md 9): UI_HELLO_*
+	otar_chan_t chan;	// the net's channel (otar.md 7.8; rx_hz 0: none)
 } ui_net_view_t;
 // Asking (no answer yet), up to date (the net control's ACK), keys received (its REKEY)
 enum { UI_HELLO_NONE, UI_HELLO_ASKING, UI_HELLO_CURRENT, UI_HELLO_GOT };
 void ui_svc_net_view(ui_net_view_t *v);
+// Whether v is on the net's channel (otar.md 7.8): its frequencies, color code and timeslot; true when there is none
+bool ui_svc_net_on_chan(const radio_view_t *v);
 // A member: ask the net control for keys now (HELLO, otar.md 9), then again until it answers. UI_NET_OK, NO_MEMBER (not
 // a member, or removed), NOT_MANAGED, BUSY (asked within the last 10 s)
 uint8_t ui_svc_net_request_keys(const radio_view_t *v);
@@ -172,7 +176,7 @@ bool ui_svc_net_member(uint16_t i, uint32_t *id, uint8_t *rank, uint8_t fp[3]);
 bool ui_svc_net_tick(const radio_view_t *v, uint32_t now);
 // Net control: rekey the net now (otar.md 9): a new key from the pool, sent to every member. UI_NET_* or 0 (started)
 enum { UI_NET_OK, UI_NET_NOT_NC, UI_NET_NOT_MANAGED, UI_NET_BUSY, UI_NET_NO_TG, UI_NET_NO_NEXT, UI_NET_NO_KID,
-       UI_NET_NOT_FIRST, UI_NET_NO_MEMBER, UI_NET_HIGHER, UI_NET_NO_LOST, UI_NET_NO_CLOCK };
+       UI_NET_NOT_FIRST, UI_NET_NO_MEMBER, UI_NET_HIGHER, UI_NET_NO_LOST, UI_NET_NO_CLOCK, UI_NET_NOT_DMR };
 uint8_t ui_svc_net_rekey(const radio_view_t *v, uint16_t mins);
 // Net control: change the net over now: CHANGEOVER to the talkgroup, then this radio. UI_NET_*
 uint8_t ui_svc_net_change_over(const radio_view_t *v);
@@ -191,8 +195,12 @@ bool ui_svc_net_rekey_member(uint16_t i, uint32_t *id, uint8_t *state, uint8_t *
 // Net control: send the roster (otar.md 7.5): only == 0 every entry to every member; else that member's entry to every
 // member and every entry to it (after Add a member). UI_NET_OK, UI_NET_NOT_NC, UI_NET_BUSY (a rekey runs)
 uint8_t ui_svc_net_roster_send(uint32_t only);
+// The net control 1 (the authority): the channel on view becomes the net's (otar.md 7.8), sent to every member. UI_NET_OK,
+// NOT_NC, NOT_FIRST (a backup net control), NOT_DMR, BUSY (a rekey or the roster is being sent)
+uint8_t ui_svc_net_set_channel(const radio_view_t *v);
 typedef struct {
 	bool on, done;		// running; finished (until the next run)
+	bool chan_only;		// ... sending the net's channel alone (Net channel), not the roster
 	uint16_t sent, failed;	// entries a member took; entries that got no answer after the tries
 	uint16_t asked;		// entries a member is asking its user about (a take over)
 } ui_roster_view_t;

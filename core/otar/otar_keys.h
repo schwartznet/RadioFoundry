@@ -46,6 +46,18 @@ typedef struct {
 	uint8_t priv[32];		// all zeros: no key pair yet
 } otar_net_t;
 
+// The net's channel (otar.md 7.8): where its messages go. A net has no channel of its own, so this names the one its
+// net control set (or the one this radio started or joined on), for the Net screen to say where to go. In the settings
+// record; rx_hz 0: none. The talkgroup isn't part of it: the messages to one radio don't use it
+#define OTAR_CHAN_NAME		16u
+#define OTAR_CHAN_TS2		0x10u	// cc_ts: bits 0-3 the color code, this bit timeslot 2 (clear: timeslot 1)
+typedef struct {
+	uint32_t rx_hz, tx_hz;
+	uint8_t cc_ts;
+	uint8_t reserved[3];		// 0
+	char name[OTAR_CHAN_NAME];	// the channel's name, not terminated when it is 16 characters
+} otar_chan_t;
+
 static inline bool otar_on(const otar_keys_t *k) { return k->system != 0; }
 static inline uint8_t otar_system(const otar_keys_t *k) { return (uint8_t)(k->system - 1u); }
 

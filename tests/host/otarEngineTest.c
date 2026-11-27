@@ -334,6 +334,7 @@ static int build(uint8_t type, otar_msg_t *m, uint8_t *out)
 	case OTAR_INVENTORY: return otar_inventory_build(out, &a, kmac, m);
 	case OTAR_LOCATE: return otar_locate_build(out, &a, kmac, m);
 	case OTAR_POSITION: return otar_position_build(out, &a, kmac, m);
+	case OTAR_NETCHAN: return otar_netchan_build(out, &a, kmac, m);
 	default: return 0;
 	}
 }
@@ -1422,6 +1423,190 @@ static void test_locate_nc(void)
 	CHECK(lv.state == UI_LOC_NO_FIX);
 }
 
+// ===================== the net's channel (otar.md 7.8)
+static void dmr_channel(const char *name, uint32_t hz, uint8_t cc, uint8_t ts)
+{
+	memset(&view.ch, 0, sizeof view.ch);
+	snprintf(view.ch.name, sizeof view.ch.name, "%s", name);
+	view.ch.mode = RADIO_MODE_DMR;
+	view.ch.rx_hz = hz;
+	view.ch.tx_hz = hz;
+	view.ch.color_code = cc;
+	view.ch.timeslot = ts;
+}
+
+static void chan_msg(otar_msg_t *m, uint32_t hz, uint8_t cc_ts, const char *name)
+{
+	memset(m, 0, sizeof *m);
+	m->rank = 1;
+	m->chan.rx_hz = hz;
+	m->chan.tx_hz = hz;
+	m->chan.cc_ts = cc_ts;
+	memcpy(m->chan.name, name, strlen(name));
+}
+
+// The engine's ACK to `to` echoing `echo`, opened under km; its result, or -1 for none
+static int ack_of(uint32_t to, const uint8_t km[32], uint32_t echo)
+{
+	for (int i = 0; i < out_n; i++) {
+		otar_msg_t r;
+		otar_addr_t a = { ENGINE_ID, to };
+		if (outbox[i].dst == to && otar_open(outbox[i].m, outbox[i].len, &a, NULL, km, &r) && r.type == OTAR_ACK &&
+		    r.echo == echo)
+			return r.result;
+	}
+	return -1;
+}
+
+// The engine a member: it takes the net's channel from net control 1, not from a backup one; joining sets the one it
+// joined on
+static void test_netchan_member(void)
+{
+	setup(0);
+	roster_add(PEER_ID, 1, peer_pub);
+	roster_add(ENGINE_ID, 0, eng_pub);
+	uint32_t nc2;
+	uint8_t nc2_pub[32], nc2_km[32];
+	other_member(0, &nc2, nc2_pub, nc2_km);
+	roster_add(nc2, 2, nc2_pub);
+	dmr_channel("SNT TAC A", 451650000u, 1, 2);
+	run(1000);
+	out_n = 0;
+
+	// Joined on SNT TAC A: that is the net's channel until net control 1 says another
+	ui_svc_net_joined();
+	run(500);
+	CHECK(live.otar_chan.rx_hz == 451650000u && live.otar_chan.cc_ts == (1u | OTAR_CHAN_TS2) &&
+	      memcmp(live.otar_chan.name, "SNT TAC A", 9) == 0);
+	CHECK(ui_svc_net_on_chan(v_now()));
+
+	// Net control 1's NETCHAN: stored, ACKed STORED echoing it
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t m;
+	chan_msg(&m, 464500000u, 1u, "AES TEST");
+	int len = build(OTAR_NETCHAN, &m, buf);
+	CHECK(len == (int)OTAR_NETCHAN_LEN);
+	deliver(PEER_ID, ENGINE_ID, false, buf, len);
+	run(1000);
+	CHECK(ack_of(PEER_ID, kmac, m.msgnum) == OTAR_ACK_STORED);
+	CHECK(live.otar_chan.rx_hz == 464500000u && live.otar_chan.cc_ts == 1u &&
+	      memcmp(live.otar_chan.name, "AES TEST", 9) == 0);
+	// Tuned to SNT TAC A it is away from it; on 464.5 with color code 1 on timeslot 1 it is on it, whatever the name
+	CHECK(!ui_svc_net_on_chan(v_now()));
+	dmr_channel("ANOTHER NAME", 464500000u, 1, 1);
+	CHECK(ui_svc_net_on_chan(v_now()));
+	dmr_channel("AES TEST", 464500000u, 2, 1);	// another color code
+	CHECK(!ui_svc_net_on_chan(v_now()));
+	view.ch.color_code = 1;
+	view.ch.mode = RADIO_MODE_FM;
+	CHECK(!ui_svc_net_on_chan(v_now()));
+	view.ch.mode = RADIO_MODE_DMR;
+
+	// A backup net control's: refused, nothing stored
+	otar_msg_t b;
+	chan_msg(&b, 446000000u, 3u, "ELSEWHERE");
+	b.rank = 2;
+	b.net_id = NET_ID;
+	b.msgnum = 900;
+	otar_addr_t a2 = { nc2, ENGINE_ID };
+	len = otar_netchan_build(buf, &a2, nc2_km, &b);
+	deliver(nc2, ENGINE_ID, false, buf, len);
+	run(1000);
+	CHECK(ack_of(nc2, nc2_km, 900) == OTAR_ACK_REFUSED);
+	CHECK(live.otar_chan.rx_hz == 464500000u);
+
+	// Played back: not taken again (an old message number); a control character in the name: dropped unanswered
+	int before = out_n;
+	chan_msg(&m, 446000000u, 1u, "OLD");
+	m.msgnum = peer_msgnum - 1u;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_NETCHAN, &m, buf));
+	run(1000);
+	CHECK(live.otar_chan.rx_hz == 464500000u);
+	chan_msg(&m, 446000000u, 1u, "BAD\x01");
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_NETCHAN, &m, buf));
+	run(1000);
+	CHECK(live.otar_chan.rx_hz == 464500000u && ack_of(PEER_ID, kmac, m.msgnum) == -1);
+	(void)before;
+
+	// Leave: the net's channel goes with the net
+	ui_svc_net_leave();
+	CHECK(live.otar_chan.rx_hz == 0);
+}
+
+// The engine net control 1: Net channel sends the channel on view to every member, an ACK counts it; a HELLO answered
+// is followed by the channel; off DMR, or as a backup net control, it isn't set
+static void test_netchan_nc(void)
+{
+	setup(1);
+	roster_add(ENGINE_ID, 1, eng_pub);
+	roster_add(PEER_ID, 0, peer_pub);
+	otar_start(&keys, 0, 77);
+	tek[77].used = true;
+	keys.ks_active = 4;
+	dmr_channel("AES TEST", 464500000u, 1, 1);
+	run(3000);
+	out_n = 0;
+
+	view.ch.mode = RADIO_MODE_FM;
+	CHECK(ui_svc_net_set_channel(v_now()) == UI_NET_NOT_DMR);
+	view.ch.mode = RADIO_MODE_DMR;
+	CHECK(ui_svc_net_set_channel(v_now()) == UI_NET_OK);
+	CHECK(live.otar_chan.rx_hz == 464500000u && memcmp(live.otar_chan.name, "AES TEST", 9) == 0);
+	CHECK(ui_svc_net_set_channel(v_now()) == UI_NET_BUSY);	// one run at a time
+	run(1000);
+	otar_msg_t r;
+	CHECK(out_n == 1 && last_out(&r) && r.type == OTAR_NETCHAN && r.chan.rx_hz == 464500000u && r.chan.cc_ts == 1u &&
+	      memcmp(r.chan.name, "AES TEST", 9) == 0);
+	ui_roster_view_t rv;
+	ui_svc_net_roster_view(&rv);
+	CHECK(rv.on && rv.chan_only && rv.sent == 0);
+	// The member's ACK: counted, the run done (one member)
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t m;
+	memset(&m, 0, sizeof m);
+	m.result = OTAR_ACK_STORED;
+	m.echo = r.msgnum;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &m, buf));
+	run(1000);
+	ui_svc_net_roster_view(&rv);
+	CHECK(!rv.on && rv.done && rv.sent == 1 && rv.failed == 0 && out_n == 1);
+
+	// No answer: tried 3 times, then counted
+	CHECK(ui_svc_net_set_channel(v_now()) == UI_NET_OK);
+	run(70000);
+	ui_svc_net_roster_view(&rv);
+	CHECK(!rv.on && rv.failed == 1 && out_n == 4);
+
+	// Send the roster: the net's channel goes after the member's entries
+	out_n = 0;
+	CHECK(ui_svc_net_roster_send(0) == UI_NET_OK);
+	run(1000);
+	CHECK(last_out(&r) && r.type == OTAR_ROSTER);
+	memset(&m, 0, sizeof m);
+	m.result = OTAR_ACK_STORED;
+	m.echo = r.msgnum;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &m, buf));
+	run(1000);
+	CHECK(last_out(&r) && r.type == OTAR_NETCHAN && r.chan.rx_hz == 464500000u);
+
+	// A member's HELLO, up to date: CURRENT, then the net's channel
+	run(200000);
+	out_n = 0;
+	memset(&m, 0, sizeof m);
+	m.keyset = 4;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_HELLO, &m, buf));
+	run(2000);
+	CHECK(out_n == 2 && out_open(0, &r) && r.type == OTAR_ACK && r.result == OTAR_ACK_CURRENT);
+	CHECK(out_open(1, &r) && r.type == OTAR_NETCHAN && r.chan.rx_hz == 464500000u);
+
+	// A backup net control doesn't set it: members take it from net control 1 only
+	setup(2);
+	roster_add(OTHER_NC, 1, peer_pub);
+	roster_add(ENGINE_ID, 2, eng_pub);
+	run(1000);
+	CHECK(ui_svc_net_set_channel(v_now()) == UI_NET_NOT_FIRST);
+}
+
 int main(void)
 {
 	test_msgnum();
@@ -1437,6 +1622,8 @@ int main(void)
 	test_oos_nc();
 	test_locate_member();
 	test_locate_nc();
+	test_netchan_member();
+	test_netchan_nc();
 	printf("otarEngineTest: %d checks, %d failures\n", checks, failures);
 	return failures != 0;
 }

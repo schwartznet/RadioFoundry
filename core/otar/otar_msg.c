@@ -185,6 +185,17 @@ int otar_position_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[
 	return seal(out, (int)(OTAR_POSITION_LEN - OTAR_MAC), a, k_mac);
 }
 
+int otar_netchan_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m)
+{
+	header(out, OTAR_NETCHAN, m);
+	uint8_t *p = &out[OTAR_HDR];
+	put32(p, m->chan.rx_hz);
+	put32(&p[4], m->chan.tx_hz);
+	p[8] = m->chan.cc_ts;
+	memcpy(&p[9], m->chan.name, OTAR_CHAN_NAME);
+	return seal(out, (int)(OTAR_NETCHAN_LEN - OTAR_MAC), a, k_mac);
+}
+
 static int len_of(uint8_t type)
 {
 	switch (type) {
@@ -198,6 +209,7 @@ static int len_of(uint8_t type)
 	case OTAR_TIME: return (int)OTAR_TIME_LEN;
 	case OTAR_LOCATE: return (int)OTAR_LOCATE_LEN;
 	case OTAR_POSITION: return (int)OTAR_POSITION_LEN;
+	case OTAR_NETCHAN: return (int)OTAR_NETCHAN_LEN;
 	default: return -1;
 	}
 }
@@ -290,6 +302,23 @@ static bool parse(otar_msg_t *m, const uint8_t *p, const uint8_t *ukek)
 			return false;
 		return m->result != OTAR_POS_OK ||
 		       (m->lat >= -900000000 && m->lat <= 900000000 && m->lon >= -1800000000 && m->lon <= 1800000000);
+	case OTAR_NETCHAN:
+		m->chan.rx_hz = get32(p);
+		m->chan.tx_hz = get32(&p[4]);
+		m->chan.cc_ts = p[8];
+		memcpy(m->chan.name, &p[9], OTAR_CHAN_NAME);
+		// A color code and a timeslot, nothing else in that octet; none (rx 0) is all zeros. A name: no control
+		// characters, then zeros
+		if ((m->chan.cc_ts & (uint8_t)~(0x0Fu | OTAR_CHAN_TS2)) != 0 || (m->chan.rx_hz == 0 && (m->chan.tx_hz | m->chan.cc_ts) != 0))
+			return false;
+		for (unsigned i = 0, end = 0; i < OTAR_CHAN_NAME; i++) {
+			uint8_t c = (uint8_t)m->chan.name[i];
+			if (c == 0)
+				end = 1;
+			else if (end || c < 0x20u || c == 0x7Fu)
+				return false;
+		}
+		return true;
 	default:
 		return false;
 	}

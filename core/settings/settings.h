@@ -288,6 +288,9 @@ typedef struct {
 	// The randomness pool's seed (key-fill.md 6.1), appended: a one-way hash of the pool, saved when a noise digest is
 	// stirred in and stirred back (credited nothing) at the next start. Wiped with the keys. An older record reads 0
 	uint8_t entropy_seed[32];
+	// The OTAR net's channel (otar.md 7.8), appended: the one its net control set, else the one this radio started or
+	// joined the net on. An older record reads none
+	otar_chan_t otar_chan;
 } settings_t;
 
 // Pages: settings_t is stored as records of SETTINGS_PAGE_BYTES each (settings-store.md 2.1). Only the pages its size

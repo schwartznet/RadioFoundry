@@ -2777,7 +2777,20 @@ static struct {
 	uint32_t loc_id;	// the member asked where it is: asking until loc:pos, loc:nofix, loc:refused or loc:none
 	uint8_t loc_state;
 	uint32_t loc_at;	// when it answered
+	otar_chan_t chan;	// the net's channel (otar.md 7.8): "NET CH" from a start or a join, until Net channel
+	bool away;		// netaway: the radio is tuned away from it
 } net_sim;
+
+// The net's channel a start or a join leaves: "NET CH" on 464.5 MHz
+static void net_sim_chan(void)
+{
+	memset(&net_sim.chan, 0, sizeof net_sim.chan);
+	net_sim.chan.rx_hz = 464500000u;
+	net_sim.chan.tx_hz = 464500000u;
+	net_sim.chan.cc_ts = 1u;
+	memcpy(net_sim.chan.name, "NET CH", 6);
+	net_sim.away = false;
+}
 
 static void net_sim_add(uint32_t id, uint8_t rank)
 {
@@ -2807,6 +2820,13 @@ void ui_svc_net_view(ui_net_view_t *v)
 	v->sched_days = net_sim.sched;
 	v->sched_at = net_sim.sched_at;
 	v->hello = net_sim.hello;
+	if (net_sim.in)
+		v->chan = net_sim.chan;
+}
+bool ui_svc_net_on_chan(const radio_view_t *v)
+{
+	(void)v;
+	return !net_sim.away;
 }
 // Request keys: the net control answers at once, up to date (the sim's member manages its keys whatever the view says)
 uint8_t ui_svc_net_request_keys(const radio_view_t *v)
@@ -2832,6 +2852,8 @@ void ui_svc_net_leave(void)
 	net_sim.rank = 0;
 	net_sim.id = 0;
 	net_sim.n = 0;
+	memset(&net_sim.chan, 0, sizeof net_sim.chan);
+	net_sim.away = false;
 }
 uint16_t ui_svc_net_members(void) { return net_sim.n; }
 bool ui_svc_net_member(uint16_t i, uint32_t *id, uint8_t *rank, uint8_t fp[3])
@@ -3069,6 +3091,28 @@ uint8_t ui_svc_net_roster_send(uint32_t only)
 	return UI_NET_OK;
 }
 void ui_svc_net_roster_view(ui_roster_view_t *r) { *r = ros_sim; }
+// Net channel: net control 1 makes the channel on view the net's, the run on at once (the simulator has no air)
+uint8_t ui_svc_net_set_channel(const radio_view_t *v)
+{
+	if (!net_sim.in || net_sim.rank == 0)
+		return UI_NET_NOT_NC;
+	if (net_sim.rank != 1)
+		return UI_NET_NOT_FIRST;
+	if (v->ch.mode != RADIO_MODE_DMR)
+		return UI_NET_NOT_DMR;
+	if (rk_sim.on || ros_sim.on)
+		return UI_NET_BUSY;
+	memset(&net_sim.chan, 0, sizeof net_sim.chan);
+	net_sim.chan.rx_hz = v->ch.rx_hz;
+	net_sim.chan.tx_hz = v->ch.tx_hz;
+	size_t n = strlen(v->ch.name);
+	memcpy(net_sim.chan.name, v->ch.name, n < OTAR_CHAN_NAME ? n : OTAR_CHAN_NAME);
+	net_sim.away = false;
+	memset(&ros_sim, 0, sizeof ros_sim);
+	ros_sim.on = true;
+	ros_sim.chan_only = true;
+	return UI_NET_OK;
+}
 
 static bool rk_sim_token(const char *arg)
 {
@@ -3101,6 +3145,7 @@ bool ui_svc_net_tick(const radio_view_t *v, uint32_t now)
 		net_sim.id = 0x1A2B;
 		net_sim.rank = 1;
 		net_sim.share = true;	// Share location on at each start or join, as on the radio
+		net_sim_chan();
 	}
 	return true;
 }
@@ -3233,6 +3278,7 @@ static bool kf_sim_token(const char *arg)
 				net_sim.id = 0x1A2B;
 				net_sim.rank = 0;
 				net_sim.share = true;
+				net_sim_chan();
 				net_sim.n = 0;
 				net_sim_add(KF_SIM_PEER, 1);
 				net_sim_add(k->own_id, 0);
@@ -4531,6 +4577,18 @@ static bool run_token(char *t, char *err, size_t len)
 			snprintf(err, len, "rk:%s: not now", arg);
 			return false;
 		}
+		advance(200);
+		return true;
+	}
+	if (strcmp(t, "netaway") == 0) {	// the radio tuned away from the net's channel (otar.md 7.8)
+		net_sim.away = true;
+		changed();
+		advance(200);
+		return true;
+	}
+	if (strcmp(t, "nethello") == 0) {	// a member's request for keys not answered yet (Asking for keys)
+		net_sim.hello = UI_HELLO_ASKING;
+		changed();
 		advance(200);
 		return true;
 	}

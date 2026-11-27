@@ -59,7 +59,45 @@ static struct {
 	uint32_t page_at;
 	uint16_t page_first, page_n, page_total;
 	otar_member_t page[6];
+	bool chan_due;		// started or joined a net: the channel on view becomes the net's (otar.md 7.8)
 } net;
+
+// ---- The net's channel (otar.md 7.8) ----
+// The channel on view as a net channel: false off DMR (then *c is none)
+static bool chan_of(const radio_view_t *v, otar_chan_t *c)
+{
+	memset(c, 0, sizeof *c);
+	if (v->ch.mode != RADIO_MODE_DMR || v->ch.rx_hz == 0)
+		return false;
+	c->rx_hz = v->ch.rx_hz;
+	c->tx_hz = v->ch.tx_hz;
+	c->cc_ts = (uint8_t)((v->ch.color_code & 0x0Fu) | (v->ch.timeslot == 2u ? OTAR_CHAN_TS2 : 0u));
+	size_t n = strlen(v->ch.name);
+	memcpy(c->name, v->ch.name, n < OTAR_CHAN_NAME ? n : OTAR_CHAN_NAME);
+	return true;
+}
+
+static void chan_get(otar_chan_t *c)
+{
+	settings_t *st = settings_begin();
+	*c = st->otar_chan;
+	settings_end(0);
+}
+
+static void chan_put(const otar_chan_t *c, uint32_t now)
+{
+	settings_t *st = settings_begin();
+	st->otar_chan = *c;
+	settings_end(now);	// saved only when it changed
+}
+
+bool ui_svc_net_on_chan(const radio_view_t *v)
+{
+	otar_chan_t c, here;
+	chan_get(&c);
+	return c.rx_hz == 0 ||
+	       (chan_of(v, &here) && here.rx_hz == c.rx_hz && here.tx_hz == c.tx_hz && here.cc_ts == c.cc_ts);
+}
 
 static void net_read(otar_net_t *n)
 {
@@ -112,6 +150,8 @@ void ui_svc_net_view(ui_net_view_t *v)
 	v->remote_wipe = SETTINGS_FIELD(otar_wipe) == 1u;
 	v->share_location = SETTINGS_FIELD(otar_loc_off) == 0u;
 	v->removed = (n.flags & OTAR_NET_REMOVED) != 0;
+	if (v->in_net)
+		chan_get(&v->chan);
 	eng_view(v);
 	crypto_wipe(&n, sizeof n);
 }
@@ -142,6 +182,7 @@ void ui_svc_net_leave(void)
 	// checks under the next one's pair keys, and the message numbers can start again (otar.md 7.6)
 	crypto_wipe(st->otar_net.priv, sizeof st->otar_net.priv);
 	otar_seen_clear(st);
+	memset(&st->otar_chan, 0, sizeof st->otar_chan);	// the net's channel goes with the net (7.8)
 	settings_end(hal_millis());
 	net.want_clear = true;
 	net.page_ok = false;
@@ -189,6 +230,7 @@ static void start_now(uint32_t now)
 	crypto_wipe(&n, sizeof n);
 	net.starting = false;
 	net.page_ok = false;
+	net.chan_due = true;	// the net's channel: the one it was started on (7.8)
 }
 
 static bool engine_tick(const radio_view_t *v, uint32_t now);
@@ -200,7 +242,15 @@ bool ui_svc_net_tick(const radio_view_t *v, uint32_t now)
 	// A rekey's key or a new net's key pair waits for randomness: the receiver's noise (here, not deep in the run)
 	if (pool_wanted())
 		ui_svc_noise_want(now);
-	bool changed = engine_tick(v, now);
+	bool changed = false;
+	if (net.chan_due) {	// started or joined: the channel it is on (none off DMR), until a net control says another
+		net.chan_due = false;
+		otar_chan_t c;
+		(void)chan_of(v, &c);
+		chan_put(&c, now);
+		changed = true;
+	}
+	changed = engine_tick(v, now) || changed;
 	if (net.starting && entropy_bits() >= ENTROPY_FULL) {
 		start_now(now);
 		changed = true;
@@ -330,6 +380,7 @@ static struct {
 	uint32_t tek_ks;	// its keyset number, the net's
 	uint32_t tek_at;	// the changeover
 	uint32_t cu_to;		// a net control: the net's active key to send this member, which said HELLO without it
+	uint32_t ch_to;		// ... and the net's channel to this member, whose HELLO it answered (7.8)
 	struct {
 		uint32_t id, at;
 	} hans[HELLO_ANS_N];	// ... the members whose HELLO it answered last, and when (hello_slot)
@@ -358,6 +409,7 @@ static struct {
 	struct {
 		bool on, done, waiting;
 		bool one, to_it;	// only's entry alone, to every member (and to only itself when to_it)
+		bool chan_only;		// the net's channel alone, to every member (7.8)
 		uint32_t only;		// 0: every entry to every member; else this member's entry to all, and all to it
 		uint16_t dst_i, ent_i;	// the roster positions of the member sent to, and of the entry sent
 		uint32_t dst;		// the member whose ACK is awaited
@@ -814,6 +866,38 @@ static __attribute__((noinline)) void on_roster(const radio_view_t *v, const uin
 	eng.ack.msgnum = next_msgnum(now);
 	otar_addr_t back = { v->dmr.own_id, src };
 	out_set(src, false, otar_ack_build(eng.out, &back, eng.kmac, &eng.ack));
+}
+
+// A NETCHAN (7.8) from a net control: the net's channel, stored and ACKed. Taken only from the authority (the
+// best-ranked net control not revoked, 10), as ranks are: a backup net control can't move where the net is shown
+static __attribute__((noinline)) void on_netchan(const radio_view_t *v, const uint8_t *msg, int len, uint32_t src,
+						 const otar_net_t *n, uint32_t now)
+{
+	otar_member_t nc;
+	if (!otar_roster_find(src, &nc) || nc.rank == 0 || (nc.flags & OTAR_M_REVOKED) || eng.out_len != 0)
+		return;
+	if (!eng.pair_ok || eng.pair_id != src) {
+		eng.pair_ok = pair_keys(v->dmr.own_id, src, n->net_id, eng.ukek, eng.kmac);
+		eng.pair_id = src;
+		if (!eng.pair_ok)
+			return;
+	}
+	otar_addr_t a = { src, v->dmr.own_id };
+	otar_msg_t *m = &eng.ros_m;
+	if (!otar_open(msg, len, &a, NULL, eng.kmac, m) || m->net_id != n->net_id || !fresh_or_tell(v, n, src, m->msgnum, now))
+		return;
+	bool auth = src == authority();
+	if (auth)
+		chan_put(&m->chan, now);
+	uint32_t echo = m->msgnum;
+	memset(m, 0, sizeof *m);
+	m->net_id = n->net_id;
+	m->rank = n->rank;
+	m->result = auth ? OTAR_ACK_STORED : OTAR_ACK_REFUSED;
+	m->echo = echo;
+	m->msgnum = next_msgnum(now);
+	otar_addr_t back = { v->dmr.own_id, src };
+	out_set(src, false, otar_ack_build(eng.out, &back, eng.kmac, m));
 }
 
 // A member: the ROSTER entry stored (or not): this radio's own rank when it was the entry, then the ACK
@@ -1276,6 +1360,11 @@ static __attribute__((noinline)) void hello_answer(const radio_view_t *v, const 
 	if (answered) {
 		eng.hans[slot].id = src;
 		eng.hans[slot].at = now;
+		// ... then the net's channel (7.8), so a member that was off when it changed learns it at its next start
+		otar_chan_t c;
+		chan_get(&c);
+		if (c.rx_hz != 0)
+			eng.ch_to = src;
 	}
 }
 
@@ -1539,6 +1628,31 @@ __attribute__((noinline)) static bool rk_step(const radio_view_t *v, const otar_
 	return false;
 }
 
+// A NETCHAN (7.8) to member `to` under the pair's MAC key: the net's channel as this radio holds it. Its message number
+static uint32_t chan_out(const radio_view_t *v, const otar_net_t *n, uint32_t to, const uint8_t kmac[OTAR_KEY_LEN],
+			 uint32_t now)
+{
+	otar_msg_t *m = &eng.ros_m;
+	memset(m, 0, sizeof *m);
+	m->net_id = n->net_id;
+	m->rank = n->rank;
+	m->msgnum = next_msgnum(now);
+	chan_get(&m->chan);
+	otar_addr_t a = { v->dmr.own_id, to };
+	out_set(to, false, otar_netchan_build(eng.out, &a, kmac, m));
+	return m->msgnum;
+}
+
+// The net control's roster run: the net's channel wanted at member d, after its entries (7.8): on every run to every
+// member and on one to a member just added; not on one entry's run (a rank, a revoke)
+static bool ros_chan_wanted(const otar_member_t *d, uint32_t own)
+{
+	otar_chan_t c;
+	chan_get(&c);
+	return c.rx_hz != 0 && d->id != own && !(d->flags & OTAR_M_REVOKED) && !eng.ros.one &&
+	       (eng.ros.chan_only || eng.ros.only == 0 || d->id == eng.ros.only);
+}
+
 // The net control's roster run: is entry e wanted at member d?
 static bool ros_wanted(const otar_member_t *d, const otar_member_t *e, uint32_t own)
 {
@@ -1579,10 +1693,30 @@ static __attribute__((noinline)) bool ros_step(const radio_view_t *v, const otar
 			eng.ros.done = true;
 			return true;
 		}
-		if (eng.ros.ent_i >= total) {
+		if (eng.ros.chan_only && eng.ros.ent_i < total)
+			eng.ros.ent_i = total;		// the net's channel alone
+		// After the entries, the net's channel (7.8): entry position total. Its ACK, as an entry's, moves past it
+		bool chan = eng.ros.ent_i == total && ros_chan_wanted(d, v->dmr.own_id);
+		if (eng.ros.ent_i >= total && !chan) {
 			eng.ros.dst_i++;
 			eng.ros.ent_i = 0;
 			continue;
+		}
+		if (chan) {
+			if (!eng.pair_ok || eng.pair_id != d->id) {
+				eng.pair_ok = pair_keys(v->dmr.own_id, d->id, n->net_id, eng.ukek, eng.kmac);
+				eng.pair_id = d->id;
+			}
+			if (!eng.pair_ok) {
+				eng.ros.failed++;
+				eng.ros.ent_i++;
+				return true;
+			}
+			eng.ros.sent_num = chan_out(v, n, d->id, eng.kmac, now);
+			eng.ros.dst = d->id;
+			eng.ros.waiting = true;
+			eng.ros.ack_by = now + ACK_WAIT_MS;
+			return true;
 		}
 		if (otar_roster_window(eng.ros.ent_i, e, 1, &total) != 1 || !ros_wanted(d, e, v->dmr.own_id)) {
 			eng.ros.ent_i++;
@@ -1662,11 +1796,28 @@ static __attribute__((noinline)) void cu_send(const radio_view_t *v, const otar_
 	crypto_wipe(kmac, sizeof kmac);
 }
 
+// A net control: the net's channel to a member whose HELLO it answered (7.8). Sent once, its ACK not waited for: the
+// member asks again at its next start
+static __attribute__((noinline)) void ch_send(const radio_view_t *v, const otar_net_t *n, uint32_t now)
+{
+	uint32_t to = eng.ch_to;
+	eng.ch_to = 0;
+	otar_member_t mm;
+	if (!otar_roster_find(to, &mm) || (mm.flags & OTAR_M_REVOKED))
+		return;
+	uint8_t ukek[OTAR_KEY_LEN], kmac[OTAR_KEY_LEN];
+	if (pair_keys(v->dmr.own_id, to, n->net_id, ukek, kmac))
+		(void)chan_out(v, n, to, kmac, now);
+	crypto_wipe(ukek, sizeof ukek);
+	crypto_wipe(kmac, sizeof kmac);
+}
+
 // Joined: Remote wipe and Share location on (otar.md 7.5, 7.7), as every net control's other remote controls are; the
 // user may turn them off
 void ui_svc_net_joined(void)
 {
 	eng.manage_due = true;
+	net.chan_due = false;	// the net's channel: the one it joined on, until its net control says another (7.8)
 	settings_t *st = settings_begin();
 	st->otar_wipe = 1u;
 	st->otar_loc_off = 0u;	// Share location the same (7.7)
@@ -1846,6 +1997,7 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 		memset(eng.lans, 0, sizeof eng.lans);
 		eng.inv_to = 0;
 		eng.cu_to = 0;
+		eng.ch_to = 0;
 		eng.inv_next = false;
 		eng.tm_left = 0;
 		memset(&eng.inv, 0, sizeof eng.inv);
@@ -1935,6 +2087,8 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 				on_locate(v, msg, len, src, &n, now);
 			else if (h.type == OTAR_POSITION && !group && n.rank != 0)
 				on_position(v, msg, len, src, &n, now);
+			else if (h.type == OTAR_NETCHAN && !group && src != v->dmr.own_id)
+				on_netchan(v, msg, len, src, &n, now);
 			else if ((h.type == OTAR_ACK || h.type == OTAR_HELLO) && !group && n.rank != 0)
 				on_member(v, msg, len, src, &n, now);
 			else if (h.type == OTAR_ACK && !group && n.rank == 0)
@@ -1966,6 +2120,11 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 	}
 	if (eng.cu_to != 0 && n.rank != 0 && mn_ok && eng.out_len == 0 && !eng.sending && eng.rk == NULL && !eng.ros.waiting && !eng.ros_due) {
 		cu_send(v, &n, now);
+		changed = true;
+	}
+	if (eng.ch_to != 0 && eng.cu_to == 0 && n.rank != 0 && mn_ok && eng.out_len == 0 && !eng.sending && eng.rk == NULL &&
+	    !eng.ros.waiting && !eng.ros_due) {
+		ch_send(v, &n, now);
 		changed = true;
 	}
 	if (eng.inv_to != 0 && n.rank != 0 && mn_ok && eng.out_len == 0 && !eng.sending && !eng.ros.waiting && eng.rk == NULL) {
@@ -2166,10 +2325,32 @@ uint8_t ui_svc_net_roster_send(uint32_t only)
 	return UI_NET_OK;
 }
 
+uint8_t ui_svc_net_set_channel(const radio_view_t *v)
+{
+	otar_net_t n;
+	net_read(&n);
+	bool nc = (n.flags & OTAR_NET_IN) && n.rank != 0;
+	crypto_wipe(&n, sizeof n);
+	if (!nc)
+		return UI_NET_NOT_NC;
+	if (authority() != v->dmr.own_id)
+		return UI_NET_NOT_FIRST;	// members take the net's channel from the authority only (7.8)
+	otar_chan_t c;
+	if (!chan_of(v, &c))
+		return UI_NET_NOT_DMR;
+	if (eng.rk != NULL || eng.ros.on)
+		return UI_NET_BUSY;
+	chan_put(&c, hal_millis());
+	ros_start(0, false, false);
+	eng.ros.chan_only = true;
+	return UI_NET_OK;
+}
+
 void ui_svc_net_roster_view(ui_roster_view_t *r)
 {
 	memset(r, 0, sizeof *r);
 	r->on = eng.ros.on;
+	r->chan_only = eng.ros.chan_only;
 	r->done = eng.ros.done;
 	r->sent = eng.ros.sent;
 	r->failed = eng.ros.failed;

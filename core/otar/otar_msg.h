@@ -13,13 +13,14 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "otar/otar_crypto.h"
+#include "otar/otar_keys.h"
 
 #define OTAR_PORT		4103u	// UDP source and destination port
 // 4: ACK echoes its request's number; 3: HELLO keysets, TIME per member; 2: body encrypted. ACK results 8-10 came
 // later without a new version: a version 4 radio ignores an ACK it doesn't wait for, and counts one it waits for with
 // CKR 0 and another result as a roster entry not stored, so a net part-way through an update keeps working (otar.md 7.2).
 // LOCATE and POSITION (types 10, 11) came the same way: a version 4 radio from before drops a type it doesn't know
-// (otar_peek), so a net control asking one sees "no answer" (otar.md 7.7)
+// (otar_peek), so a net control asking one sees "no answer" (otar.md 7.7). NETCHAN (12) the same (7.8)
 #define OTAR_VERSION		4u
 #define OTAR_ENC_LABEL		"RFOTAR2 enc"	// HKDF info of the body's key
 #define OTAR_HDR		10u
@@ -27,7 +28,7 @@
 #define OTAR_MSG_MAX		72u
 
 enum { OTAR_REKEY = 1, OTAR_ACK = 2, OTAR_CHANGEOVER = 3, OTAR_HELLO = 4, OTAR_INVENTORY = 5, OTAR_ROSTER = 6,
-       OTAR_TIME = 7, OTAR_ZEROIZE = 8, OTAR_LOCATE = 10, OTAR_POSITION = 11 };	// 9: TAKEOVER, reserved (otar.md 22)
+       OTAR_TIME = 7, OTAR_ZEROIZE = 8, OTAR_LOCATE = 10, OTAR_POSITION = 11, OTAR_NETCHAN = 12 };	// 9: TAKEOVER, reserved (otar.md 22)
 
 // POSITION results (7.7)
 enum { OTAR_POS_OK = 0, OTAR_POS_NO_FIX = 1, OTAR_POS_REFUSED = 2 };
@@ -56,6 +57,7 @@ enum { OTAR_ACK_STORED = 0, OTAR_ACK_HELD = 1, OTAR_ACK_OLD = 2, OTAR_ACK_STORE_
 #define OTAR_TIME_LEN		(OTAR_HDR + 4u + OTAR_MAC)				// 22
 #define OTAR_LOCATE_LEN		(OTAR_HDR + OTAR_MAC)					// 18
 #define OTAR_POSITION_LEN	(OTAR_HDR + 4u + 1u + 4u + 4u + 2u + 2u + OTAR_MAC)	// 35
+#define OTAR_NETCHAN_LEN	(OTAR_HDR + 4u + 4u + 1u + OTAR_CHAN_NAME + OTAR_MAC)	// 43
 
 typedef struct {
 	uint8_t type;
@@ -71,6 +73,7 @@ typedef struct {
 	union {
 		uint8_t tek[OTAR_KEY_LEN];	// REKEY: unwrapped (wipe it)
 		uint8_t rec[OTAR_ROSTER_REC];	// ROSTER: the entry, as the roster stores it
+		otar_chan_t chan;		// NETCHAN: the net's channel (rx_hz 0: none)
 	};
 	// ACK (of a ROSTER: CKR 0, keyset 0, the check value the entry's fingerprint)
 	uint8_t result;
@@ -112,6 +115,8 @@ int otar_time_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR
 int otar_locate_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m);
 // POSITION (otar.md 7.7): the member's answer to that net control, under the pair's keys, its body encrypted
 int otar_position_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m);
+// NETCHAN (otar.md 7.8): a net control tells a member the net's channel, under the pair's keys, its body encrypted
+int otar_netchan_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m);
 
 // The header of a message (no MAC checked yet): its type, net, message number and rank. False for one that isn't an
 // OTAR message of this version, or has another length for its type

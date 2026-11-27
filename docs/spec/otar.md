@@ -166,6 +166,7 @@ every octet before the MAC, the encrypted body included (encrypt then MAC), trun
 | 9 | TAKEOVER | NC to the talkgroup (reserved, not built: 22) | Group | DMR ID of the NC it replaces (3), the keyset number it will rekey to (4) | from the active keyset; each member then gets a ROSTER (10) |
 | 10 | LOCATE | NC to a member | Individual, confirmed | none: the member answers POSITION (7.7) | the pair's K_mac |
 | 11 | POSITION | member to the NC that asked | Individual, confirmed | the LOCATE's message number (4), result (1), latitude and longitude in 1e-7 degree (4 + 4, signed), altitude in meters (2, signed; 0x8000 unknown), the fix's age in seconds (2, at most 65535) | the pair's K_mac |
+| 12 | NETCHAN | NC to a member | Individual, confirmed | the net's channel (7.8): receive and transmit frequencies in Hz (4 + 4), color code and timeslot (1), name (16) | the pair's K_mac |
 
 A receiver drops and counts, and doesn't show, a message of another length, version or net, from a sender not on the
 roster or revoked, with a message number not above the last one taken from that sender, or whose MAC doesn't check
@@ -356,6 +357,44 @@ distance and compass point from this radio's own position when it has one ("850 
 A radio from before LOCATE drops type 10 unread (an unknown type, `otar_peek`), so asking it ends in "no answer".
 The protocol version stays 4, as for the ACK results of 7.2.
 
+### 7.8 The net's channel (NETCHAN)
+
+A net has no channel of its own: its messages go on whatever channel each radio is on, so a member tuned elsewhere
+hears none of them and keeps asking for keys where nobody listens (found on the bench, 2026-11-26: a member on a
+repeater channel said HELLO for minutes while net control 1 listened on the simplex channel, and nothing told its user
+why; moved over, it had its keys in seconds). The net therefore has a channel that each radio knows, and the Net screen
+says when the radio is away from it. The radios don't go there by themselves (not built; later).
+
+**What it is.** Receive and transmit frequencies, color code and timeslot, and the channel's name for the screen
+(`otar_chan_t`, in the settings record: [settings-store.md](settings-store.md) 3). It is described by those, not by a
+channel number, because radios in a net don't always share a codeplug: a radio is on the net's channel when it is on
+DMR with the same frequencies, color code and timeslot, whatever its channel is called there. The talkgroup isn't part
+of it: the messages to one radio don't use one. The name is the net control's, so the screen says what its user calls it.
+
+**Where it comes from.** A radio that starts a net, or joins one, takes the channel it is on (none when it isn't on
+DMR). Net control 1 then sets the net's: Net > **Net channel**, on the channel wanted, asks "Make AES TEST the net's
+channel? Every member is told" and on OK stores it and sends NETCHAN (type 12, 43 octets) to every member not revoked,
+one at a time, each waiting for its ACK (CKR 0, result 0 stored) and tried up to 3 times, as the roster's entries are
+(7.5); the Net screen counts "Channel: sending, 2 sent, no answer 1". It goes out again:
+
+- after the entries of every Send the roster, and of Add a member's run to the new member, so a radio joined later
+  learns it;
+- after every HELLO net control 1 answers (9), once, its ACK not waited for: a member that was off when it changed
+  learns it at its next start, on the net's channel.
+
+**Who sets it.** A member takes NETCHAN only from the authority (10: the best-ranked net control not revoked, net
+control 1 until a take over), with a fresh message number under the pair keys (7.6), and answers a backup net
+control's with result 6 (refused), changing nothing: as with ranks, a backup net control can't move where its members
+think the net is. On the net control's side the row says "Only net control 1 sets it". A member's Net channel row
+shows it and says "Set by the net control".
+
+**On the screen.** Net > Net channel shows its name (its frequency when it has none, "None" before one). Tuned away
+from it, the Net screen says "The net is on AES TEST" under the net's name, above "Asking for keys", on a member and on
+a net control alike. Leave the net clears it.
+
+A radio from before NETCHAN drops type 12 unread (`otar_peek`): its net control sees "no answer" for it and nothing
+else changes. The protocol version stays 4.
+
 ## 8. Keys in use
 
 On an OTAR system a channel names a CKR, not a key ID. The radio transmits with the active keyset's TEK for that CKR
@@ -440,7 +479,7 @@ on voice.
 
 | Where | Rows |
 |---|---|
-| Net (member) | Members, Request keys (HELLO, 9; the status line under it), Remote wipe, Share location (7.7), Leave the net |
+| Net (member) | Members, Request keys (HELLO, 9; the status line under it), Remote wipe, Share location (7.7), Net channel (7.8), Leave the net |
 | Tools > Net keys (NC adds) | Net status, Rekey now, Rekey schedule, Change over now, Add a member, Revoke a member, Take over, Send time |
 | Net | Remote wipe: On (default in a net) / Off; Share location the same (7.7) |
 | Settings > Privacy | Clock source |
@@ -458,6 +497,7 @@ over names the key and how many members hold it, and warns that the others can't
 | Roster | Codeplug records (public) | 40 B per member, up to 64 |
 | Keysets | Traffic key records of the OTAR system, plus a record with keyset numbers, changeover time and state | 32 B per TEK + 16 B |
 | Message numbers | Settings record: own, and the last taken from each NC | 20 B |
+| The net's channel (7.8) | Settings record | 28 B |
 
 ## 14. Phases
 

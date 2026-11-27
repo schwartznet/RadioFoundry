@@ -5208,6 +5208,11 @@ msgid "Clock set"
 msgstr "Ora impostata"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_CHAN_NONE"
+msgid "None"
+msgstr "Nessuno"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_START"
 msgid "Start a net"
 msgstr "Crea una rete"
@@ -5298,6 +5303,11 @@ msgid "Share location"
 msgstr "Condividi posizione"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_CHAN"
+msgid "Net channel"
+msgstr "Canale della rete"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_ON"
 msgid "On"
 msgstr "Sì"
@@ -5353,6 +5363,16 @@ msgid "Leave the net? Rejoining needs a key fill"
 msgstr "Lasciare la rete? Rientrare richiede un carica chiave"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_ASK_CHAN"
+msgid "Make "
+msgstr "Rendere "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_ASK_CHAN_END"
+msgid " the net's channel? Every member is told"
+msgstr " il canale della rete? Ogni membro è avvisato"
+
+#: core/ui/ui_menus.c
 msgctxt "NET_TYPE_ID"
 msgid "Member's DMR ID: "
 msgstr "ID DMR del membro: "
@@ -5393,6 +5413,11 @@ msgid "Removed from the net"
 msgstr "Rimosso dalla rete"
 
 #: core/ui/ui_menus.c
+msgctxt "NET_AWAY"
+msgid "The net is on "
+msgstr "La rete è su "
+
+#: core/ui/ui_menus.c
 msgctxt "NET_HELLO_ASKING"
 msgid "Asking for keys"
 msgstr "Richiesta chiavi"
@@ -5426,6 +5451,16 @@ msgstr "Ancora nessuna coppia di chiavi"
 msgctxt "NET_SCHED_NEXT"
 msgid "Next rekey: "
 msgstr "Prossimo cambio: "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_CHAN_ON"
+msgid "Channel: sending, "
+msgstr "Canale: invio, "
+
+#: core/ui/ui_menus.c
+msgctxt "NET_CHAN_DONE"
+msgid "Channel: "
+msgstr "Canale: "
 
 #: core/ui/ui_menus.c
 msgctxt "NET_ROSTER_ON"
@@ -5476,6 +5511,26 @@ msgstr "Nessuna chiave successiva"
 msgctxt "NET_LEFT"
 msgid "Left the net"
 msgstr "Rete lasciata"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_CHAN_SENDING"
+msgid "Telling every member"
+msgstr "Avviso a ogni membro"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_WHY_CHAN_DMR"
+msgid "Needs a DMR channel"
+msgstr "Serve un canale DMR"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_WHY_CHAN_FIRST"
+msgid "Only net control 1 sets it"
+msgstr "Solo il controllo di rete 1 lo imposta"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_WHY_CHAN_BUSY"
+msgid "Busy: a rekey or the roster is going out"
+msgstr "Occupato: esce un cambio chiave o l'elenco"
 
 #: core/ui/ui_menus.c
 msgctxt "NET_WHY_MANAGE"
@@ -5531,6 +5586,11 @@ msgstr "Nessuna ora propria da inviare"
 msgctxt "NET_ROSTER_SENDING"
 msgid "Sending the roster"
 msgstr "Invio dell'elenco"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_CHAN_BY_NC"
+msgid "Set by the net control"
+msgstr "Lo imposta il controllo di rete"
 
 #: core/ui/ui_menus.c
 msgctxt "NM_INV_BUSY"
