@@ -208,6 +208,23 @@ bool radio_aes_otar_request(uint8_t op, uint32_t value, const channel_t *ch, uin
 	case RADIO_OTAR_CLEAR_NEXT:
 		otar_clear_next(&otar);
 		break;
+	case RADIO_OTAR_DROP_NEXT:
+		// A WITHDRAW (otar.md 7.9): the next keyset dropped, only the one named, and its key erased from the codeplug
+		// (the key ID is free again). The active and previous keysets never name it: a REKEY refuses a key ID in use
+		if (!(otar.flags & OTAR_F_NEXT) || otar.kid_next[0] != (uint8_t)value)
+			return false;
+		otar_clear_next(&otar);
+		if (!erase.posted) {
+			erase.system = otar_system(&otar);
+			erase.kids[0] = (uint8_t)value;
+			erase.n = 1;
+			erase.posted = true;
+			if (!storage_job_post(erase_job, NULL)) {
+				erase.posted = false;	// the key stays in the codeplug, named by no keyset
+				erase.n = 0;
+			}
+		}
+		break;
 	case RADIO_OTAR_NEXT_KS:
 		// The net's keyset number for the next keyset (otar.md 7.1): only above the active one, so a radio never goes
 		// back to an older keyset

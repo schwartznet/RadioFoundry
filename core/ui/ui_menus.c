@@ -9197,7 +9197,7 @@ static void nk_enter(void)
 // The fingerprint is the radio's public key's, which another radio's Members list shows for it
 enum { NET_START, NET_JOIN, NET_MEMBERS, NET_ADD, NET_REKEY, NET_RK_WHEN, NET_STATUS, NET_CHANGE_OVER, NET_ROSTER,
        NET_TAKE_OVER, NET_WIPE_OK, NET_ACCEPT, NET_REFUSE, NET_LEAVE, NET_SCHED, NET_TIME, NET_REQUEST, NET_SHARE_LOC,
-       NET_CHAN, NET_ROWS };
+       NET_CHAN, NET_MOVE, NET_CANCEL, NET_ROWS };
 static const uint8_t net_sched_days[] = { 0, 1, 7, 30 };	// Rekey every (otar.md 9)
 static uint8_t net_rk_when = 1;	// Key change: index into nk_mins, 5 min each time Net opens
 static uint32_t net_typed;	// Add a member: the ID typed
@@ -9230,8 +9230,16 @@ static uint8_t net_rows(uint8_t out[NET_ROWS])
 		out[k++] = NET_REQUEST;		// a member asks its net control for keys (HELLO, otar.md 9)
 	if (n.rank != 0) {
 		static const uint8_t nc[] = { NET_ADD, NET_REKEY, NET_RK_WHEN, NET_STATUS, NET_CHANGE_OVER, NET_ROSTER };
-		for (unsigned j = 0; j < sizeof nc; j++)
+		// A rekey run with its key made: its change moved (to Key change's choice) or cancelled (otar.md 7.9)
+		ui_rekey_view_t r;
+		ui_svc_net_rekey_view(&r);
+		for (unsigned j = 0; j < sizeof nc; j++) {
 			out[k++] = nc[j];
+			if (nc[j] == NET_STATUS && r.on && !r.cancel && r.presses == 0) {
+				out[k++] = NET_MOVE;
+				out[k++] = NET_CANCEL;
+			}
+		}
 		if (n.rank > 1u)
 			out[k++] = NET_TAKE_OVER;
 		out[k++] = NET_SCHED;
@@ -9280,7 +9288,8 @@ static void net_item(uint16_t i, ui_item_t *it)
 					 TRN(NET_REFUSE, "Refuse the take over"), TRN(NET_LEAVE, "Leave the net"),
 					 TRN(NET_SCHED, "Rekey every"), TRN(NET_TIME, "Send the time"),
 					 TRN(NET_REQUEST, "Request keys"), TRN(NET_SHARE_LOC, "Share location"),
-					 TRN(NET_CHAN, "Net channel") };
+					 TRN(NET_CHAN, "Net channel"), TRN(NET_MOVE, "Move the change"),
+					 TRN(NET_CANCEL, "Cancel the change") };
 	uint8_t row = net_row(i);
 	str_copy(it->label, sizeof it->label, tr(names[row]));
 	if (row == NET_RK_WHEN) {
@@ -9359,6 +9368,20 @@ static const char *net_body(void)
 	}
 	if (net_ask == NET_LEAVE) {
 		sb_str(&b, TR(NET_ASK_LEAVE, "Leave the net? Rejoining needs a key fill"));
+		return id_body;
+	}
+	if (net_ask == NET_MOVE || net_ask == NET_CANCEL) {
+		ui_rekey_view_t r;
+		ui_svc_net_rekey_view(&r);
+		sb_str(&b, TR(NET_REKEY_TO, "Key "));
+		sb_u32(&b, r.kid, 1);
+		if (net_ask == NET_MOVE) {
+			sb_str(&b, TR(NET_ASK_MOVE, ": change over "));
+			nk_when_text(&b, nk_mins[net_rk_when]);
+			sb_str(&b, TR(NET_ASK_MOVE_END, " instead? Every member is told"));
+		} else {
+			sb_str(&b, TR(NET_ASK_CANCEL, ": cancel it? Every member drops it"));
+		}
 		return id_body;
 	}
 	if (net_ask == NET_CHAN) {
@@ -9473,6 +9496,16 @@ static void net_confirmed(uint8_t row)
 	} else if (row == NET_LEAVE) {
 		ui_svc_net_leave();
 		ui_toast(TR(NET_LEFT, "Left the net"));
+	} else if (row == NET_MOVE || row == NET_CANCEL) {
+		uint8_t r = row == NET_MOVE ? ui_svc_net_move(v, nk_mins[net_rk_when]) : ui_svc_net_cancel_change(v);
+		if (r == UI_NET_OK)
+			ui_toast(TR(NET_CHAN_SENDING, "Telling every member"));
+		else if (r == UI_NET_NO_CLOCK)
+			ui_toast(TR(NK_WHY_CLOCK, "No clock: set it, or wait for GPS"));
+		else if (r == UI_NET_NOT_NC)
+			ui_toast(TR(NET_WHY_NC_ONLY, "Only a net control does that"));
+		else
+			ui_toast(TR(NET_NO_REKEY, "No rekey running"));
 	} else if (row == NET_CHAN) {
 		switch (ui_svc_net_set_channel(v)) {
 		case UI_NET_OK: ui_toast(TR(NET_CHAN_SENDING, "Telling every member")); break;
@@ -9587,6 +9620,8 @@ static void net_select(uint16_t i, bool hold)
 			net_ask = NET_CHANGE_OVER;
 		break;
 	case NET_LEAVE: net_ask = NET_LEAVE; break;
+	case NET_MOVE: net_ask = NET_MOVE; break;
+	case NET_CANCEL: net_ask = NET_CANCEL; break;
 	case NET_CHAN: {
 		// Net control: the channel on view becomes the net's, after OK. A member is told who sets it
 		ui_net_view_t n;
@@ -10010,6 +10045,15 @@ static const char *status_body(void)
 	}
 	sb_str(&b, TR(NET_REKEY_TO, "Key "));
 	sb_u32(&b, r.kid, 1);
+	if (r.cancel) {
+		// A cancel run (otar.md 7.9): how many dropped it
+		sb_str(&b, TR(NET_CANCELLED, " cancelled: "));
+		sb_u32(&b, r.done, 1);
+		sb_str(&b, TR(NET_REKEY_OF, " of "));
+		sb_u32(&b, r.members, 1);
+		sb_str(&b, TR(NET_DROPPED_IT, " dropped it"));
+		return id_body;
+	}
 	sb_str(&b, TR(NET_REKEY_HAVE, ": "));
 	sb_u32(&b, r.done, 1);
 	sb_str(&b, TR(NET_REKEY_OF, " of "));

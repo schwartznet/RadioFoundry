@@ -126,13 +126,25 @@ int otar_hello_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTA
 	return seal(out, (int)(OTAR_HELLO_LEN - OTAR_MAC), a, k_mac);
 }
 
-int otar_changeover_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m)
+// CHANGEOVER and WITHDRAW: a keyset and its key ID
+static int ks_kid_build(uint8_t type, uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN],
+			const otar_msg_t *m)
 {
-	header(out, OTAR_CHANGEOVER, m);
+	header(out, type, m);
 	uint8_t *p = &out[OTAR_HDR];
 	put32(p, m->keyset);
 	p[4] = m->kid;
 	return seal(out, (int)(OTAR_CHANGEOVER_LEN - OTAR_MAC), a, k_mac);
+}
+
+int otar_changeover_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m)
+{
+	return ks_kid_build(OTAR_CHANGEOVER, out, a, k_mac, m);
+}
+
+int otar_withdraw_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m)
+{
+	return ks_kid_build(OTAR_WITHDRAW, out, a, k_mac, m);
 }
 
 int otar_roster_build(uint8_t *out, const otar_addr_t *a, const uint8_t k_mac[OTAR_KEY_LEN], const otar_msg_t *m)
@@ -210,6 +222,7 @@ static int len_of(uint8_t type)
 	case OTAR_LOCATE: return (int)OTAR_LOCATE_LEN;
 	case OTAR_POSITION: return (int)OTAR_POSITION_LEN;
 	case OTAR_NETCHAN: return (int)OTAR_NETCHAN_LEN;
+	case OTAR_WITHDRAW: return (int)OTAR_WITHDRAW_LEN;
 	default: return -1;
 	}
 }
@@ -274,6 +287,7 @@ static bool parse(otar_msg_t *m, const uint8_t *p, const uint8_t *ukek)
 		m->flags = p[8];
 		return true;
 	case OTAR_CHANGEOVER:
+	case OTAR_WITHDRAW:
 		m->keyset = get32(p);
 		m->kid = p[4];
 		return true;

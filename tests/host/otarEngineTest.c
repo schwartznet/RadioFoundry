@@ -32,6 +32,7 @@
 #include "FreeRTOS.h"
 
 static int failures, checks;
+#define ACK_WAIT_TEST_MS	21000u	// past the engine's ACK_WAIT_MS (20 s)
 #define CHECK(c) do { checks++; if (!(c)) { printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); failures++; } } while (0)
 
 #define ENGINE_ID	4675810u	// the radio under test
@@ -180,6 +181,13 @@ void radio_req_otar(uint8_t op, uint32_t value)
 			keys.ks_next = (uint16_t)value;
 		break;
 	case RADIO_OTAR_NOW: (void)otar_change_over(&keys); req_now++; break;
+	case RADIO_OTAR_DROP_NEXT:
+		// As radio_aes.c: only the next keyset named, its key erased
+		if ((keys.flags & OTAR_F_NEXT) && keys.kid_next[0] == (uint8_t)value) {
+			otar_clear_next(&keys);
+			tek[value & 0xFFu].used = false;
+		}
+		break;
 	case RADIO_OTAR_TIME: req_time++; break;
 	default: break;
 	}
@@ -195,6 +203,7 @@ static const radio_view_t *v_now(void)
 	view.otar.has_kid = otar_kid(&keys, OTAR_ACTIVE, 1, &view.otar.kid);
 	view.otar.has_next = otar_kid(&keys, OTAR_NEXT, 1, &view.otar.next_kid);
 	view.otar.next_keyset = keys.ks_next;
+	view.otar.changeover = keys.changeover;
 	view.otar.clock_ok = true;
 	view.otar.now_min = 30u * 1440u + now_ms / 60000u;
 	view.otar.clock_src = UTC_SRC_GPS;
@@ -335,6 +344,7 @@ static int build(uint8_t type, otar_msg_t *m, uint8_t *out)
 	case OTAR_LOCATE: return otar_locate_build(out, &a, kmac, m);
 	case OTAR_POSITION: return otar_position_build(out, &a, kmac, m);
 	case OTAR_NETCHAN: return otar_netchan_build(out, &a, kmac, m);
+	case OTAR_WITHDRAW: return otar_withdraw_build(out, &a, kmac, m);
 	default: return 0;
 	}
 }
@@ -1618,6 +1628,206 @@ static void test_netchan_nc(void)
 	CHECK(ui_svc_net_set_channel(v_now()) == UI_NET_NOT_FIRST);
 }
 
+// ===================== the planned change (otar.md 7.9): the engine a member, the test its net control
+static void withdraw_msg(otar_msg_t *m, uint32_t keyset, uint8_t kid)
+{
+	memset(m, 0, sizeof *m);
+	m->rank = 1;
+	m->keyset = keyset;
+	m->kid = kid;
+}
+
+static void test_planned_member(void)
+{
+	setup(0);
+	roster_add(PEER_ID, 1, peer_pub);
+	roster_add(ENGINE_ID, 0, eng_pub);
+	otar_start(&keys, 0, 77);
+	tek[77].used = true;
+	keys.ks_active = 4;
+	run(25000);
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t m, r;
+	// The next keyset 5 by the clocks
+	uint32_t at = v_now()->otar.now_min + 60u;
+	rekey_msg(&m, 5, 78, 0x55, OTAR_RK_CLOCK);
+	m.changeover = at;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(1000);
+	CHECK(last_out(&r) && r.result == OTAR_ACK_STORED && keys.ks_next == 5 && keys.changeover == at);
+
+	// Move the change: the same keyset again with another changeover. HELD, and the changeover moved; by hand too
+	rekey_msg(&m, 5, 78, 0x55, OTAR_RK_CLOCK);
+	m.changeover = at + 300u;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(1000);
+	CHECK(last_out(&r) && r.result == OTAR_ACK_HELD && keys.changeover == at + 300u && (keys.flags & OTAR_F_OWN_CLOCK));
+	rekey_msg(&m, 5, 78, 0x55, 0);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(1000);
+	CHECK(last_out(&r) && r.result == OTAR_ACK_HELD && keys.changeover == 0 && !(keys.flags & OTAR_F_OWN_CLOCK));
+	// ... but never with another key under that number
+	rekey_msg(&m, 5, 78, 0x66, OTAR_RK_CLOCK);
+	m.changeover = at;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_REKEY, &m, buf));
+	run(1000);
+	CHECK(last_out(&r) && r.result == OTAR_ACK_REFUSED && keys.changeover == 0);
+
+	// WITHDRAW naming another key ID under keyset 5: refused, kept
+	withdraw_msg(&m, 5, 99);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_WITHDRAW, &m, buf));
+	run(1000);
+	CHECK(last_out(&r) && r.type == OTAR_ACK && r.result == OTAR_ACK_REFUSED && keys.ks_next == 5);
+	// The right one: dropped, its key erased, ACK DROPPED for keyset 5 (CKR 1: a keyset's answer) echoing it
+	withdraw_msg(&m, 5, 78);
+	int wn = build(OTAR_WITHDRAW, &m, buf);
+	uint8_t replay[OTAR_MSG_MAX];
+	memcpy(replay, buf, (size_t)wn);
+	deliver(PEER_ID, ENGINE_ID, false, buf, wn);
+	run(1000);
+	CHECK(last_out(&r) && r.type == OTAR_ACK && r.result == OTAR_ACK_DROPPED && r.keyset == 5 && r.ckr == 1 &&
+	      r.echo == m.msgnum);
+	CHECK(!(keys.flags & OTAR_F_NEXT) && !tek[78].used && keys.ks_active == 4 && keys.kid_active[0] == 77);
+	// Played back: not answered as DROPPED again
+	int before = out_n;
+	deliver(PEER_ID, ENGINE_ID, false, replay, wn);
+	run(1000);
+	CHECK(out_n == before || (last_out(&r) && r.result == OTAR_ACK_MSGNUM));
+	// Not held (any more): DROPPED all the same; the active keyset: OLD (too late)
+	withdraw_msg(&m, 5, 78);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_WITHDRAW, &m, buf));
+	run(1000);
+	CHECK(last_out(&r) && r.result == OTAR_ACK_DROPPED);
+	withdraw_msg(&m, 4, 77);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_WITHDRAW, &m, buf));
+	run(1000);
+	CHECK(last_out(&r) && r.result == OTAR_ACK_OLD && keys.ks_active == 4 && tek[77].used);
+	// From a member (rank 0 in the roster): not answered
+	roster_add(PEER_ID, 0, peer_pub);
+	before = out_n;
+	withdraw_msg(&m, 5, 78);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_WITHDRAW, &m, buf));
+	run(1000);
+	CHECK(out_n == before);
+}
+
+// The engine net control 1, the test a member
+static uint32_t cut_of(void)
+{
+	return (uint32_t)live.otar_cut[0] << 8 | live.otar_cut[1];
+}
+
+static void ack_rekey(uint32_t keyset, const otar_msg_t *sent, uint8_t result, uint8_t *buf)
+{
+	otar_msg_t m;
+	memset(&m, 0, sizeof m);
+	m.keyset = keyset;
+	m.ckr = 1;
+	m.result = result;
+	m.echo = sent->msgnum;
+	(void)kcv_traffic(CODEPLUG_SYSTYPE_DMR_AES, DMR_AES_ALG_AES256, sent->tek, 32, m.kcv);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &m, buf));
+}
+
+static void test_planned_nc(void)
+{
+	setup(1);
+	roster_add(ENGINE_ID, 1, eng_pub);
+	roster_add(PEER_ID, 0, peer_pub);
+	otar_start(&keys, 0, 77);
+	tek[77].used = true;
+	keys.ks_active = 4;
+	run(3000);
+	uint8_t buf[OTAR_MSG_MAX];
+	otar_msg_t r;
+	ui_rekey_view_t rv;
+	// Nothing planned: nothing to move or cancel
+	CHECK(ui_svc_net_move(v_now(), 60) == UI_NET_NO_NEXT && ui_svc_net_cancel_change(v_now()) == UI_NET_NO_NEXT);
+	CHECK(ui_svc_net_rekey(v_now(), 0) == UI_NET_OK);
+	run(3000);
+	CHECK(last_out(&r) && r.type == OTAR_REKEY && r.keyset == 5 && r.changeover == 0);
+	uint8_t kid = r.kid;
+	ack_rekey(5, &r, OTAR_ACK_STORED, buf);
+	run(500);
+	ui_svc_net_rekey_view(&rv);
+	CHECK(rv.on && !rv.cancel && rv.done == 1);
+
+	// Move the change to an hour from now: this radio's next moved, the member sent the REKEY again with it
+	uint32_t want = v_now()->otar.now_min + 60u;
+	CHECK(ui_svc_net_move(v_now(), 60) == UI_NET_OK);
+	CHECK(keys.changeover == want && (keys.flags & OTAR_F_OWN_CLOCK));
+	ui_svc_net_rekey_view(&rv);
+	CHECK(rv.done == 0 && rv.changeover == want);
+	run(3000);
+	CHECK(last_out(&r) && r.type == OTAR_REKEY && r.keyset == 5 && r.kid == kid && r.changeover == want &&
+	      (r.flags & OTAR_RK_CLOCK));
+	ack_rekey(5, &r, OTAR_ACK_HELD, buf);
+	run(500);
+	ui_svc_net_rekey_view(&rv);
+	CHECK(rv.done == 1);
+
+	// Cancel the change: this radio's next and its key gone, the withdrawn keyset kept, WITHDRAW to the member
+	CHECK(ui_svc_net_cancel_change(v_now()) == UI_NET_OK);
+	CHECK(!(keys.flags & OTAR_F_NEXT) && !tek[kid].used && keys.ks_active == 4 && cut_of() == 5 && live.otar_cut_kid == kid);
+	CHECK(ui_svc_net_cancel_change(v_now()) == UI_NET_NO_NEXT);	// once
+	ui_svc_net_rekey_view(&rv);
+	CHECK(rv.on && rv.cancel && rv.done == 0);
+	run(3000);
+	CHECK(last_out(&r) && r.type == OTAR_WITHDRAW && r.keyset == 5 && r.kid == kid);
+	// An ACK HELD (a late answer to the REKEY) doesn't count; DROPPED does, and the run ends
+	otar_msg_t a;
+	memset(&a, 0, sizeof a);
+	a.keyset = 5;
+	a.ckr = 1;
+	a.result = OTAR_ACK_DROPPED;
+	a.echo = r.msgnum;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_ACK, &a, buf));
+	run(500);
+	ui_svc_net_rekey_view(&rv);
+	CHECK(!rv.on);
+
+	// The member, off during the cancel run, says HELLO still holding keyset 5 next: WITHDRAW it
+	otar_msg_t h;
+	memset(&h, 0, sizeof h);
+	h.keyset = 4;
+	h.next_keyset = 5;
+	h.flags = 1;
+	run(3000);
+	out_n = 0;
+	int before = out_n;
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_HELLO, &h, buf));
+	run(2000);
+	CHECK(out_n > before && last_out(&r) && r.type == OTAR_WITHDRAW && r.keyset == 5 && r.kid == kid);
+	// Holding another next keyset: an ACK CURRENT, no WITHDRAW
+	memset(&h, 0, sizeof h);
+	h.keyset = 4;
+	h.next_keyset = 6;
+	h.flags = 1;
+	run(130000);
+	deliver(PEER_ID, ENGINE_ID, false, buf, build(OTAR_HELLO, &h, buf));
+	run(2000);
+	CHECK(last_out(&r) && r.type == OTAR_ACK && r.result == OTAR_ACK_CURRENT);
+
+	// The next rekey numbers its keyset past the withdrawn one: 6, this radio's next keyset too
+	out_n = 0;
+	CHECK(ui_svc_net_rekey(v_now(), 0) == UI_NET_OK);
+	run(3000);
+	CHECK(last_out(&r) && r.type == OTAR_REKEY && r.keyset == 6 && keys.ks_next == 6);
+	// Cancelled with the member not answering: a new Rekey now replaces the cancel run at once
+	ack_rekey(6, &r, OTAR_ACK_STORED, buf);
+	run(500);
+	CHECK(ui_svc_net_cancel_change(v_now()) == UI_NET_OK && cut_of() == 6);
+	run(3000);
+	CHECK(last_out(&r) && r.type == OTAR_WITHDRAW && r.keyset == 6);
+	run(ACK_WAIT_TEST_MS);
+	CHECK(ui_svc_net_rekey(v_now(), 0) == UI_NET_OK);
+	run(3000);
+	CHECK(last_out(&r) && r.type == OTAR_REKEY && r.keyset == 7 && keys.ks_next == 7);
+	// Leaving the net forgets the withdrawn keyset
+	ui_svc_net_leave();
+	CHECK(cut_of() == 0 && live.otar_cut_kid == 0);
+}
+
 int main(void)
 {
 	test_msgnum();
@@ -1635,6 +1845,8 @@ int main(void)
 	test_locate_nc();
 	test_netchan_member();
 	test_netchan_nc();
+	test_planned_member();
+	test_planned_nc();
 	printf("otarEngineTest: %d checks, %d failures\n", checks, failures);
 	return failures != 0;
 }

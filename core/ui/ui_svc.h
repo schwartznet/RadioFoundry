@@ -180,9 +180,15 @@ enum { UI_NET_OK, UI_NET_NOT_NC, UI_NET_NOT_MANAGED, UI_NET_BUSY, UI_NET_NO_TG, 
 uint8_t ui_svc_net_rekey(const radio_view_t *v, uint16_t mins);
 // Net control: change the net over now: CHANGEOVER to the talkgroup, then this radio. UI_NET_*
 uint8_t ui_svc_net_change_over(const radio_view_t *v);
+// Net control: the planned change (otar.md 7.9). Move: the rekey run's changeover set again (mins from now, 0 by hand),
+// every member sent the REKEY again. Cancel: the next keyset withdrawn here and from every member (WITHDRAW). UI_NET_OK,
+// NOT_NC, NO_NEXT (no rekey run with its key made), NO_CLOCK (move by the clocks without one)
+uint8_t ui_svc_net_move(const radio_view_t *v, uint16_t mins);
+uint8_t ui_svc_net_cancel_change(const radio_view_t *v);
 // The rekey run as Net status shows it: the key it sends, how many have it, and member i's state
 typedef struct {
 	bool on;
+	bool cancel;		// a cancel run: done counts the members that dropped it
 	uint8_t kid;
 	uint8_t members, done;
 	uint8_t presses;	// random key presses the pool still wants before the key is made

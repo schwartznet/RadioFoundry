@@ -274,7 +274,10 @@ typedef struct {
 	uint8_t otar_sched;		// a net control's rekey schedule (otar.md 9): every this many days, 0 by hand
 	uint8_t otar_sched_at[3];	// ... the next one due, UTC minutes since 2026-01-01 (big-endian, 24 bits); 0 none
 	uint8_t otar_loc_off;		// 0: a net control may ask where this radio is (LOCATE, otar.md 7.7; the default, a record from before too, and set again at each join or start); 1: the user turned Share location off
-	uint8_t reserved_otar[5];	// 0: otar_net starts page 2
+	uint8_t otar_cut[2];		// a net control: the last next keyset it withdrew (otar.md 7.9; big-endian), 0 none: a member
+					// still holding it is told at its HELLO, and the next rekey takes a number above it
+	uint8_t otar_cut_kid;		// ... its key ID
+	uint8_t reserved_otar[2];	// 0: otar_net starts page 2
 	// OTAR net membership (otar.md 5, 6), appended: an older record reads no key pair and no net
 	otar_net_t otar_net;
 	// OTAR message numbers (otar.md 7), appended: this radio's last sent, and the last taken from net control 1

@@ -331,6 +331,7 @@ uint8_t ui_svc_net_member_flags(uint16_t i)
 #define CU_GAP_MS	120000u	// ... and answers one member's HELLO at most this often
 #define HELLO_ANS_N	8u	// ... keeping the last members answered: at most this many answers per CU_GAP_MS
 #define HELLO_REQ_MS	10000u	// a member's Request keys: not again within this of its last HELLO
+#define CANCEL_RUN_MS	600000u	// a cancel run tries the members this long; one that was off is told at its HELLO (7.9)
 
 typedef struct {
 	uint32_t id;
@@ -355,6 +356,8 @@ typedef struct {
 	uint8_t n;
 	uint8_t cur;		// the member whose ACK is awaited, 0xFF none
 	uint32_t ack_by;
+	bool cancel;		// Cancel the change (otar.md 7.9): a WITHDRAW to each member instead, until cancel_by
+	uint32_t cancel_by;
 	rk_member_t m[OTAR_ROSTER_MAX - 1u];
 } rekey_t;
 
@@ -380,6 +383,7 @@ static struct {
 	uint32_t tek_ks;	// its keyset number, the net's
 	uint32_t tek_at;	// the changeover
 	uint32_t cu_to;		// a net control: the net's active key to send this member, which said HELLO without it
+	uint32_t wd_to;		// ... and the withdrawn keyset (otar_cut) to this member, which said HELLO holding it (7.9)
 	uint32_t ch_to;		// ... and the net's channel to this member, whose HELLO it answered (7.8)
 	struct {
 		uint32_t id, at;
@@ -510,6 +514,8 @@ static uint32_t *seen_of(settings_t *st, unsigned i)
 
 static void otar_seen_clear(settings_t *st)
 {
+	memset(st->otar_cut, 0, sizeof st->otar_cut);	// a withdrawn keyset belongs to the net left (7.9)
+	st->otar_cut_kid = 0;
 	st->otar_seen = 0;
 	memset(st->otar_seen_nc, 0, sizeof st->otar_seen_nc);
 	memset(st->otar_seen_id, 0, sizeof st->otar_seen_id);
@@ -519,6 +525,25 @@ void ui_svc_net_seen_clear(uint32_t now)
 {
 	settings_t *st = settings_begin();
 	otar_seen_clear(st);
+	settings_end(now);
+}
+
+// A net control's last withdrawn next keyset (otar.md 7.9): its number (0 none) and key ID
+static uint32_t cut_get(uint8_t *kid)
+{
+	settings_t *st = settings_begin();
+	uint32_t ks = (uint32_t)st->otar_cut[0] << 8 | st->otar_cut[1];
+	*kid = st->otar_cut_kid;
+	settings_end(0);
+	return ks;
+}
+
+static void cut_put(uint32_t ks, uint8_t kid, uint32_t now)
+{
+	settings_t *st = settings_begin();
+	st->otar_cut[0] = (uint8_t)(ks >> 8);
+	st->otar_cut[1] = (uint8_t)ks;
+	st->otar_cut_kid = kid;
 	settings_end(now);
 }
 
@@ -754,6 +779,9 @@ __attribute__((noinline)) static void on_rekey(const radio_view_t *v, const uint
 		// Change over now (9)
 		if (eng.ack.result == OTAR_ACK_HELD && now_ks && is_next)
 			radio_req_otar(RADIO_OTAR_NOW, 0);
+		// The next keyset sent again with another changeover: the net control moved the change (Move the change, 7.9)
+		else if (eng.ack.result == OTAR_ACK_HELD && is_next && m.changeover != v->otar.changeover)
+			radio_req_otar(RADIO_OTAR_NEXT_AT, m.kid | (m.changeover << 8));
 	} else if (m.keyset <= v->otar.keyset || (v->otar.has_next && m.keyset < v->otar.next_keyset)) {
 		eng.ack.result = OTAR_ACK_OLD;	// keyset numbers only go up (7.1): never back to an older key
 	} else if ((m.keyset > (uint32_t)v->otar.keyset + KEYSET_STEP_MAX && !(now_ks && src == authority())) ||
@@ -779,6 +807,54 @@ __attribute__((noinline)) static void on_rekey(const radio_view_t *v, const uint
 	eng.ack.msgnum = next_msgnum(now);
 	otar_addr_t back = { v->dmr.own_id, src };
 	out_set(src, false, otar_ack_build(eng.out, &back, eng.kmac, &eng.ack));
+}
+
+// A member: a WITHDRAW from a net control (7.9): the next keyset it names dropped and its key erased, before the
+// changeover. ACK DROPPED once that keyset is not held (also when it never was: what the net control wants is true);
+// REFUSED when this radio's next keyset under that number is another key; OLD when it is already the active one (too
+// late: the radio changed over)
+__attribute__((noinline)) static void on_withdraw(const radio_view_t *v, const uint8_t *msg, int len, uint32_t src,
+						  const otar_net_t *n, uint32_t now)
+{
+	otar_member_t nc;
+	if (!otar_roster_find(src, &nc) || nc.rank == 0 || (nc.flags & OTAR_M_REVOKED) || eng.tek_due || eng.tek_job ||
+	    eng.ros_due || eng.out_len != 0)
+		return;
+	if (!eng.pair_ok || eng.pair_id != src) {
+		eng.pair_ok = pair_keys(v->dmr.own_id, src, n->net_id, eng.ukek, eng.kmac);
+		eng.pair_id = src;
+		if (!eng.pair_ok)
+			return;
+	}
+	otar_addr_t a = { src, v->dmr.own_id };
+	otar_msg_t *m = &eng.ros_m;
+	if (!otar_open(msg, len, &a, NULL, eng.kmac, m) || m->net_id != n->net_id || !fresh_or_tell(v, n, src, m->msgnum, now))
+		return;
+	if (eng.hello.on && src == eng.hello.to) {	// the answer to its HELLO (9)
+		eng.hello.on = false;
+		eng.hello.state = UI_HELLO_GOT;
+	}
+	uint32_t ks = m->keyset, echo = m->msgnum;
+	uint8_t kid = m->kid, result;
+	if (!v->otar.on)
+		result = OTAR_ACK_NOT_MANAGED;
+	else if (v->otar.has_next && v->otar.next_keyset == ks)
+		result = v->otar.next_kid == kid ? OTAR_ACK_DROPPED : OTAR_ACK_REFUSED;
+	else if (v->otar.keyset == ks)
+		result = OTAR_ACK_OLD;
+	else
+		result = OTAR_ACK_DROPPED;
+	if (result == OTAR_ACK_DROPPED && v->otar.has_next && v->otar.next_keyset == ks)
+		radio_req_otar(RADIO_OTAR_DROP_NEXT, kid);
+	memset(m, 0, sizeof *m);
+	m->net_id = n->net_id;
+	m->keyset = ks;
+	m->ckr = 1;		// a keyset's answer (CKR 0 is a roster entry's, 7.2)
+	m->result = result;
+	m->echo = echo;
+	m->msgnum = next_msgnum(now);
+	otar_addr_t back = { v->dmr.own_id, src };
+	out_set(src, false, otar_ack_build(eng.out, &back, eng.kmac, m));
 }
 
 // The best-ranked net control not revoked on this radio's roster (0: none)
@@ -1342,6 +1418,13 @@ static __attribute__((noinline)) void hello_answer(const radio_view_t *v, const 
 			answered = true;
 		}
 	}
+	// Holding the keyset this radio withdrew as its next (off during the cancel run, 7.9): WITHDRAW it first
+	uint8_t cut_kid;
+	uint32_t cut = cut_get(&cut_kid);
+	if (rk == NULL && cut != 0 && cut > v->otar.keyset && (m->flags & 1u) && m->next_keyset == cut) {
+		eng.wd_to = src;
+		answered = true;
+	}
 	if (!answered && behind && rk == NULL) {
 		eng.cu_to = src;	// sent by cu_send once the transport is free
 		answered = true;
@@ -1500,8 +1583,13 @@ __attribute__((noinline)) static void on_member(const radio_view_t *v, const uin
 		if (m.type == OTAR_ACK && m.keyset == rk->keyset && m.echo == mm->sent) {
 			// OK only with the check value of the key this run sent: an old ACK of the same keyset (a run stopped
 			// and started again) or another net control's key under the same number doesn't count
+			// A cancel run's WITHDRAW: OK once dropped; OLD (changed over already, too late) shows out of sync,
+			// not tried again (7.9)
 			bool same = memcmp(m.kcv, rk->kcv, sizeof rk->kcv) == 0;
-			mm->state = (m.result == OTAR_ACK_STORED || m.result == OTAR_ACK_HELD) && same ? UI_RK_OK : UI_RK_FAIL;
+			if (rk->cancel)
+				mm->state = m.result == OTAR_ACK_DROPPED ? UI_RK_OK : m.result == OTAR_ACK_OLD ? UI_RK_SYNC : UI_RK_FAIL;
+			else
+				mm->state = (m.result == OTAR_ACK_STORED || m.result == OTAR_ACK_HELD) && same ? UI_RK_OK : UI_RK_FAIL;
 			if (rk->cur == i)
 				rk->cur = 0xFF;
 			if (mm->state == UI_RK_FAIL)
@@ -1561,6 +1649,8 @@ __attribute__((noinline)) static bool rk_step(const radio_view_t *v, const otar_
 			return true;
 		}
 		radio_req_otar(RADIO_OTAR_NEXT_AT, rk->kid | (rk->changeover << 8));
+		if (rk->keyset != (uint32_t)v->otar.keyset + 1u)
+			radio_req_otar(RADIO_OTAR_NEXT_KS, rk->keyset);	// numbered past a withdrawn keyset (7.9)
 		rk->armed_by = now + 30000u;	// the radio makes it between overs (radio_aes_otar_defer)
 		return true;
 	}
@@ -1576,7 +1666,17 @@ __attribute__((noinline)) static bool rk_step(const radio_view_t *v, const otar_
 			return false;
 		}
 	}
-	if (!shown) {
+	if (rk->cancel) {
+		// A cancel run (7.9): ends once every member dropped the keyset (or is out of sync), or after CANCEL_RUN_MS;
+		// a member that was off is told at its HELLO (hello_answer)
+		bool left = false;
+		for (uint8_t i = 0; i < rk->n; i++)
+			left |= rk->m[i].state != UI_RK_OK && rk->m[i].state != UI_RK_SYNC;
+		if ((!left || (int32_t)(now - rk->cancel_by) >= 0) && rk->cur == 0xFF) {
+			rk_free();
+			return true;
+		}
+	} else if (!shown) {
 		// Changed over by the clock (not by hand): CHANGEOVER for the members that have no clock (otar.md 9)
 		if (rk->changeover != 0 && !eng.co_hand && v->otar.on && v->otar.kid == rk->kid)
 			(void)co_start(v, rk->kid, rk->keyset, n->net_id, n->rank, false);
@@ -1615,9 +1715,14 @@ __attribute__((noinline)) static bool rk_step(const radio_view_t *v, const otar_
 		m.kid = rk->kid;
 		m.changeover = rk->changeover;
 		m.flags = rk->changeover != 0 ? OTAR_RK_CLOCK : 0u;
-		memcpy(m.tek, rk->tek, OTAR_KEY_LEN);
 		otar_addr_t a = { v->dmr.own_id, mm->id };
-		int len = otar_rekey_build(eng.out, &a, ukek, kmac, &m);
+		int len;
+		if (rk->cancel) {
+			len = otar_withdraw_build(eng.out, &a, kmac, &m);
+		} else {
+			memcpy(m.tek, rk->tek, OTAR_KEY_LEN);
+			len = otar_rekey_build(eng.out, &a, ukek, kmac, &m);
+		}
 		crypto_wipe(&m, sizeof m);
 		crypto_wipe(ukek, sizeof ukek);
 		crypto_wipe(kmac, sizeof kmac);
@@ -1794,6 +1899,34 @@ static __attribute__((noinline)) void cu_send(const radio_view_t *v, const otar_
 		m->flags = OTAR_RK_NOW;
 		otar_addr_t a = { v->dmr.own_id, to };
 		out_set(to, false, otar_rekey_build(eng.out, &a, ukek, kmac, m));
+	}
+	crypto_wipe(m, sizeof *m);
+	crypto_wipe(ukek, sizeof ukek);
+	crypto_wipe(kmac, sizeof kmac);
+}
+
+// A net control: the withdrawn keyset (otar_cut, 7.9) to a member whose HELLO said it holds it as its next (it was off
+// during the cancel run). Sent once: the member says HELLO again at its next start
+static __attribute__((noinline)) void wd_send(const radio_view_t *v, const otar_net_t *n, uint32_t now)
+{
+	uint32_t to = eng.wd_to;
+	eng.wd_to = 0;
+	otar_member_t mm;
+	uint8_t kid;
+	uint32_t ks = cut_get(&kid);
+	if (ks == 0 || !otar_roster_find(to, &mm) || (mm.flags & OTAR_M_REVOKED))
+		return;
+	uint8_t ukek[OTAR_KEY_LEN], kmac[OTAR_KEY_LEN];
+	otar_msg_t *m = &eng.ros_m;
+	memset(m, 0, sizeof *m);
+	if (pair_keys(v->dmr.own_id, to, n->net_id, ukek, kmac)) {
+		m->net_id = n->net_id;
+		m->rank = n->rank;
+		m->msgnum = next_msgnum(now);
+		m->keyset = ks;
+		m->kid = kid;
+		otar_addr_t a = { v->dmr.own_id, to };
+		out_set(to, false, otar_withdraw_build(eng.out, &a, kmac, m));
 	}
 	crypto_wipe(m, sizeof *m);
 	crypto_wipe(ukek, sizeof ukek);
@@ -2001,6 +2134,7 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 		memset(eng.lans, 0, sizeof eng.lans);
 		eng.inv_to = 0;
 		eng.cu_to = 0;
+		eng.wd_to = 0;
 		eng.ch_to = 0;
 		eng.inv_next = false;
 		eng.tm_left = 0;
@@ -2093,6 +2227,8 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 				on_position(v, msg, len, src, &n, now);
 			else if (h.type == OTAR_NETCHAN && !group && src != v->dmr.own_id)
 				on_netchan(v, msg, len, src, &n, now);
+			else if (h.type == OTAR_WITHDRAW && !group && src != v->dmr.own_id && eng.rk == NULL)
+				on_withdraw(v, msg, len, src, &n, now);
 			else if ((h.type == OTAR_ACK || h.type == OTAR_HELLO) && !group && n.rank != 0)
 				on_member(v, msg, len, src, &n, now);
 			else if (h.type == OTAR_ACK && !group && n.rank == 0)
@@ -2122,7 +2258,13 @@ static bool engine_tick(const radio_view_t *v, uint32_t now)
 		tm_send(v, &n, now);
 		changed = true;
 	}
-	if (eng.cu_to != 0 && n.rank != 0 && mn_ok && eng.out_len == 0 && !eng.sending && eng.rk == NULL && !eng.ros.waiting && !eng.ros_due) {
+	if (eng.wd_to != 0 && n.rank != 0 && mn_ok && eng.out_len == 0 && !eng.sending && eng.rk == NULL && !eng.ros.waiting &&
+	    !eng.ros_due) {
+		wd_send(v, &n, now);
+		changed = true;
+	}
+	if (eng.cu_to != 0 && eng.wd_to == 0 && n.rank != 0 && mn_ok && eng.out_len == 0 && !eng.sending && eng.rk == NULL &&
+	    !eng.ros.waiting && !eng.ros_due) {
 		cu_send(v, &n, now);
 		changed = true;
 	}
@@ -2198,6 +2340,8 @@ uint8_t ui_svc_net_rekey(const radio_view_t *v, uint16_t mins)
 		return UI_NET_NOT_NC;
 	if (!v->otar.on)
 		return UI_NET_NOT_MANAGED;
+	if (eng.rk != NULL && eng.rk->cancel && eng.rk->cur == 0xFF)
+		rk_free();	// a cancel run gives way: the new keyset replaces the withdrawn one where a member still holds it
 	if (eng.rk != NULL || eng.tek_due || eng.tek_job || eng.ros.on)
 		return UI_NET_BUSY;
 	// The key ID: the first free one after the key in use
@@ -2216,6 +2360,12 @@ uint8_t ui_svc_net_rekey(const radio_view_t *v, uint16_t mins)
 	rk->kid = kid;
 	rk->system = v->otar.system;
 	rk->keyset = (uint32_t)v->otar.keyset + 1u;
+	// Above the last keyset withdrawn (7.9): a member that missed the WITHDRAW still holds that number with the old key,
+	// and would refuse another key under it
+	uint8_t cut_kid;
+	uint32_t cut = cut_get(&cut_kid);
+	if (cut >= rk->keyset && cut < (uint32_t)v->otar.keyset + KEYSET_STEP_MAX)
+		rk->keyset = cut + 1u;
 	if (rk->keyset > 0xFFFFu) {
 		vPortFree(rk);
 		return UI_NET_BUSY;	// keyset numbers end at 65535: a new net from here
@@ -2254,7 +2404,8 @@ uint8_t ui_svc_net_change_over(const radio_view_t *v)
 		return UI_NET_NO_NEXT;
 	if (v->dmr.target_private || v->dmr.target_id == 0)
 		return UI_NET_NO_TG;
-	if (!co_start(v, v->otar.next_kid, (uint32_t)v->otar.keyset + 1u, net_id, rank, true))
+	uint32_t next_ks = v->otar.next_keyset != 0 ? v->otar.next_keyset : (uint32_t)v->otar.keyset + 1u;
+	if (!co_start(v, v->otar.next_kid, next_ks, net_id, rank, true))
 		return UI_NET_NO_NEXT;
 	eng.co_hand = eng.rk != NULL;
 	return UI_NET_OK;
@@ -2287,6 +2438,69 @@ static bool co_start(const radio_view_t *v, uint8_t kid, uint32_t keyset, uint16
 	return true;
 }
 
+// The rekey run a move or a cancel applies to: made, stored and this radio's next (not a cancel run already)
+static rekey_t *run_planned(const radio_view_t *v, uint8_t *why)
+{
+	otar_net_t n;
+	net_read(&n);
+	bool nc = (n.flags & OTAR_NET_IN) && n.rank != 0;
+	crypto_wipe(&n, sizeof n);
+	rekey_t *rk = eng.rk;
+	*why = !nc ? UI_NET_NOT_NC : UI_NET_NO_NEXT;
+	if (!nc || rk == NULL || !rk->armed || rk->cancel || !v->otar.has_next || v->otar.next_kid != rk->kid)
+		return NULL;
+	*why = UI_NET_OK;
+	return rk;
+}
+
+// Every member asked again (a move's REKEY, a cancel's WITHDRAW), except one out of sync
+static void run_again(rekey_t *rk, uint32_t now)
+{
+	for (uint8_t i = 0; i < rk->n; i++)
+		if (rk->m[i].state != UI_RK_SYNC) {
+			rk->m[i].state = UI_RK_WAIT;
+			rk->m[i].due = now;
+			rk->m[i].tries = 0;
+		}
+	rk->cur = 0xFF;		// an ACK still awaited no longer counts: its echo is an older message number
+}
+
+uint8_t ui_svc_net_move(const radio_view_t *v, uint16_t mins)
+{
+	uint8_t why;
+	rekey_t *rk = run_planned(v, &why);
+	if (rk == NULL)
+		return why;
+	if (mins != 0 && (!v->otar.clock_ok || v->otar.now_min == 0))
+		return UI_NET_NO_CLOCK;
+	uint32_t now = hal_millis();
+	rk->changeover = mins != 0 ? v->otar.now_min + mins : 0u;
+	rk->mins = mins;
+	radio_req_otar(RADIO_OTAR_NEXT_AT, rk->kid | (rk->changeover << 8));
+	run_again(rk, now);
+	eng.co_hand = false;
+	if (mins != 0)
+		(void)ui_svc_net_send_time(v);	// the members without a clock get this one first (7.4)
+	return UI_NET_OK;
+}
+
+uint8_t ui_svc_net_cancel_change(const radio_view_t *v)
+{
+	uint8_t why;
+	rekey_t *rk = run_planned(v, &why);
+	if (rk == NULL)
+		return why;
+	uint32_t now = hal_millis();
+	rk->cancel = true;
+	rk->cancel_by = now + CANCEL_RUN_MS;
+	crypto_wipe(rk->tek, sizeof rk->tek);	// sent no more
+	cut_put(rk->keyset, rk->kid, now);
+	radio_req_otar(RADIO_OTAR_DROP_NEXT, rk->kid);
+	run_again(rk, now);
+	eng.co_hand = false;
+	return UI_NET_OK;
+}
+
 void ui_svc_net_rekey_view(ui_rekey_view_t *r)
 {
 	memset(r, 0, sizeof *r);
@@ -2294,6 +2508,7 @@ void ui_svc_net_rekey_view(ui_rekey_view_t *r)
 	if (rk == NULL)
 		return;
 	r->on = true;
+	r->cancel = rk->cancel;
 	r->kid = rk->kid;
 	r->members = rk->n;
 	for (uint8_t i = 0; i < rk->n; i++)
