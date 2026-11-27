@@ -36,6 +36,11 @@ static struct {
 	int length;
 } air;
 
+#if CONFIG_OTAR
+#include "otar/otar_api.h"
+void otar_get_stats(otar_svc_stats_t *out) { memset(out, 0, sizeof *out); }	// the view's otar.* lines
+#endif
+
 void dmr_data_get_settings(dmrDataSettings_t *out) { *out = settings; }
 void dmr_data_set_settings(const dmrDataSettings_t *in) { settings = *in; }
 uint32_t dmr_data_serial(void) { return 0; }
