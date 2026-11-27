@@ -665,12 +665,14 @@ static const flow_t flows[] = {
 	// like any other: a DMR channel there stays DMR, RX only. With AM it is a listen band: AM, never DMR
 	{ "E a DMR channel's RX in a receive-only band: DMR, RX only, saved", "ok 5 ok down down down",
 	  "ok 1 2 1 5 0 0 ok long:ok", "shows=121.500 hides=FM toast=Saved_channel_3 writes=1", 9, true },
+#if CONFIG_AM_RX
 	{ "E on a radio with AM: a DMR channel's air band RX makes it AM", "am ok 5 ok down down down", "ok 1 2 1 5 0 0 ok",
 	  "shows=121.500 shows=AM hides=Color_code", 8, false },
 	{ "E on a radio with AM: an air band RX makes the Mode AM", "am ok 5 up up ok down down down", "ok 1 2 1 5 0 0 ok",
 	  "shows=121.500 shows=AM hides=FM", 8, false },
 	{ "E on a radio with AM: OK on the Mode row keeps it AM", "am ok 5 up up ok down down down ok 1 2 1 5 0 0 ok up",
 	  "ok", "toast=Air_band:_receive_only shows=AM hides=FM hides=Color_code hides=RX_CTCSS", 1, false },
+#endif
 	{ "E RX refuses a digit no band starts with", "ok 5 up up ok down down down", "ok 2", "toast=Bands:", 2, false },
 	{ "E RX needs the MHz digits", "ok 5 up up ok down down down", "ok 1 4 ok", "toast=Type_at_least screen=channel",
 	  4, false },
@@ -930,6 +932,10 @@ static const flow_t flows[] = {
 	// Vibrate (Settings > Sound, radio-features.md 4.1): ui_vibe_t 0 message, 1 call, 2 emergency
 	{ "S vibrate on a message", "", "msg:9991234,Hi", "vibes=1 vibe=0", 0, false },
 	{ "S vibrate on a call alert", "", "alert:91", "vibes=1 vibe=1", 0, false },
+	// A call alert rings (ui_beep_t 4), with no setting of its own: Message tone off doesn't silence it
+	{ "S call alert tone", "", "alert:91", "beeps=1 beep=4", 0, false },
+	{ "S call alert tone, message tone off", "ok 7 1 down down down down down down down down down down ok long:back",
+	  "alert:91", "set4=0 beep=4", 0, false },
 	{ "S vibrate on a private call", "", "privcall:91", "vibes=1 vibe=1", 0, false },
 	{ "S vibrate on an emergency", "", "emergency:91", "vibes=1 vibe=2", 0, false },
 	{ "S vibrate off", "ok 7 1 down down down down down down down down down down down ok long:back", "msg:9991234,Hi", "vibes=0 beep=2", 0,
@@ -1334,6 +1340,11 @@ static const flow_t flows[] = {
 	{ "S VFO step: auto, wide", "vfokey", "up", "freq=146545000", 1, false },
 	{ "S VFO step: auto, narrow", "vfokey quick 8 back", "up", "freq=146532500", 1, false },
 	{ "S VFO step: 2.5 kHz", "ok 7 3 down down down ok long:back vfokey", "up", "freq=146522500", 1, false },
+#if CONFIG_AM_RX
+	{ "S VFO step: the fourth after Auto", "ok 7 3 down down down ok ok ok", "ok", "shows=8.33_kHz", 1, false },
+#else
+	{ "S VFO step: the fourth after Auto", "ok 7 3 down down down ok ok ok", "ok", "shows=10_kHz", 1, false },
+#endif
 	// Page titles are in Title Case; the row that opens the page keeps its sentence case (ui.md 1)
 	{ "S a group's title in Title Case", "", "ok 7 3", "screen=group shows=Talk_&_Listen hides=Talk_&_listen", 3, false },
 	{ "S the group's row as it was", "", "ok 7", "screen=settings shows=Talk_&_listen", 2, false },
