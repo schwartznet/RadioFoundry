@@ -244,6 +244,9 @@ typedef struct dmrDataPrivacy_s
 	// ENCRYPT: the message indicator of the next packet we build, each one never used before with the key; NULL for a
 	// scheme without one (0 in the header). 0 = none usable now: the packet is not built (never sent in the clear)
 	uint32_t (*newMi)(const void *ctx);
+	// RX, an encrypted-only channel (dmr-data.md 13.3): packets without a privacy header are dropped and not acknowledged,
+	// even with mode BLOCK; key fill's and OTAR's (13.5) and link responses are still taken
+	bool rxClearDrop;
 } dmrDataPrivacy_t;
 
 // The channel's data privacy (copied; NULL or mode CLEAR: off). With ENCRYPT every unconfirmed and confirmed packet we

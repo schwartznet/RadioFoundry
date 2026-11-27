@@ -2677,9 +2677,9 @@ static bool serviceCrypt(const void *ctx, uint8_t alg, uint8_t keyId, uint32_t m
 static void testPrivacy(void)
 {
 	static const uint16_t key = 0x2503;
-	static const dmrDataPrivacy_t clear = { DMR_DATA_PRIVACY_CLEAR, 0, NULL, NULL, 0, NULL };
-	const dmrDataPrivacy_t encrypt = { DMR_DATA_PRIVACY_ENCRYPT, DMR_DATA_ALG_BASIC, serviceCrypt, &key, 0, NULL };
-	const dmrDataPrivacy_t block = { DMR_DATA_PRIVACY_BLOCK, 0, NULL, NULL, 0, NULL };
+	static const dmrDataPrivacy_t clear = { DMR_DATA_PRIVACY_CLEAR, 0, NULL, NULL, 0, NULL, false };
+	const dmrDataPrivacy_t encrypt = { DMR_DATA_PRIVACY_ENCRYPT, DMR_DATA_ALG_BASIC, serviceCrypt, &key, 0, NULL, false };
+	const dmrDataPrivacy_t block = { DMR_DATA_PRIVACY_BLOCK, 0, NULL, NULL, 0, NULL, false };
 	dmrBurst_t bursts[DMR_DATA_MAX_BURSTS];
 	int count, heard;
 
@@ -2874,6 +2874,84 @@ static void testPrivacy(void)
 	dmrDataSetPrivacy(&encrypt);
 	rxBursts(bursts, count);
 	CHECK(packetsHeard == heard && stats.rxClearDropped == clear_dropped + 1);
+#if CONFIG_DMR_AES
+	// Encrypted only (#1159): a clear text to us is dropped as if not heard. With the switch off (digital monitor)
+	// the same text is taken
+	dmrDataPrivacy_t encOnly = block;
+	encOnly.rxClearDrop = true;
+	reset();
+	ch.privacy = encOnly;
+	runMainTask(100);
+	heard = packetsHeard;
+	dropped = stats.rxClearDropped;
+	count = dmrDataBuildTMS(false, OUR_ID, RADIO_B, "in the clear", 3, true, DMR_TYPE_RATE_1_2, 1, bursts, DMR_DATA_MAX_BURSTS);
+	CHECK(count > 0);
+	rxBursts(bursts, count);
+	runMainTask(500);
+	CHECK((packetsHeard == heard) && (stats.rxClearDropped == dropped + 1));
+	ch.privacy = block;
+	runMainTask(100);
+	count = dmrDataBuildTMS(false, OUR_ID, RADIO_B, "in the clear", 4, true, DMR_TYPE_RATE_1_2, 1, bursts, DMR_DATA_MAX_BURSTS);
+	rxBursts(bursts, count);
+	runMainTask(500);
+	CHECK((packetsHeard == heard + 1) && (stats.rxClearDropped == dropped + 1));
+	// Encrypted only with the key (data encrypted, 13.4): a clear text is dropped and not acknowledged (as not heard),
+	// where a plain AES channel acknowledges it. OTAR's clear packets (13.5) and link responses are still taken
+	dmrDataPrivacy_t encOnlyKey = encrypt;
+	encOnlyKey.rxClearDrop = true;
+	reset();
+	ch.privacy = encOnlyKey;
+	runMainTask(2000);
+	heard = packetsHeard;
+	dropped = stats.rxClearDropped;
+	dmrDataSetPrivacy(&clear);
+	count = dmrDataBuildTMS(false, OUR_ID, RADIO_B, "in the clear", 5, true, DMR_TYPE_RATE_1_2, 1, bursts, DMR_DATA_MAX_BURSTS);
+	dmrDataSetPrivacy(&encOnlyKey);
+	lastTxCount = 0;
+	rxBursts(bursts, count);
+	runMainTask(500);
+	CHECK((packetsHeard == heard) && (stats.rxClearDropped == dropped + 1) && (lastTxCount == 0));
+	{
+		static const uint8_t body[] = { 1, 2, 3, 4 };
+		dmrDataSetPrivacy(&clear);
+		count = dmrDataBuildUDP(false, OUR_ID, RADIO_B, DMR_UDP_PORT_OTAR, DMR_UDP_PORT_OTAR, body, sizeof body,
+					DMR_TYPE_RATE_1_2, 0, bursts, DMR_DATA_MAX_BURSTS);
+		dmrDataSetPrivacy(&encOnlyKey);
+		CHECK(count > 0);
+		rxBursts(bursts, count);
+		runMainTask(500);
+		CHECK((packetsHeard == heard + 1) && (stats.rxClearDropped == dropped + 1));
+		dmrDataSetPrivacy(&clear);
+		count = dmrDataBuildUDP(false, OUR_ID, RADIO_B, DMR_UDP_PORT_KEY_FILL, DMR_UDP_PORT_KEY_FILL, body,
+					sizeof body, DMR_TYPE_RATE_1_2, 0, bursts, DMR_DATA_MAX_BURSTS);
+		dmrDataSetPrivacy(&encOnlyKey);
+		rxBursts(bursts, count);
+		runMainTask(500);
+		CHECK((packetsHeard == heard + 2) && (stats.rxClearDropped == dropped + 1));
+	}
+	// Our confirmed OTAR packet: the receiver's link ACK (clear) ends it
+	{
+		static uint8_t ot[8 + 12];
+		memset(ot, 0x5A, sizeof ot);
+		ot[0] = ot[2] = (uint8_t)(DMR_UDP_PORT_OTAR >> 8);
+		ot[1] = ot[3] = (uint8_t)DMR_UDP_PORT_OTAR;
+		ot[4] = 0;
+		ot[5] = sizeof ot;
+		ot[6] = ot[7] = 0;
+		runMainTask(2000);
+		CHECK(dmrDataServiceSendIPDelivery(false, RADIO_A, DMR_IP_PROTO_UDP, ot, sizeof ot,
+						   DMR_IPS_CONFIRMED | DMR_IPS_SELF_PROTECTED));
+		runMainTask(300);
+		const dmrBurst_t *oh = txHeader();
+		CHECK(oh != NULL && (oh->payload[0] & 0x0F) == DMR_DPF_CONFIRMED);
+		if (oh != NULL)
+		{
+			respond(RADIO_A, (oh->payload[1] >> 4) & 0x0F, DMR_RESPONSE_ACK((oh->payload[9] >> 4) & 7), NULL);
+		}
+		CHECK(!dmrDataServiceIpBusy() && dmrDataServiceIpResult() == DMR_REQ_OK);
+		CHECK(stats.rxClearDropped == dropped + 1);
+	}
+#endif
 
 	ch.privacy = clear;
 	reset();

@@ -161,7 +161,7 @@ typedef struct
 	uint32_t rxConfirmed;					// ... confirmed data to us
 	uint32_t rxPrivacy;						// packets decrypted with the channel's privacy key
 	uint32_t rxPrivacyDropped;				// encrypted packets dropped: another scheme, or no key
-	uint32_t rxClearDropped;				// clear packets dropped on a channel that encrypts data (13.5)
+	uint32_t rxClearDropped;				// clear packets dropped on a channel that encrypts data or is encrypted only (13.3, 13.5)
 	uint32_t txPrivacy;						// lists sent with the privacy header (encrypted data)
 	uint32_t txPrivacyBlocked;				// lists not sent: data the channel's privacy can't protect
 	uint32_t smsReceived;					// text messages kept

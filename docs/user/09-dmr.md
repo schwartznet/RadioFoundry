@@ -314,10 +314,21 @@ others aren't heard on that channel. A protected channel without its key refuses
 but still plays the system's other keys, and Home shows **NO KEY** in an amber badge instead of **AES256**, for
 example after the keys were wiped or with a codeplug from another radio. Text messages and other packet data on these
 channels go encrypted with the channel's key, and only then: without the key nothing is sent, never in the clear. Two
-radios running RadioFoundry read each other's; whether a radio of another make reads them is not known yet. Radio
-check, call alert and emergency alarms work as on any DMR channel. Your GPS position is never put in an encrypted
-call's voice header. The editor's image export omits key bytes by
-default. Including keys produces a file that contains the keys.
+radios running RadioFoundry read each other's; whether a radio of another make reads them is not known yet. While the
+channel has its key, clear text messages and other clear data sent to it are dropped. Radio check, call alert and
+emergency alarms work as on any DMR channel. Your GPS position is never put in an encrypted call's voice header. The
+editor's image export omits key bytes by default. Including keys produces a file that contains the keys.
+
+**Encrypted only** (below **AES key** once a key is chosen, and a box on the channel in the Codeplug Editor; off by
+default) makes the channel ignore everything sent in the clear, as if it were on another color code:
+
+- A clear call is not played and not shown, not even as "not played". A scan doesn't stay on it.
+- Clear text messages, positions and other data on the channel are dropped, even while the radio lacks the
+  channel's key.
+- Key fill and OTAR still work on the channel: they protect themselves.
+- Radio check, call alert and emergency alarms still work: they carry only radio IDs.
+- [Digital monitor](#digital-monitor) still plays everything, clear calls included, while it is on.
+- Encrypted calls the radio has no key for still show as "Encrypted: not played".
 
 To change to a new key without a flag day: add the new key to the system with a new key ID beside the old one and
 write it to every radio. Then move each radio's channel to the new key, in any order: radios still on the old key
@@ -334,7 +345,7 @@ What AES does not do:
 
 - The radio IDs, the talkgroup and the talker alias stay readable to anyone listening.
 - A recorded over can be played back on air later, and nothing tells the listener it is a replay.
-- A clear call on an AES channel is still played.
+- A clear call on an AES channel is still played, unless the channel is set to **Encrypted only**.
 - Anyone with the radio and a USB cable can read the keys from its codeplug. If a radio is lost, give everyone new
   keys.
 - Change the key after a factory reset. The radio repairs its saved encryption position after a settings restore

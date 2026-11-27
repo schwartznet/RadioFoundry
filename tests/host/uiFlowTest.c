@@ -204,6 +204,13 @@ static const flow_t flows[] = {
 	{ "DMR channel with AES-256 in dual watch: DMR, not P25", "aeskeys chkind:3,dmr_aes dlpos:2 dlpos:3", "quick 7",
 	  "dual=1 sel=A shows=DMR hides=P25 shows=TG_3100", 2, false },
 #endif
+	// Encrypted only (#1159): a row of its own once a key is chosen, Off by default; OK toggles it, hold OK saves
+	{ "Encrypted only row: hidden without a key", "aeskeys ok 5 ok down down down down down down down", "",
+	  "focus=AES_key hides=Encrypted_only", 0, false },
+	{ "Encrypted only row: off with a key", "aeskeys ok 5 ok down down down down down down down ok", "down",
+	  "focus=Encrypted_only shows=Off", 1, false },
+	{ "Encrypted only row: toggled and saved", "aeskeys ok 5 ok down down down down down down down ok down", "ok long:ok",
+	  "writes=1 toast=Saved_channel_3 focus=Encrypted_only shows=On", 2, true },
 #endif
 #if CONFIG_CHANNEL_EDIT
 	// A channel saved from P25 (New from current): P25 and its NAC, no FM or DMR-only rows, talkaround automatic

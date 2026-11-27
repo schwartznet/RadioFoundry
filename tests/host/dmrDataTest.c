@@ -1275,7 +1275,7 @@ static bool fakeMiCrypt(const void *ctx, uint8_t alg, uint8_t keyId, uint32_t mi
 static void testAesPrivacy(void)
 {
 	static const uint8_t ctx = 0;
-	dmrDataPrivacy_t aes = { DMR_DATA_PRIVACY_ENCRYPT, DMR_DATA_ALG_AES256, fakeMiCrypt, &ctx, 7, fakeNewMi };
+	dmrDataPrivacy_t aes = { DMR_DATA_PRIVACY_ENCRYPT, DMR_DATA_ALG_AES256, fakeMiCrypt, &ctx, 7, fakeNewMi, false };
 	dmrBurst_t b[DMR_DATA_MAX_BURSTS];
 	uint8_t pdu[40], want[12];
 
@@ -1342,9 +1342,9 @@ static void testAesPrivacy(void)
 static void testPrivacy(void)
 {
 	static const uint16_t key = 0x2503, otherKey = 0x1F00;
-	dmrDataPrivacy_t on = { DMR_DATA_PRIVACY_ENCRYPT, DMR_DATA_ALG_BASIC, testCrypt, &key, 0, NULL };
-	dmrDataPrivacy_t block = { DMR_DATA_PRIVACY_BLOCK, 0, NULL, NULL, 0, NULL };
-	dmrDataPrivacy_t other = { DMR_DATA_PRIVACY_ENCRYPT, DMR_DATA_ALG_BASIC, testCrypt, &otherKey, 0, NULL };
+	dmrDataPrivacy_t on = { DMR_DATA_PRIVACY_ENCRYPT, DMR_DATA_ALG_BASIC, testCrypt, &key, 0, NULL, false };
+	dmrDataPrivacy_t block = { DMR_DATA_PRIVACY_BLOCK, 0, NULL, NULL, 0, NULL, false };
+	dmrDataPrivacy_t other = { DMR_DATA_PRIVACY_ENCRYPT, DMR_DATA_ALG_BASIC, testCrypt, &otherKey, 0, NULL, false };
 	dmrBurst_t b[DMR_DATA_MAX_BURSTS], plain[DMR_DATA_MAX_BURSTS];
 	uint8_t pdu[40], want[12];
 

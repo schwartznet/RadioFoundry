@@ -878,12 +878,17 @@ computed over the ciphertext, so a receiver without the key still checks and ack
 - RX: a packet with a privacy header is decrypted when the key's scheme takes its algorithm (and, for AES, holds its
   key ID). Otherwise (no key, another algorithm) it is dropped and never shown; confirmed data is still acknowledged.
   A wrong BP key gives garbage that the IP checks drop.
+- RX on an encrypted-only AES channel ([dmr-voice.md](dmr-voice.md) 5.2, `dmrDataPrivacy_t.rxClearDrop`, unless
+  digital monitor is on): a packet without a privacy header is dropped as if not heard, not passed on and not
+  acknowledged, with or without the channel's key. Key fill's and OTAR's clear packets and link responses are still
+  taken, as on any channel that encrypts data (13.5). CSBKs are not affected. With digital monitor on, the channel
+  takes clear packets as an AES channel that isn't encrypted only does (13.5).
 - TX with AES: a packet that can't get an MI (no saved reservation yet) or whose key is gone is not built: nothing
   goes, in the clear or otherwise. The radio core also refuses data there as it refuses PTT (`TXDENY_AES_KEY`,
   `TXDENY_AES_WAIT`).
 - Counters (debug link section 8): `data.privacy_rx` (decrypted), `data.privacy_rx_dropped`, `data.privacy_tx` (lists
   sent encrypted), `data.privacy_blocked` (lists refused), `data.clear_rx_dropped` (clear packets dropped on a channel
-  that encrypts data, 13.5).
+  that encrypts data, 13.5, or on an encrypted-only channel).
 
 ### 13.4 AES data
 
@@ -933,7 +938,8 @@ counted (`data.clear_rx_dropped`); confirmed data is still acknowledged, as for 
 A link response is taken: it is always clear (it carries no user data). Until 2026-11-24 responses were dropped there
 too, so every confirmed packet on an encrypting channel went its full tries and was reported failed; OTAR still worked,
 as it counts its own ACK messages.
-On a channel that doesn't encrypt data, clear packets are taken as always.
+On a channel that doesn't encrypt data, clear packets are taken as always, except on an encrypted-only AES channel
+(13.3), which drops them, without acknowledging them, under the same exemptions.
 
 ### 13.6 Open
 

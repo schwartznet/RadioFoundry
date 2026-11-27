@@ -2482,14 +2482,25 @@ static void handlePacket(const dmrDataPacket_t *packet)
 		}
 		return;
 	}
-	// A clear packet on a channel that encrypts data: only key fill's and OTAR's are taken (13.5). Anything else in the
-	// clear there (a text, a position) could come from anyone, so it is dropped. Confirmed data is still acknowledged.
-	// A link response is always clear (privacy covers user data, and it has none): it is taken, or no confirmed packet
-	// on the channel would ever be answered and each would go its full tries (found on air)
-	if (!packet->privacy.encrypted && (dmrDataPrivacyBursts() != 0) && (packet->dpf != DMR_DPF_RESPONSE) &&
+	// A clear packet on a channel that encrypts data, or on an encrypted-only one (13.3, even without its key): only key
+	// fill's and OTAR's are taken (13.5). Anything else in the clear there (a text, a position) could come from anyone,
+	// so it is dropped. Confirmed data is still acknowledged, except on an encrypted-only channel, which takes it as not
+	// heard. A link response is always clear (privacy covers user data, and it has none): it is taken, or no confirmed
+	// packet on the channel would ever be answered and each would go its full tries (found on air)
+	bool clearDrop = (dmrDataPrivacyBursts() != 0);
+#if CONFIG_DMR_AES
+	clearDrop = clearDrop || channel.privacy.rxClearDrop;
+#endif
+	if (!packet->privacy.encrypted && clearDrop && (packet->dpf != DMR_DPF_RESPONSE) &&
 			!(isUDP && dmrDataUdpClear(udp.srcPort, udp.dstPort)))
 	{
 		stats.rxClearDropped++;
+#if CONFIG_DMR_AES
+		if (channel.privacy.rxClearDrop)
+		{
+			return;
+		}
+#endif
 		if (forUs && (reply.response != 0))
 		{
 			queueReplyEntry(&reply);
