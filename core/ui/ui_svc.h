@@ -150,7 +150,7 @@ typedef struct {
 	bool remote_silence;	// a net control may turn radio silence on and off (Remote silence, SILENCE)
 	bool silenced_by_nc;	// radio silence is on because a net control turned it on
 	bool removed;		// a net control revoked this radio: "Removed from the net"
-	uint8_t sched_days;	// a net control's rekey schedule: every this many days, 0 by hand
+	uint8_t sched_days;	// a net control's rekey schedule: every this many days (OTAR_SCHED_HOURS: hours), 0 by hand
 	uint32_t sched_at;	// ... the next one, UTC minutes (0: none yet)
 	uint8_t hello;		// a member's request for keys (HELLO, otar.md 9): UI_HELLO_*
 	otar_chan_t chan;	// the net's channel (otar.md 7.8; rx_hz 0: none)

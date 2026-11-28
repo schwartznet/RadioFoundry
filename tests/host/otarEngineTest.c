@@ -2482,6 +2482,44 @@ static void test_silence_sched(void)
 	memset(live.otar_sched_at, 0, sizeof live.otar_sched_at);
 	saved = live;
 }
+
+// A schedule in hours: the rekey when due, its changeover a quarter of the way to the next (15 min of an hour), the next
+// due an hour on
+static void test_sched_hourly(void)
+{
+	setup(1);
+	roster_add(ENGINE_ID, 1, eng_pub);
+	roster_add(PEER_ID, 0, peer_pub);
+	otar_start(&keys, 0, 77);
+	tek[77].used = true;
+	keys.ks_active = 4;
+	run(3000);
+	otar_msg_t r;
+	uint32_t due = v_now()->otar.now_min;
+	live.otar_sched = OTAR_SCHED_HOURS | 1u;
+	live.otar_sched_at[0] = (uint8_t)(due >> 16);
+	live.otar_sched_at[1] = (uint8_t)(due >> 8);
+	live.otar_sched_at[2] = (uint8_t)due;
+	saved = live;
+	out_n = 0;
+	run(15000);
+	int rekeys = 0;
+	uint32_t co = 0;
+	for (int i = 0; i < out_n; i++)
+		if (out_open(i, &r) && r.type == OTAR_REKEY && r.keyset == 5) {
+			rekeys++;
+			co = r.changeover;
+		}
+	CHECK(rekeys >= 1);
+	uint32_t now = v_now()->otar.now_min;
+	CHECK(co >= now + 14u && co <= now + 15u);
+	uint32_t next = ((uint32_t)live.otar_sched_at[0] << 16) | ((uint32_t)live.otar_sched_at[1] << 8) |
+			live.otar_sched_at[2];
+	CHECK(next >= now + 59u && next <= now + 60u);
+	live.otar_sched = 0;
+	memset(live.otar_sched_at, 0, sizeof live.otar_sched_at);
+	saved = live;
+}
 #endif
 
 // ===================== the second review (2026-11-27): cancel and move, made safe
@@ -3113,6 +3151,7 @@ int main(void)
 	test_silence_member();
 	test_silence_nc();
 	test_silence_sched();
+	test_sched_hourly();
 #endif
 	test_review2_nc();
 	test_review2_member();

@@ -273,7 +273,8 @@ typedef struct {
 	otar_keys_t otar;
 	uint8_t otar_rtc;		// 1: the board's real-time clock holds RadioFoundry's UTC (otar.md 7.4); 0 not trusted
 	uint8_t otar_wipe;		// 1: a net control may wipe this radio's keys (ZEROIZE, otar.md 7.5; the default, and set again at each join or start); 0 off
-	uint8_t otar_sched;		// a net control's rekey schedule (otar.md 9): every this many days, 0 by hand
+	uint8_t otar_sched;		// a net control's rekey schedule (otar.md 9): every this many days, 0 by hand;
+					// with OTAR_SCHED_HOURS, every this many hours
 	uint8_t otar_sched_at[3];	// ... the next one due, UTC minutes since 2026-01-01 (big-endian, 24 bits); 0 none
 	uint8_t otar_loc_off;		// 0: a net control may ask where this radio is (LOCATE, otar.md 7.7; the default, a record from before too, and set again at each join or start); 1: the user turned Share location off
 	uint8_t otar_cut[2];		// a net control: the last next keyset it withdrew (otar.md 7.9; big-endian), 0 none: a member
@@ -490,6 +491,7 @@ static inline void settings_set_tones_off(settings_t *s, uint8_t off)
 #define SETTINGS_RS_SILENCE		0x40u	// radio silence (docs/spec/radio-silence.md; 0 = off, as before)
 #define SETTINGS_OSIL_OFF	0x01u	// settings_t.otar_sil: the user turned Net > Remote silence off (otar.md 7.11)
 #define SETTINGS_OSIL_BY_NC	0x02u	// ... radio silence is on because a net control turned it on: its SILENCE off
+#define OTAR_SCHED_HOURS	0x80u	// settings_t.otar_sched: the count is hours, not days
 					// may end it, never a silence the user turned on
 // settings_t.rpt_beacon (taken with the roam_ fields)
 #define SETTINGS_RPT_BEACON		0x01u	// our repeater roles key an idle beacon

@@ -9388,7 +9388,7 @@ static void nk_enter(void)
 enum { NET_START, NET_JOIN, NET_MEMBERS, NET_ADD, NET_REKEY, NET_RK_WHEN, NET_STATUS, NET_CHANGE_OVER, NET_ROSTER,
        NET_TAKE_OVER, NET_WIPE_OK, NET_ACCEPT, NET_REFUSE, NET_LEAVE, NET_SCHED, NET_TIME, NET_REQUEST, NET_SHARE_LOC,
        NET_CHAN, NET_MOVE, NET_CANCEL, NET_CHECK, NET_SIL_OK, NET_ROWS };
-static const uint8_t net_sched_days[] = { 0, 1, 7, 30 };	// Rekey every (otar.md 9)
+static const uint8_t net_sched_days[] = { 0, OTAR_SCHED_HOURS | 1u, 1, 7, 30 };	// Rekey every (otar.md 9)
 static uint8_t net_rk_when = 1;	// Key change: index into nk_mins, 5 min each time Net opens
 static uint32_t net_typed;	// Add a member: the ID typed
 static uint8_t net_typed_n;	// its digits; 0 and not typing: no entry
@@ -9514,6 +9514,10 @@ static void net_item(uint16_t i, ui_item_t *it)
 		sb_init(&b, it->value, sizeof it->value);
 		if (n.sched_days == 0) {
 			sb_str(&b, TR(NET_OFF, "Off"));
+		} else if (n.sched_days & OTAR_SCHED_HOURS) {
+			unsigned h = n.sched_days & ~OTAR_SCHED_HOURS;
+			sb_u32(&b, h, 1);
+			sb_str(&b, h == 1u ? TR(NET_HOUR, " hour") : TR(NET_HOURS, " hours"));
 		} else {
 			sb_u32(&b, n.sched_days, 1);
 			sb_str(&b, n.sched_days == 1u ? TR(NET_DAY, " day") : TR(NET_DAYS, " days"));

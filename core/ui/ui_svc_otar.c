@@ -2515,7 +2515,13 @@ static bool auto_req(const radio_view_t *v, const otar_net_t *n, uint32_t now)
 	return true;
 }
 
-// The rekey schedule (settings_t.otar_sched, otar_sched_at): every this many days, and when the next is due
+// The rekey schedule (settings_t.otar_sched, otar_sched_at): every this many days (OTAR_SCHED_HOURS set: hours), and
+// when the next is due
+static uint32_t sched_minutes(uint8_t s)
+{
+	return (s & OTAR_SCHED_HOURS) ? (uint32_t)(s & ~OTAR_SCHED_HOURS) * 60u : (uint32_t)s * 1440u;
+}
+
 static uint8_t sched_get(uint32_t *at)
 {
 	settings_t *st = settings_begin();
@@ -2544,7 +2550,8 @@ static __attribute__((noinline)) bool sched_tick(const radio_view_t *v, uint32_t
 	uint8_t days = sched_get(&at);
 	if (days == 0 || !v->otar.on || !v->otar.clock_ok || v->otar.now_min == 0)
 		return false;
-	uint32_t next = v->otar.now_min + (uint32_t)days * 1440u;
+	uint32_t every = sched_minutes(days);
+	uint32_t next = v->otar.now_min + every;
 	if (at == 0) {
 		sched_put(days, next, now);
 		return true;
@@ -2552,7 +2559,9 @@ static __attribute__((noinline)) bool sched_tick(const radio_view_t *v, uint32_t
 	if (v->otar.now_min < at || v->otar.has_next || eng.rk != NULL)
 		return false;	// (under radio silence too: the schedule is the user's own, radio-silence.md 3; never over a
 				// cancel run: it waits until that ends)
-	if (ui_svc_net_rekey(v, SCHED_CO_MIN) != UI_NET_OK)
+	// The changeover SCHED_CO_MIN later, or a quarter of the way to the next one on a schedule in hours
+	uint16_t co = every / 4u < SCHED_CO_MIN ? (uint16_t)(every / 4u) : (uint16_t)SCHED_CO_MIN;
+	if (ui_svc_net_rekey(v, co) != UI_NET_OK)
 		return false;
 	sched_put(days, next, now);
 	return true;
@@ -3580,7 +3589,7 @@ uint8_t ui_svc_net_set_schedule(const radio_view_t *v, uint8_t days)
 		return UI_NET_NOT_NC;
 	if (days != 0 && !v->otar.clock_ok)
 		return UI_NET_NO_CLOCK;
-	sched_put(days, days != 0 ? v->otar.now_min + (uint32_t)days * 1440u : 0, hal_millis());
+	sched_put(days, days != 0 ? v->otar.now_min + sched_minutes(days) : 0, hal_millis());
 	return UI_NET_OK;
 }
 
