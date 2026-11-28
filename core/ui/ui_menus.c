@@ -8330,7 +8330,7 @@ static const char *kp_body(void)
 			TR(KP_BODY_AGAIN, "Type the PIN again, then OK"));
 		break;
 	default:
-		sb_str(&b, TR(KP_BODY_MANAGE, "Asked before Privacy and Key fill open"));
+		sb_str(&b, TR(KP_BODY_MANAGE, "Asked before the key screens open"));
 		break;
 	}
 	return kp_text;

@@ -4682,7 +4682,7 @@ msgstr "输入密钥密码，然后 OK"
 #: core/ui/ui_menus.c
 msgctxt "KP_BODY_NEW"
 msgid "4 to 8 digits, then OK. Asked before the key screens open"
-msgstr "4 到 8 位数字，然后 OK。打开密钥前输入"
+msgstr "4 到 8 位数字，然后 OK。打开密钥界面前输入"
 
 #: core/ui/ui_menus.c
 msgctxt "KP_BODY_AGAIN"
@@ -4691,8 +4691,8 @@ msgstr "再输入一次密码，然后 OK"
 
 #: core/ui/ui_menus.c
 msgctxt "KP_BODY_MANAGE"
-msgid "Asked before Privacy and Key fill open"
-msgstr "打开加密和密钥注入前输入"
+msgid "Asked before the key screens open"
+msgstr "打开密钥界面前输入"
 
 #: core/ui/ui_menus.c
 msgctxt "KP_HINT_TYPE"

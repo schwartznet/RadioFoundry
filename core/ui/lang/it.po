@@ -4680,7 +4680,7 @@ msgstr "Digita il PIN chiavi e OK"
 #: core/ui/ui_menus.c
 msgctxt "KP_BODY_NEW"
 msgid "4 to 8 digits, then OK. Asked before the key screens open"
-msgstr "Da 4 a 8 cifre e OK. Chiesto prima di aprire le chiavi"
+msgstr "Da 4 a 8 cifre e OK. Chiesto prima delle schermate chiavi"
 
 #: core/ui/ui_menus.c
 msgctxt "KP_BODY_AGAIN"
@@ -4689,8 +4689,8 @@ msgstr "Digita di nuovo il PIN e OK"
 
 #: core/ui/ui_menus.c
 msgctxt "KP_BODY_MANAGE"
-msgid "Asked before Privacy and Key fill open"
-msgstr "Chiesto prima di aprire Privacy e Carica chiave"
+msgid "Asked before the key screens open"
+msgstr "Chiesto prima delle schermate chiavi"
 
 #: core/ui/ui_menus.c
 msgctxt "KP_HINT_TYPE"

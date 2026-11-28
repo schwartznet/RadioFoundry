@@ -4680,7 +4680,7 @@ msgstr "Tapez le PIN des clés puis OK"
 #: core/ui/ui_menus.c
 msgctxt "KP_BODY_NEW"
 msgid "4 to 8 digits, then OK. Asked before the key screens open"
-msgstr "4 à 8 chiffres puis OK. Demandé avant d'ouvrir les clés"
+msgstr "4 à 8 chiffres puis OK. Demandé avant les écrans des clés"
 
 #: core/ui/ui_menus.c
 msgctxt "KP_BODY_AGAIN"
@@ -4689,8 +4689,8 @@ msgstr "Retapez le PIN puis OK"
 
 #: core/ui/ui_menus.c
 msgctxt "KP_BODY_MANAGE"
-msgid "Asked before Privacy and Key fill open"
-msgstr "Demandé avant Confidentialité et Transfert de clé"
+msgid "Asked before the key screens open"
+msgstr "Demandé avant les écrans des clés"
 
 #: core/ui/ui_menus.c
 msgctxt "KP_HINT_TYPE"
