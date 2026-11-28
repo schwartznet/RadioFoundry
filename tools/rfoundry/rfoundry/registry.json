@@ -130,7 +130,8 @@
     "rom_entry": null,
     "led": {
      "red": 33,
-     "green": 32
+     "green": 32,
+     "look": "yellow"
     },
     "calibration": {
      "progmem": 2088960,
@@ -428,7 +429,8 @@
     "rom_entry": null,
     "led": {
      "red": 33,
-     "green": 32
+     "green": 32,
+     "look": "yellow"
     },
     "calibration": {
      "area": 823296,
@@ -557,7 +559,8 @@
     "rom_entry": null,
     "led": {
      "red": 33,
-     "green": 32
+     "green": 32,
+     "look": "green"
     },
     "calibration": {
      "area": 823296,
@@ -1276,7 +1279,8 @@
     "rom_entry": 50380800,
     "led": {
      "red": 39,
-     "green": 37
+     "green": 37,
+     "look": "yellow"
     },
     "calibration": {
      "data": 2093056

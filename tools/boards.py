@@ -236,6 +236,9 @@ BOARD_SCHEMA = {
                       # stubtool --write-test erases and programs; it must not overlap stored or protected data
                       "write_test": _opt(int),
                       "write_test_size": _opt(int),
+                      # how the stub's status blink (both LEDs lit) looks on the radio: yellow (the default) or green,
+                      # where one LED outshines the other; the web flasher names that color
+                      "led_look": _opt(("yellow", "green")),
                       # where the factory calibration is, for a backup: in a data flash, the 4 KB page of the stock
                       # codeplug area [0, area) whose last byte is page_id; on a radio whose data memory is a NAND,
                       # the 4 KB sectors of the program flash (progmem) and the NAND (nand) that each hold a copy
@@ -769,7 +772,8 @@ class Board:
                        key=self.pins.get("PIN_POWER_KEY", NO_PIN) if hold else NO_PIN, nand=self.nand,
                        progmem=s["progmem"], stock_console=s.get("stock_console"), rom_entry=s.get("rom_entry"),
                        # the status LEDs the stub blinks: a pin the radio uses for something else must never be driven
-                       led={"red": self.pins.get("PIN_LED_RED", NO_PIN), "green": self.pins.get("PIN_LED_GREEN", NO_PIN)})
+                       led={"red": self.pins.get("PIN_LED_RED", NO_PIN), "green": self.pins.get("PIN_LED_GREEN", NO_PIN),
+                            "look": s.get("led_look", "yellow")})
             if "calibration" in s:
                 out["calibration"] = s["calibration"]
             if "write_test" in s:		# start and end: the length defaults to 16 KB
