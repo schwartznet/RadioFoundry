@@ -8326,7 +8326,7 @@ static const char *kp_body(void)
 		break;
 	}
 	case KP_NEW:
-		sb_str(&b, kp_len1 == 0 ? TR(KP_BODY_NEW, "4 to 8 digits, then OK. Asked before the keys open") :
+		sb_str(&b, kp_len1 == 0 ? TR(KP_BODY_NEW, "4 to 8 digits, then OK. Asked before the key screens open") :
 			TR(KP_BODY_AGAIN, "Type the PIN again, then OK"));
 		break;
 	default:

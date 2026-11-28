@@ -4679,7 +4679,7 @@ msgstr "Digita il PIN chiavi e OK"
 
 #: core/ui/ui_menus.c
 msgctxt "KP_BODY_NEW"
-msgid "4 to 8 digits, then OK. Asked before the keys open"
+msgid "4 to 8 digits, then OK. Asked before the key screens open"
 msgstr "Da 4 a 8 cifre e OK. Chiesto prima di aprire le chiavi"
 
 #: core/ui/ui_menus.c

@@ -4681,7 +4681,7 @@ msgstr "输入密钥密码，然后 OK"
 
 #: core/ui/ui_menus.c
 msgctxt "KP_BODY_NEW"
-msgid "4 to 8 digits, then OK. Asked before the keys open"
+msgid "4 to 8 digits, then OK. Asked before the key screens open"
 msgstr "4 到 8 位数字，然后 OK。打开密钥前输入"
 
 #: core/ui/ui_menus.c
