@@ -296,6 +296,18 @@
     "DMR_SMS"
    ]
   },
+  "message_new": {
+   "group": "messages",
+   "needs": [
+    "DMR_SMS"
+   ]
+  },
+  "message_to": {
+   "group": "messages",
+   "needs": [
+    "DMR_SMS"
+   ]
+  },
   "message_long": {
    "group": "messages",
    "needs": [

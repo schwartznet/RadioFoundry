@@ -348,6 +348,8 @@
  "screen.hotspot": "Modo hotspot",
  "screen.hub": "Menu",
  "screen.message_view": "Lettura di un messaggio",
+ "screen.message_new": "Nuovo messaggio: scegliere il destinatario",
+ "screen.message_to": "Nuovo messaggio: cercare un contatto o digitare un ID",
  "screen.message_long": "Un messaggio lungo: Messaggio completo",
  "screen.message_read": "Un messaggio lungo, per intero",
  "screen.messages_empty": "Messaggi, vuoto",

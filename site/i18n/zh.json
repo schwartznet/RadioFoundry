@@ -348,6 +348,8 @@
  "screen.hotspot": "热点模式",
  "screen.hub": "菜单",
  "screen.message_view": "阅读消息",
+ "screen.message_new": "新消息：选择收件人",
+ "screen.message_to": "新消息：查找联系人或输入 ID",
  "screen.message_long": "长消息：显示全文",
  "screen.message_read": "长消息的全文",
  "screen.messages_empty": "消息，空",
