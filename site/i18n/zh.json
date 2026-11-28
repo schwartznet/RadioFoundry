@@ -2439,6 +2439,7 @@
  "editor.sig.empty": "无步骤:使用标准声音",
  "site.test.title": "RadioFoundry 分支，维护者",
  "site.test.text": "这里包含正在开发的最新功能，它们尚未进入 RadioFoundry 主固件，也可能永远不会进入。RadioFoundry 项目尚未审核或发布此版本：",
+ "site.test.built": "，构建于 {when}",
  "site.test.source": "其源代码",
  "tools.satellite.status.test_site_save": "此测试站点无法替你获取 AMSAT 公告。请保存 {link}（右键单击，然后选择“链接另存为”），再用“浏览 TLE 文件”选择该文件。",
  "flash.test.on_request": "此测试站点不进行编译：它为你的选择安装其自带的测试版本。",

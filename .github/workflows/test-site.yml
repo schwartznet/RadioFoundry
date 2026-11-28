@@ -42,17 +42,20 @@ jobs:
           tag=$(gh release list -R "$GITHUB_REPOSITORY" --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName')
           test -n "$tag" || { echo "no release in $GITHUB_REPOSITORY"; exit 1; }
           name=$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json name --jq .name)
+          when=$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json publishedAt --jq .publishedAt)
           mkdir -p build/dist
           gh release download "$tag" -R "$GITHUB_REPOSITORY" -D build/dist -p 'rfoundry-*' -p SHA256SUMS
           (cd build/dist && sha256sum -c SHA256SUMS)
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "name=${name:-$tag}" >> "$GITHUB_OUTPUT"
+          echo "when=$when" >> "$GITHUB_OUTPUT"
       - name: Build the site
         env:
           WHAT: ${{ steps.rel.outputs.name }}
+          WHEN: ${{ steps.rel.outputs.when }}
         run: |
           python3 site/build.py --out build/site --firmware build/dist --repo-url "https://github.com/$GITHUB_REPOSITORY" \
-            --ref "$GITHUB_REF_NAME" --test-site "$WHAT"
+            --ref "$GITHUB_REF_NAME" --test-site "$WHAT" --test-date "$WHEN"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: build/site

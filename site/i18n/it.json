@@ -2439,6 +2439,7 @@
  "editor.sig.empty": "Nessun passo: il suono standard",
  "site.test.title": "Fork di RadioFoundry di",
  "site.test.text": "Contiene le funzioni più recenti in sviluppo qui, che non sono ancora nel firmware principale di RadioFoundry e potrebbero non esserci mai. Il progetto RadioFoundry non ha revisionato né rilasciato questa build:",
+ "site.test.built": ", compilata il {when}",
  "site.test.source": "Il suo sorgente",
  "tools.satellite.status.test_site_save": "Questo sito di prova non può scaricare il bollettino AMSAT per te. Salva {link} (clic destro, poi Salva link con nome), poi scegli quel file con Sfoglia file TLE.",
  "flash.test.on_request": "Questo sito di prova non compila nulla: installa la build di prova che contiene per la tua scelta.",

@@ -56,14 +56,26 @@ BOARD_ORDER = {"supported": 0, "testing": 1, "in_progress": 2, "planned": 3}
 DOC_ORDER = ("hardware", "install", "codec", "bringup")
 
 
+def test_when(iso):
+	"""--test-date's ISO time as the test site's banner shows it: '2026-11-28 17:41 UTC' ("" for none)"""
+	if not iso:
+		return ""
+	t = datetime.datetime.fromisoformat(iso.strip().replace("Z", "+00:00"))
+	if t.tzinfo is not None:
+		t = t.astimezone(datetime.timezone.utc)
+	return t.strftime("%Y-%m-%d %H:%M UTC")
+
+
 class Site:
-	def __init__(self, out, repo_url, ref, firmware=None, strict=False, log=print, beta="", i18n_dir=None, test_site=""):
+	def __init__(self, out, repo_url, ref, firmware=None, strict=False, log=print, beta="", i18n_dir=None, test_site="",
+		     test_date=""):
 		self.out = out
 		self.repo_url = repo_url.rstrip("/")
 		self.ref = ref
 		self.firmware = firmware
 		self.beta = beta	# a pre-release newer than the release in firmware (site/cloudflare-build.sh), or ""
 		self.test_site = test_site	# a fork's test site: what it installs (site/build.py --test-site), or ""
+		self.test_date = test_when(test_date)	# when that build was made, as the banner shows it, or ""
 		self.strict = strict
 		self.log = log
 		self.warnings = []
@@ -255,7 +267,9 @@ class Site:
 		       "home": root + prefix, "content": content, "page_class": page_class,
 		       "test_attr": ' data-test-site="1"' if self.test_site else "",
 		       "test_banner": self.tpl.partial("test_site", {"what": self.test_site, "repo": self.repo_url,
-														  "owner": self.repo_url.rstrip("/").split("/")[-2]}, lang) if self.test_site else "",
+														  "owner": self.repo_url.rstrip("/").split("/")[-2],
+														  "when": self.i18n.t(lang, "site.test.built", when=self.test_date)
+														  if self.test_date else ""}, lang) if self.test_site else "",
 		       "description": description or self.i18n.t(lang, "site.tagline"), "scripts": scripts, "styles": styles, "footer": footer,
 		       "languages": langs, "alternates": alternates, "og_locale": meta.get("locale", lang).replace("-", "_"),
 		       "git": self.git, "assets": self.asset_version, "version": self.version, "built": self.built,

@@ -3,6 +3,7 @@
  "site.tagline": "Open-source multi-mode firmware for digital radios.",
  "site.test.title": "RadioFoundry fork by",
  "site.test.text": "It has the newest features in development here, which are not in RadioFoundry's main firmware yet and may never be. The RadioFoundry project has not reviewed or released this build:",
+ "site.test.built": ", built {when}",
  "site.test.source": "Its source",
  "site.preview_alt": "The radios RadioFoundry runs on, each showing a different screen.",
  "nav.skip": "Skip to content",

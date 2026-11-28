@@ -37,6 +37,8 @@ def main(argv=None):
 	ap.add_argument("--test-site", default="", metavar="TEXT",
 			help="a fork's test site: TEXT names what it installs; the flasher installs only the --firmware images "
 			     "and sends nothing to the project's build service or backend")
+	ap.add_argument("--test-date", default="", metavar="ISO",
+			help="with --test-site: when that build was made (ISO 8601, e.g. 2026-11-28T17:41:26Z), shown in the banner")
 	ap.add_argument("--strict", action="store_true", help="exit 1 when the build warns")
 	ap.add_argument("--serve", action="store_true", help="serve the result on localhost")
 	ap.add_argument("--host", default="localhost", help="address for --serve (default: localhost)")
@@ -49,7 +51,8 @@ def main(argv=None):
 		      "  uv run --no-project --with-requirements site/requirements.txt python3 site/build.py", file=sys.stderr)
 		return 2
 	from rfoundrysite.build import Site
-	site = Site(args.out, args.repo_url, args.ref or "main", firmware=args.firmware, beta=args.beta, test_site=args.test_site)
+	site = Site(args.out, args.repo_url, args.ref or "main", firmware=args.firmware, beta=args.beta, test_site=args.test_site,
+		    test_date=args.test_date)
 	try:
 		warnings = site.build()
 	except repo.SourceError as e:
