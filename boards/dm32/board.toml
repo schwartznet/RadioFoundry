@@ -90,6 +90,8 @@ calibration = { area = 0xC9000, page_id = 2 }
 # The last two sectors before the open-firmware flash image; the first three are satellite inventory when enabled
 write_test = 0x71E000
 write_test_size = 0x2000
+# The stub's status blink lights both LEDs, which on this radio looks green, not yellow (seen on a radio)
+led_look = "green"
 
 # The codec slot and windows come from boards/dm32/memory.ld (__codec_*); profile is the id rfoundry gives a merged codec
 [codec]

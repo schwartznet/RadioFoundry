@@ -65,12 +65,13 @@ const SCREEN_SHOTS = { rfoundry: "boot", loader: "stub_entry" };
 const screenShot = (radio, sc) => (radio?.gallery && SCREEN_SHOTS[sc] ? `${ROOT}static/img/screens/${radio.gallery}/${SCREEN_SHOTS[sc]}.png` : null);
 
 // led: off | wait (slow yellow) | busy (fast yellow) | done (three green flashes) | green (steady)
+// look: how wait and busy look on this radio (both LEDs lit): "yellow", or "green" where one LED outshines the other
 // screen: off (dark: a power-on stub load or the factory loader) | loader (RadioFoundry handed over to the stub: its
 // "PC Loader Connected" splash) | rfoundry (RadioFoundry running: its boot screen) | on (another firmware running: lit,
 // no picture of its screens) | any (the state doesn't matter yet: no screen line in the caption)
 // knob: null | "cycle" (off, then on) | "on"
 // note: a line for the caption in place of the LED's, while the LED says nothing
-export function radioTop(radio, initial = {}) {
+export function radioTop(radio, initial = {}, look = "yellow") {
 	const src = pictureSrc(radio);
 	const pct = radio?.frame_geometry?.screen_pct;
 	// no screen line in the caption, no shot over the picture
@@ -85,16 +86,19 @@ export function radioTop(radio, initial = {}) {
 	const lamp = h("div", { class: "rt-lamp" }, svg("svg", { viewBox: "0 0 24 24", width: 24, height: 24, "aria-hidden": "true" }, glow, led), label);
 	const caption = h("p", { class: "rt-caption" });
 	const el = h("figure", { class: "radio-top" }, pic, lamp, caption);
+	el.dataset.look = look === "green" ? "green" : "yellow";
 	const set = ({ led: l = "off", screen: sc = "off", knob = null, note = null } = {}) => {
 		el.dataset.led = l;
 		el.dataset.screen = sc;
 		el.dataset.knob = knob || "";
-		label.textContent = l === "off" ? "" : t(`flash.c7.visual.tag_${l}`);
+		// the words for the blink in this radio's color
+		const said = (l === "wait" || l === "busy") && el.dataset.look === "green" ? `${l}_green` : l;
+		label.textContent = l === "off" ? "" : t(`flash.c7.visual.tag_${said}`);
 		const url = noScreen ? null : screenShot(radio, sc);
 		shot.hidden = !url;
 		if (url && shot.getAttribute("src") !== url) shot.setAttribute("src", url);
 		const words = [knob === "cycle" ? t("flash.c7.visual.cycle") : knob === "on" ? t("flash.c7.visual.on") : null,
-			note || t(`flash.c7.visual.led_${l}`), sc === "any" || noScreen ? null : t(`flash.c7.visual.screen_${sc}`)].filter(Boolean);
+			note || t(`flash.c7.visual.led_${said}`), sc === "any" || noScreen ? null : t(`flash.c7.visual.screen_${sc}`)].filter(Boolean);
 		caption.replaceChildren(...words.map((w) => h("span", {}, w)));
 		pic.setAttribute("aria-label", [radio?.name, ...words].filter(Boolean).join(" "));
 		// restart the animation on every change, so "done" plays its three flashes from the start

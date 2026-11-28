@@ -111,6 +111,9 @@ async function stubs() {
 }
 // A board's status LED pins (its stub profile, from pins.h), else the stub's own
 export const ledFor = (c, board) => c.boards[board]?.stub_board?.led || c.led;
+// How the stub's status blink looks on this radio (board.toml [flash.stub] led_look): yellow, or green where one LED
+// outshines the other
+const ledLook = () => ledFor(C(), boardId())?.look || "yellow";
 // The stub image sent to a board's radio: its LED pins in the parameter block, so the stub never drives another pin,
 // not even before CONFIG
 export const stubFor = (c, board, image) => univForBoard(image, ledFor(c, board));
@@ -220,7 +223,7 @@ const mkStub = () => {
 function connectPanel(onReady, { onUpdateMode = null, restart = false } = {}) {
 	const c = session();
 	const radio = S().radio;
-	const top = radioTop(radio, { led: "off", screen: "any" });
+	const top = radioTop(radio, { led: "off", screen: "any" }, ledLook());
 	const body = h("div");
 	const box = panel(t("flash.c7.connect.title", { name: radio.name }), h("div", { class: "c7-grid" }, body, top.el));
 	let abort = null;
@@ -776,7 +779,7 @@ export function checkView() {
 	const out = h("div", { class: "flasher" });
 	const forward = S().forward;
 	// through the factory update mode nothing of the stub runs: the radio is off until the install's own step
-	const top = radioTop(S().radio, viaIap() ? { led: "off", screen: "any" } : { led: "wait", screen: screenNow() });
+	const top = radioTop(S().radio, viaIap() ? { led: "off", screen: "any" } : { led: "wait", screen: screenNow() }, ledLook());
 	const firstInstall = !c.rfoundry;
 	// an update reads nothing but the codec slot unless the user asked for a backup (S.updateBackup)
 	const update = S().task === "update" && !S().updateBackup;
@@ -1191,7 +1194,7 @@ export function writeView() {
 	const c = session();
 	const fw = S().firmware;
 	const d = c.decision;
-	const top = radioTop(S().radio, { led: "wait", screen: screenNow() });
+	const top = radioTop(S().radio, { led: "wait", screen: screenNow() }, ledLook());
 	const map = sectorMap(C());
 	const prog = progressBar();
 	const status = h("div");
@@ -1287,7 +1290,7 @@ export function writeView() {
 
 export function doneView() {
 	const c = session();
-	const top = radioTop(S().radio, { led: "off", screen: "off" });
+	const top = radioTop(S().radio, { led: "off", screen: "off" }, ledLook());
 	const status = h("div", {}, h("p", { class: "muted c7-big" }, t("flash.c7.done.restarting")));
 	const quiet = h("p", { class: "small muted" }, t("report.something_wrong"), " ", reportButton());
 	const box = panel(t("flash.done.title"), h("div", { class: "c7-grid" }, h("div", {}, h("p", {}, t("flash.c7.done.lead")), status, quiet), top.el));
@@ -1479,7 +1482,7 @@ export function backupView() {
 		out.append(connectPanel(() => ctx.render()));
 		return out;
 	}
-	const top = radioTop(S().radio, { led: "wait", screen: screenNow() });
+	const top = radioTop(S().radio, { led: "wait", screen: screenNow() }, ledLook());
 	const prog = progressBar();
 	const status = h("div");
 	const want = { progmem: true, cal: hasCal(), q128: true };
@@ -1585,7 +1588,7 @@ export function restoreView() {
 		out.append(connectPanel(() => ctx.render(), { onUpdateMode: () => ctx.render() }));
 		return out;
 	}
-	const top = radioTop(S().radio, { led: "wait", screen: screenNow() });
+	const top = radioTop(S().radio, { led: "wait", screen: screenNow() }, ledLook());
 	const map = sectorMap(C());
 	const prog = progressBar();
 	const status = h("div");
