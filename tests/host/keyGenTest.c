@@ -58,6 +58,10 @@ void vPortFree(void *p)
 	heap_block = NULL;
 }
 
+// The receiver's noise (ui_svc_keyfill.c): asked for while the pool still wants randomness
+static int noise_asks;
+void ui_svc_noise_want(uint32_t t) { (void)t; noise_asks++; }
+
 // The transport: never used by Generate
 static int transport_calls;
 void group_key_open(bool open) { (void)open; }
@@ -217,10 +221,13 @@ int main(void)
 	CHECK(ui_svc_gk_start(UI_GK_GENERATE, &aes) == UI_GK_WHY_NONE);
 	tick(&aes);
 	CHECK(ui_svc_gk_view(&g) && g.gen && !g.send && g.state == UI_GK_RANDOM && g.presses > 0);
+	CHECK(noise_asks == 1);	// the receiver's noise asked for, as key fill does (key-fill.md 6.1)
 	CHECK(ui_svc_gk_start(UI_GK_GENERATE, &aes) == UI_GK_WHY_BUSY);
 	fill_pool();
 	tick(&aes);
 	CHECK(ui_svc_gk_view(&g) && g.state == UI_GK_GOT && g.kcv_ok && !g.replaces);
+	tick(&aes);
+	CHECK(noise_asks == 2);	// not once the key is shown
 	// Offered as the channel's own key ID while that is free
 	CHECK(g.key_id == 3 && g.save_id == 3);
 	ui_gk_view_t first = g;

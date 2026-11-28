@@ -465,6 +465,10 @@ bool ui_svc_gk_tick(const radio_view_t *v, uint32_t now)
 			finish();
 		return false;
 	}
+	// While the pool still wants randomness (Generate, or a sender before its message): the receiver's noise, as key
+	// fill and OTAR take it (key-fill.md 6.1); key presses go on counting
+	if (gk->state == UI_GK_RANDOM && (gk->gen || gk->send))
+		ui_svc_noise_want(now);
 	if (gk->send)
 		send_tick(now);
 	else if (gk->gen && gk->state == UI_GK_RANDOM)

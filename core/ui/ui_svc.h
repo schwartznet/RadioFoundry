@@ -128,6 +128,8 @@ void ui_svc_kf_confirm(bool same);		// the user's answer in Compare
 void ui_svc_kf_end(void);
 // Every UI pass: runs the session (and the end of one left); true when what the screen shows may have changed
 bool ui_svc_kf_tick(const radio_view_t *v, uint32_t now);
+// While something waits for randomness: the receiver's noise asked for and stirred in (ui_svc_keyfill.c)
+void ui_svc_noise_want(uint32_t now);
 #endif
 #if CONFIG_OTAR
 #include "otar/otar_keys.h"
@@ -320,8 +322,6 @@ bool ui_svc_net_rollcall_member(uint16_t i, ui_rc_member_t *m);
 void ui_svc_net_joined(void);
 // The net controls' message number counters cleared (otar.md 7.6): a new key pair, so nothing recorded checks again
 void ui_svc_net_seen_clear(uint32_t now);
-// While something waits for randomness: the receiver's noise asked for and stirred in (ui_svc_keyfill.c)
-void ui_svc_noise_want(uint32_t now);
 #endif
 #if CONFIG_GROUP_KEY_FILL
 // Group key fill (ui_svc_groupkey.c, docs/spec/group-key-fill.md): one session while the Group key screen is open.
