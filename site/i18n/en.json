@@ -1,8 +1,8 @@
 {
  "_about": "English strings for the site (site/i18n/README in docs/dev/website.md). Keys are grouped by page; {name} placeholders are filled in by the generator or the scripts.",
  "site.tagline": "Open-source multi-mode firmware for digital radios.",
- "site.test.title": "Test site, not RadioFoundry's.",
- "site.test.text": "This copy of the RadioFoundry site installs test firmware that the RadioFoundry project has not reviewed or released:",
+ "site.test.title": "RadioFoundry fork by",
+ "site.test.text": "It has the newest features in development here, which are not in RadioFoundry's main firmware yet and may never be. The RadioFoundry project has not reviewed or released this build:",
  "site.test.source": "Its source",
  "site.preview_alt": "The radios RadioFoundry runs on, each showing a different screen.",
  "nav.skip": "Skip to content",
