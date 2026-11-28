@@ -125,8 +125,9 @@ A new AES-256 key made on the radio, for a net that has no computer at hand: the
 sends it with key fill or group key fill.
 
 1. Tools > Key fill > **Generate a key**, on an AES channel. The channel's key needn't be there yet (a channel set to
-   a key ID the codeplug doesn't hold yet is how a net's first key starts). Elsewhere: "Generate a key on an AES
-   channel" and nothing happens.
+   a key ID the codeplug doesn't hold yet is how a net's first key starts). On a stored plain DMR channel the save
+   also makes it an AES channel (8.1). Elsewhere (the VFO, FM, a channel of another kind): "Generate a key on a
+   stored DMR channel" and nothing happens.
 2. The randomness pool ([key-fill.md](key-fill.md) 6) fills as for key fill: random key presses until 128 bits are
    credited. Then 32 octets are taken from it (`entropy_take`), which moves the pool on.
 3. The screen shows the key's check value ([key-check.md](key-check.md)) and offers a key ID: the channel's own while
@@ -134,6 +135,27 @@ sends it with key fill or group key fill.
    Typing an ID the system already holds turns the line into "Replace key: 5".
 4. OK stores it into the channel's AES system under that ID, by the same storage job as a received group key
    (`key_store_put`), replacing a key of that ID. "Saved as key 3" and the check value follow.
+
+### 8.1 On a plain DMR channel
+
+So a net can start on radios that never saw a computer, Generate on a stored DMR channel without AES makes the AES
+side too. The screen says "New key + AES channel" and offers key ID 1 (`UI_AES_NEW_ID`). OK runs one storage job:
+
+1. The DMR AES-256 system (`ui_svc_aes_system_make`): network identity 1 (`UI_AES_NEW_NETWORK`, the Codeplug Editor's
+   default), transmit allowed, sharing "whole system", named "AES", no keys, at the lowest free system number a radio
+   runs (0-7). One already here with that identity is used instead, so every radio that does this has the same
+   system, and a key fill or group key fill finds it by its identity ([key-fill.md](key-fill.md) 4.4). With no number
+   free nothing is saved: "No room for a new AES system".
+2. The key into it, as in step 4 above.
+3. The channel, read again from the codeplug: an AES channel on that system with the key's ID (`aes_ref`), Encrypted
+   only off. Its frequencies, color code, timeslot and contact stay. A channel that is no longer plain DMR by then is
+   left alone and the save reports a failure (the key stays stored).
+
+Sharing "whole system" lets a zone share carry the system to a radio that has none ([zone-share.md](zone-share.md)):
+the net control shares the channel, and the members' radios gain the same AES channel and system, without a key. A
+zone share never carries a traffic key. The members then get the key by key fill, group key fill or joining the net
+([otar.md](otar.md) 6). On those radios the channel editor's AES key row offers a system without keys at key ID 1
+([channel-modes.md](channel-modes.md) 4).
 
 Nothing goes on air and nothing is listened for. The key is in RAM only in the session's block, which is wiped when
 the screen closes, saved or not, and by the emergency wipe. The key is only as unpredictable as the pool: its credit

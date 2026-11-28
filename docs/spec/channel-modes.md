@@ -169,7 +169,8 @@ encrypted only (calls and packet data in the clear are ignored, [dmr-voice.md](d
 reserved and kept as found. A two-byte block reads all off. Missing keys inhibit PTT and data. AES applies to
 voice and to packet data ([dmr-data.md](dmr-data.md) 13.4). The editor keeps them in the system's traffic key table (`aesSystem.traffic`, masked until shown, with
 **Generate** filling a key from `crypto.getRandomValues()`) and omits traffic keys when saving an image without keys. On the radio the AES key row cycles
-through provisioned system number/key ID pairs and None. Save applies the selection. With a key chosen, the
+through provisioned system number/key ID pairs, then each AES system without a key yet at key ID 1 (one a zone share
+brought, or Generate a key made: [group-key-fill.md](group-key-fill.md) 8.1), and None. Save applies the selection. With a key chosen, the
 Encrypted only row (the editor's **Encrypted only** box) sets bit 0 of the options byte; with the bit clear the editor
 keeps a two-byte block as it is.
 

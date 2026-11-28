@@ -5111,8 +5111,13 @@ msgstr "未收到密钥"
 
 #: core/ui/ui_menus.c
 msgctxt "GK_WHY_GEN_CHANNEL"
-msgid "Generate a key on an AES channel"
-msgstr "请在 AES 信道上新建密钥"
+msgid "Generate a key on a stored DMR channel"
+msgstr "请在已保存的 DMR 信道上新建密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "GK_WHY_NO_ROOM"
+msgid "No room for a new AES system"
+msgstr "无法再添加 AES 系统"
 
 #: core/ui/ui_menus.c
 msgctxt "GK_BODY_SENDING"
@@ -5143,6 +5148,11 @@ msgstr " 后关闭"
 msgctxt "GK_BODY_NEW_KEY"
 msgid "New AES-256 key"
 msgstr "新的 AES-256 密钥"
+
+#: core/ui/ui_menus.c
+msgctxt "GK_BODY_NEW_CHANNEL"
+msgid "New key + AES channel"
+msgstr "新密钥 + AES 信道"
 
 #: core/ui/ui_menus.c
 msgctxt "GK_BODY_FROM"

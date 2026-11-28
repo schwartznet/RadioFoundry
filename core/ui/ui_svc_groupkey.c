@@ -18,6 +18,7 @@
 #include "support/kcv.h"
 #include "codeplug/codeplug.h"
 #include "codeplug/codeplug_records.h"
+#include "codeplug/codeplug_tag.h"
 #include "codeplug/key_store.h"
 #include "radio/radio.h"
 #include "storage/storage.h"
@@ -31,6 +32,7 @@ typedef struct {
 	uint8_t why;			// UI_GK_WHY_*
 	bool send;			// the sender's session
 	bool gen;			// Generate a key: the pool's key, saved like a received one
+	uint16_t new_chan;		// Generate on a plain DMR channel: the channel the save makes an AES one (8.1), 0 none
 	bool replaces;			// save_id holds a key in chan_system already
 	bool ending;
 	// Sender: the stored key as picked (class, record and check value must still match when it is read)
@@ -94,9 +96,23 @@ static bool channel_system(const radio_view_t *v, uint8_t *system)
 	return true;
 }
 
+// The DMR AES-256 system ui_svc_aes_system_make makes (network identity UI_AES_NEW_NETWORK), if one is here
+static uint8_t made_system(void)
+{
+	codeplug_system_t s;
+	uint8_t block[CODEPLUG_SYS_HDR + 1];
+	for (uint8_t n = 0; n < CODEPLUG_SYSTEMS_RUN; n++)
+		if (codeplug_system(n, &s, block, 1) >= 1 && s.type == CODEPLUG_SYSTYPE_DMR_AES && s.id_len == 1 &&
+		    block[0] == UI_AES_NEW_NETWORK)
+			return n;
+	return CODEPLUG_SYSTEM_NONE;
+}
+
 // Whether system holds an AES-256 key under id
 static bool key_there(uint8_t system, uint8_t id)
 {
+	if (system == CODEPLUG_SYSTEM_NONE)
+		return false;
 	uint8_t k[GK_KEY_LEN];
 	bool there = codeplug_traffic_key(system, GK_ALG_AES256, id, k, sizeof k) == (int)sizeof k;
 	crypto_wipe(k, sizeof k);
@@ -111,7 +127,29 @@ static void store_job(void *ctx)
 		c->job = JOB_DONE;
 		return;
 	}
+	// Generate on a plain DMR channel (group-key-fill.md 8.1): the system first, then the key into it, then the channel
+	// made an AES one on that key. A radio with every system number taken saves nothing
+	// (key_store_put finds it by its identity, the one the save gave the key)
+	uint8_t system = c->new_chan != 0 ? ui_svc_aes_system_make() : CODEPLUG_SYSTEM_NONE;
+	if (c->new_chan != 0 && system == CODEPLUG_SYSTEM_NONE) {
+		c->job_result = KEY_PUT_NO_SYSTEM;
+		c->job = JOB_DONE;
+		return;
+	}
 	c->job_result = key_store_put(&c->put, c->kcv);
+	if (c->new_chan != 0 && c->job_result == KEY_PUT_STORED) {
+		channel_t ch;
+		if (!codeplug_channel(c->new_chan, &ch) || ch.mode != RADIO_MODE_DMR || ch.kind != CODEPLUG_KIND_NONE) {
+			c->job_result = KEY_PUT_WRITE_FAILED;
+		} else {
+			ch.kind = CODEPLUG_KIND_DMR_AES;
+			ch.system = system;
+			ch.aes_ref = (uint16_t)(c->put.key_id + 1u);
+			ch.aes_opts = 0;
+			if (!codeplug_set_channel(c->new_chan, &ch))
+				c->job_result = KEY_PUT_WRITE_FAILED;
+		}
+	}
 	c->job = JOB_DONE;
 }
 
@@ -121,19 +159,26 @@ uint8_t ui_svc_gk_start(int32_t key, const radio_view_t *v)
 		return UI_GK_WHY_BUSY;
 	uint8_t ck[GK_KEY_LEN], system = 0;
 	if (key == UI_GK_GENERATE) {
-		if (!channel_system(v, &system))
-			return UI_GK_WHY_GEN_CHANNEL;
+		// On a stored plain DMR channel the save makes the channel an AES one on a new system (group-key-fill.md 8.1)
+		uint16_t new_chan = 0;
+		if (!channel_system(v, &system)) {
+			if (v->vfo || v->channel_number == 0 || v->ch.mode != RADIO_MODE_DMR || v->ch.kind != CODEPLUG_KIND_NONE)
+				return UI_GK_WHY_GEN_CHANNEL;
+			new_chan = v->channel_number;
+			system = made_system();	// one made before: its keys' IDs are taken (NONE: none yet)
+		}
 		gk_ctx_t *c = pvPortMalloc(sizeof *c);
 		if (c == NULL)
 			return UI_GK_WHY_BUSY;
 		memset(c, 0, sizeof *c);
 		gk_wiped = false;
 		c->gen = true;
+		c->new_chan = new_chan;
 		c->state = UI_GK_RANDOM;
 		c->chan_system = system;
 		// Saved as the channel's own key ID while that is free (an AES channel without its key yet), else the first
-		// free ID: the user types another to replace a key
-		uint8_t id = (uint8_t)(v->ch.aes_ref - 1u);
+		// free ID: the user types another to replace a key. A new AES channel starts at UI_AES_NEW_ID
+		uint8_t id = new_chan != 0 ? (uint8_t)UI_AES_NEW_ID : (uint8_t)(v->ch.aes_ref - 1u);
 		for (uint16_t i = 1; key_there(system, id) && i <= 256u; i++)
 			id = (uint8_t)i;	// 1..255, then 0
 		if (key_there(system, id))
@@ -202,6 +247,7 @@ bool ui_svc_gk_view(ui_gk_view_t *out)
 	out->why = gk->why;
 	out->send = gk->send;
 	out->gen = gk->gen;
+	out->new_chan = gk->new_chan != 0;
 	out->replaces = gk->replaces;
 	out->copies = gk->copies;
 	uint32_t now = hal_millis();
@@ -235,7 +281,13 @@ void ui_svc_gk_save(void)
 	k->type = CODEPLUG_SYSTYPE_DMR_AES;
 	k->alg = GK_ALG_AES256;
 	k->key_id = gk->save_id;
-	int n = key_store_identity(gk->chan_system, k->identity, sizeof k->identity);
+	int n;
+	if (gk->new_chan != 0) {
+		k->identity[0] = UI_AES_NEW_NETWORK;	// the system the save makes (store_job)
+		n = 1;
+	} else {
+		n = key_store_identity(gk->chan_system, k->identity, sizeof k->identity);
+	}
 	if (n < 0) {
 		gk->state = UI_GK_FAILED;
 		gk->why = UI_GK_WHY_STORE;
@@ -306,7 +358,8 @@ static void listen_tick(uint32_t now)
 				gk->kcv_ok = true;
 			} else {
 				gk->state = UI_GK_FAILED;
-				gk->why = UI_GK_WHY_STORE;
+				gk->why = gk->new_chan != 0 && gk->job_result == KEY_PUT_NO_SYSTEM ? UI_GK_WHY_NO_ROOM :
+					  UI_GK_WHY_STORE;
 			}
 			group_key_open(false);
 			crypto_wipe(gk->chan_key, sizeof gk->chan_key);

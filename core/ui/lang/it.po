@@ -5109,8 +5109,13 @@ msgstr "Nessuna chiave arrivata"
 
 #: core/ui/ui_menus.c
 msgctxt "GK_WHY_GEN_CHANNEL"
-msgid "Generate a key on an AES channel"
-msgstr "Genera la chiave su un canale AES"
+msgid "Generate a key on a stored DMR channel"
+msgstr "Genera la chiave su un canale DMR salvato"
+
+#: core/ui/ui_menus.c
+msgctxt "GK_WHY_NO_ROOM"
+msgid "No room for a new AES system"
+msgstr "Nessun posto per un sistema AES"
 
 #: core/ui/ui_menus.c
 msgctxt "GK_BODY_SENDING"
@@ -5141,6 +5146,11 @@ msgstr " rimanenti"
 msgctxt "GK_BODY_NEW_KEY"
 msgid "New AES-256 key"
 msgstr "Nuova chiave AES-256"
+
+#: core/ui/ui_menus.c
+msgctxt "GK_BODY_NEW_CHANNEL"
+msgid "New key + AES channel"
+msgstr "Nuova chiave + canale AES"
 
 #: core/ui/ui_menus.c
 msgctxt "GK_BODY_FROM"

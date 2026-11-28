@@ -3494,15 +3494,19 @@ static struct {
 
 uint8_t ui_svc_gk_start(int32_t key, const radio_view_t *v)
 {
-	if (v->ch.mode != RADIO_MODE_DMR || v->ch.kind != CODEPLUG_KIND_DMR_AES || v->ch.aes_ref == 0)
+	// Generate on a stored plain DMR channel: the save makes it an AES channel on a new system (group-key-fill.md 8.1)
+	bool new_chan = key == UI_GK_GENERATE && v->ch.mode == RADIO_MODE_DMR && v->ch.kind == CODEPLUG_KIND_NONE &&
+			!v->vfo && v->channel_number != 0;
+	if (!new_chan && (v->ch.mode != RADIO_MODE_DMR || v->ch.kind != CODEPLUG_KIND_DMR_AES || v->ch.aes_ref == 0))
 		return key == UI_GK_GENERATE ? UI_GK_WHY_GEN_CHANNEL : UI_GK_WHY_CHANNEL;
 	if (key == UI_GK_GENERATE) {
 		static const uint8_t gkcv[3] = { 0x3C, 0x1A, 0x7E };
 		memset(&gk_sim.v, 0, sizeof gk_sim.v);
 		gk_sim.on = true;
 		gk_sim.v.gen = true;
+		gk_sim.v.new_chan = new_chan;
 		gk_sim.v.state = UI_GK_GOT;
-		gk_sim.v.key_id = gk_sim.v.save_id = 3;
+		gk_sim.v.key_id = gk_sim.v.save_id = new_chan ? UI_AES_NEW_ID : 3;
 		gk_sim.v.kcv_ok = true;
 		memcpy(gk_sim.v.kcv, gkcv, sizeof gkcv);
 		return UI_GK_WHY_NONE;

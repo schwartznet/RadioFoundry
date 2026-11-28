@@ -1164,8 +1164,11 @@ static const flow_t flows[] = {
 	  "gk:copy gk:copy gk:copy gk:copy", "shows=Sent_to_group shows=9507A7", 0, false },
 	// Generate a key (group-key-fill.md 8): Tools > Key fill > 4, the new key's check value, saved under an ID
 	{ "G generate is on the key fill menu", "", "ok 6 up ok", "screen=key-fill-menu shows=Generate_a_key", 4, false },
-	{ "G generate needs an AES channel", "ok 6 up ok", "4",
-	  "toast=Generate_a_key_on_an_AES_channel screen=key-fill-menu", 1, false },
+	{ "G generate needs a stored DMR channel", "dlpos:2 ok 6 up ok", "4",
+	  "toast=Generate_a_key_on_a_stored_DMR_channel screen=key-fill-menu", 1, false },
+	// On a plain DMR channel the save makes it an AES channel on a new system (8.1), starting at key ID 1
+	{ "G generate on a plain DMR channel", "ok 6 up ok", "4",
+	  "screen=key-gen shows=New_key_+_AES_channel shows=Save_as_key:_1", 1, false },
 	{ "G generate shows a new key", "gk:aes ok 6 up ok", "4",
 	  "screen=key-gen shows=New_AES-256_key shows=3C1A7E shows=Save_as_key:_3 hides=Replace_key", 1, false },
 	{ "G a generated key saved", "gk:aes ok 6 up ok 4", "ok", "shows=Saved_as_key_3 shows=3C1A7E gksaved=3", 1, false },

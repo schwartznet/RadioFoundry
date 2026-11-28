@@ -439,6 +439,12 @@ Then give it to the other radios with key fill or **Send a key > Send to group**
 ID (in the editor, or by saving it over the channel's key ID). Status: untested on a radio. How it works:
 [group-key-fill.md](../spec/group-key-fill.md) 8.
 
+**No AES channel yet?** Generate a key on an ordinary stored DMR channel. The screen says **New key + AES channel**,
+and **OK** saves the key and turns that channel into an AES channel (key ID 1) on a new AES system, keeping its
+frequency, color code, timeslot and contact. To give the other radios the same channel, share it to them
+(**Share channel to...**): the channel and its AES system arrive without the key, and the key follows by key fill or by
+joining the net. Status: host-tested, untested on a radio.
+
 ## Position in calls
 
 Some DMR radios send their position inside a voice call (ETSI GPS Info). When a caller does, the receive screen shows

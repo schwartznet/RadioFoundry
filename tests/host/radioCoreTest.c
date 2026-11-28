@@ -674,8 +674,17 @@ static bool kv_set(uint16_t key, const uint8_t *v, uint16_t len)
 	return true;
 }
 uint8_t codeplug_kv_serial(void) { return kv_serial; }
-// The tag layer's writes (codeplug_tag.c): none in these tests
-bool codeplug_kv_set(uint16_t key, const void *value, uint16_t len) { (void)key; (void)value; (void)len; return false; }
+// The tag layer's writes (codeplug_tag.c): none in these tests. A system record while kv_sys_writes is on (the channel
+// editor's new AES system, ui_svc_storage.c)
+static bool kv_sys_writes;
+bool codeplug_kv_set(uint16_t key, const void *value, uint16_t len)
+{
+	if (!kv_sys_writes || key < CODEPLUG_KEY_SYSTEM || key > CODEPLUG_KEY_SYSTEM + 0xFFu || len > sizeof kv_t3[0].v) {
+		return false;
+	}
+	kv_t3_set(key, value, (uint8_t)len);
+	return true;
+}
 // Removes one of the Tier III / traffic key entries (OTAR's erase of a previous keyset's key)
 bool codeplug_kv_remove(uint16_t key)
 {
@@ -5209,6 +5218,55 @@ static void test_ui_glue(void)
 	CHECK(sm.view.temporary);
 	cp_write_fails = false;
 	req(RREQ_CLEAR_TEMP, 0);
+#if CONFIG_DMR_AES && CONFIG_CHANNEL_EDIT
+	{
+		// The new DMR AES-256 system Generate a key makes on a plain DMR channel (ui_svc_aes_system_make,
+		// group-key-fill.md 8.1): type 5, network 1, transmit, shared whole, "AES", no key, at the first free number;
+		// a second call finds it. The AES key row then offers it at key ID 1 though it holds no key, and once it holds
+		// a key, that key's pair instead. With every number a radio runs taken by other systems none is made
+		static __typeof__(kv_t3) kv_saved;
+		uint8_t kv_saved_n = kv_t3_n;
+		channel_t b;
+		codeplug_system_t s;
+		uint8_t blk[CODEPLUG_SYS_HDR + 4];
+		uint8_t tk[CODEPLUG_TRAFFIC_HDR + 32] = { 1, 0x25, 5, 0, 0, 9 };
+		uint8_t other[CODEPLUG_SYS_HDR + 1] = { 4 };
+
+		memcpy(kv_saved, kv_t3, sizeof kv_saved);
+		kv_t3_clear();
+		kv_t3_set(CODEPLUG_KEY_SYSTEM, other, sizeof other);	// system 0 another type: the new one is 1
+		memset(&b, 0, sizeof b);
+		ui_svc_next_aes_key(&b);
+		CHECK(b.kind == CODEPLUG_KIND_NONE);
+		kv_sys_writes = true;
+		CHECK(ui_svc_aes_system_make() == 1 && kv_t3_n == 2);
+		CHECK(codeplug_system(1, &s, blk, 4) == 1 && s.type == CODEPLUG_SYSTYPE_DMR_AES && s.flags == CODEPLUG_SYS_TX &&
+		      s.sharing == CODEPLUG_SHARE_WHOLE && s.id_len == 1 && s.own_id == 0 && blk[0] == UI_AES_NEW_NETWORK &&
+		      strcmp(s.name, "AES") == 0);
+		CHECK(ui_svc_aes_system_make() == 1 && kv_t3_n == 2);
+		memset(&b, 0, sizeof b);
+		ui_svc_next_aes_key(&b);
+		CHECK(b.kind == CODEPLUG_KIND_DMR_AES && b.system == 1 && b.aes_ref == UI_AES_NEW_ID + 1);
+		ui_svc_next_aes_key(&b);
+		CHECK(b.kind == CODEPLUG_KIND_NONE);
+		kv_t3_set(CODEPLUG_KEY_TRAFFIC, tk, sizeof tk);
+		memset(&b, 0, sizeof b);
+		ui_svc_next_aes_key(&b);
+		CHECK(b.kind == CODEPLUG_KIND_DMR_AES && b.system == 1 && b.aes_ref == 6);
+		ui_svc_next_aes_key(&b);
+		CHECK(b.kind == CODEPLUG_KIND_NONE);
+		kv_t3_clear();
+		for (uint8_t n = 0; n < CODEPLUG_SYSTEMS_RUN; n++)
+			kv_t3_set((uint16_t)(CODEPLUG_KEY_SYSTEM + n), other, sizeof other);
+		CHECK(ui_svc_aes_system_make() == CODEPLUG_SYSTEM_NONE && kv_t3_n == CODEPLUG_SYSTEMS_RUN);
+		kv_sys_writes = false;
+		kv_t3_clear();
+		CHECK(ui_svc_aes_system_make() == CODEPLUG_SYSTEM_NONE);	// the write refused
+		memcpy(kv_t3, kv_saved, sizeof kv_saved);
+		kv_t3_n = kv_saved_n;
+		kv_serial++;
+	}
+#endif
 	// The permanent talk target: at once for now, then the channel's contact once the job ran
 	CHECK(ui_svc_talk_to(9, false, UI_TALK_PERMANENT));
 	run(20);

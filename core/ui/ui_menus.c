@@ -9241,7 +9241,8 @@ static const char *gk_why_text(uint8_t why)
 	case UI_GK_WHY_SEND: return TR(KF_WHY_SEND, "Couldn't send: check the channel");
 	case UI_GK_WHY_TIMEOUT: return TR(GK_WHY_TIMEOUT, "No key came");
 	case UI_GK_WHY_STORE: return TR(KF_RES_WRITE_FAILED, "The receiver couldn't save the key");
-	case UI_GK_WHY_GEN_CHANNEL: return TR(GK_WHY_GEN_CHANNEL, "Generate a key on an AES channel");
+	case UI_GK_WHY_GEN_CHANNEL: return TR(GK_WHY_GEN_CHANNEL, "Generate a key on a stored DMR channel");
+	case UI_GK_WHY_NO_ROOM: return TR(GK_WHY_NO_ROOM, "No room for a new AES system");
 	default: return TR(KF_WHY_BUSY, "Key fill busy: try again");
 	}
 }
@@ -9312,7 +9313,9 @@ static const char *gk_body(void)
 	case UI_GK_GOT:
 		if (gk_typed == 0 && g.save_id != g.key_id)
 			ui_svc_gk_save_id(g.key_id);	// a key shown anew starts from its sent ID
-		if (g.gen) {
+		if (g.gen && g.new_chan) {
+			sb_str(&b, TR(GK_BODY_NEW_CHANNEL, "New key + AES channel"));
+		} else if (g.gen) {
 			sb_str(&b, TR(GK_BODY_NEW_KEY, "New AES-256 key"));
 		} else {
 			sb_str(&b, TR(GK_BODY_FROM, "Key from "));

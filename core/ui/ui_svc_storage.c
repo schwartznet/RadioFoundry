@@ -824,31 +824,73 @@ static struct {
 // write needs. An index into this table, not a pointer: no RAM of its own (some radios have none to spare)
 static void save_channel_job(void *ctx);
 #if CONFIG_DMR_AES && CONFIG_CHANNEL_EDIT
+// The AES key row's steps (channel-modes.md 4, "On the radio"), in this order after None: every system/PI key ID pair
+// the codeplug holds; then every DMR AES-256 system without a key yet (one a zone share brought, or Generate a key
+// made), at key ID UI_AES_NEW_ID, so a net's first key can start on the radio; then None again
 void ui_svc_next_aes_key(channel_t *c)
 {
-	// Step through system/PI key ID in numeric order. Read only the public record headers.
 	uint32_t current = c->kind == CODEPLUG_KIND_DMR_AES ? (uint32_t)c->system * 256 + c->aes_ref : 0;
 	uint32_t best = 0x10000u;
+	uint8_t keyed = 0;	// the systems 0-7 holding a DMR AES-256 key
 	codeplug_kv_cursor_t cursor;
 	uint8_t hdr[CODEPLUG_TRAFFIC_HDR];
 	uint16_t record;
 	int len;
+	codeplug_system_t sys;
+	uint8_t block[CODEPLUG_SYS_HDR];
 	codeplug_kv_begin(&cursor, CODEPLUG_KEY_TRAFFIC, CODEPLUG_KEY_TRAFFIC + 1023);
 	while ((len = codeplug_kv_next(&cursor, &record, hdr, sizeof hdr)) >= 0) {
 		if (len != CODEPLUG_TRAFFIC_HDR + DMR_AES_KEY_BYTES || hdr[0] == CODEPLUG_SYSTEM_NONE ||
 		    hdr[1] != DMR_AES_ALG_AES256 || hdr[3] != 0)
 			continue;
+		if (codeplug_system(hdr[0], &sys, block, 0) < 0 || sys.type != CODEPLUG_SYSTYPE_DMR_AES)
+			continue;
+		if (hdr[0] < 8u)
+			keyed |= (uint8_t)(1u << hdr[0]);
 		uint32_t rank = (uint32_t)hdr[0] * 256 + hdr[2] + 1;
-		if (rank > current && rank < best) {
-			codeplug_system_t sys;
-			uint8_t block[CODEPLUG_SYS_HDR];
-			if (codeplug_system(hdr[0], &sys, block, 0) >= 0 && sys.type == CODEPLUG_SYSTYPE_DMR_AES)
-				best = rank;
-		}
+		if (rank > current && rank < best)
+			best = rank;
+	}
+	for (uint8_t n = 0; n < CODEPLUG_SYSTEMS_RUN; n++) {
+		if (codeplug_system(n, &sys, block, 0) < 0 || sys.type != CODEPLUG_SYSTYPE_DMR_AES)
+			continue;
+		uint32_t rank = (uint32_t)n * 256 + UI_AES_NEW_ID + 1;
+		if (!(keyed & (1u << n)) && rank > current && rank < best)
+			best = rank;
 	}
 	c->kind = best == 0x10000u ? CODEPLUG_KIND_NONE : CODEPLUG_KIND_DMR_AES;
 	c->system = best == 0x10000u ? CODEPLUG_SYSTEM_NONE : (uint8_t)((best - 1) >> 8);
 	c->aes_ref = best == 0x10000u ? 0 : (uint16_t)(1u + ((best - 1) & 255));
+}
+
+#endif
+#if CONFIG_DMR_AES
+uint8_t ui_svc_aes_system_make(void)
+{
+	codeplug_system_t sys;
+	uint8_t v[CODEPLUG_SYS_HDR + 1];
+	uint8_t free_n = CODEPLUG_SYSTEM_NONE;
+	for (uint8_t n = 0; n < CODEPLUG_SYSTEMS_RUN; n++) {
+		uint8_t id = 0;
+		int blen = codeplug_system(n, &sys, v, sizeof v - CODEPLUG_SYS_HDR);
+		if (blen < 0) {
+			if (free_n == CODEPLUG_SYSTEM_NONE && codeplug_kv_get((uint16_t)(CODEPLUG_KEY_SYSTEM + n), &id, 0) < 0)
+				free_n = n;
+			continue;
+		}
+		if (sys.type == CODEPLUG_SYSTYPE_DMR_AES && sys.id_len == 1 && blen >= 1 && v[0] == UI_AES_NEW_NETWORK)
+			return n;
+	}
+	if (free_n == CODEPLUG_SYSTEM_NONE)
+		return CODEPLUG_SYSTEM_NONE;
+	memset(v, 0, sizeof v);
+	v[0] = CODEPLUG_SYSTYPE_DMR_AES;
+	v[1] = CODEPLUG_SYS_TX;
+	v[2] = CODEPLUG_SHARE_WHOLE;
+	v[3] = 1;	// the identity: the network byte
+	memcpy(&v[12], "AES", 3);
+	v[CODEPLUG_SYS_HDR] = UI_AES_NEW_NETWORK;
+	return codeplug_kv_set((uint16_t)(CODEPLUG_KEY_SYSTEM + free_n), v, sizeof v) ? free_n : CODEPLUG_SYSTEM_NONE;
 }
 #endif
 

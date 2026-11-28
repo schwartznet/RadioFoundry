@@ -14,6 +14,7 @@
 #include "support/kcv.h"
 #include "codeplug/codeplug.h"
 #include "codeplug/codeplug_records.h"
+#include "codeplug/codeplug_tag.h"
 #include "codeplug/key_store.h"
 #include "storage/storage.h"
 #include "radio/radio.h"
@@ -108,6 +109,48 @@ uint8_t key_store_put(const key_put_t *p, uint8_t kcv[KCV_LEN])
 	put.key = put_key;
 	stores++;
 	return kcv_traffic(CODEPLUG_SYSTYPE_DMR_AES, p->alg, p->key, p->key_len, kcv) ? KEY_PUT_STORED : KEY_PUT_BAD;
+}
+
+// Generate on a plain DMR channel (group-key-fill.md 8.1): the system ui_svc_aes_system_make makes (number MADE,
+// network 1), the channel read and written back by the store job
+#define MADE	5u
+#define CHAN	7u
+static bool sys_made, make_fails;
+static int makes, chan_writes;
+static channel_t chan_stored;
+int codeplug_system(uint8_t n, codeplug_system_t *s, uint8_t *block, uint16_t cap)
+{
+	if (!sys_made || n != MADE)
+		return -1;
+	memset(s, 0, sizeof *s);
+	s->type = CODEPLUG_SYSTYPE_DMR_AES;
+	s->id_len = 1;
+	if (cap >= 1)
+		block[0] = UI_AES_NEW_NETWORK;
+	return 1;
+}
+uint8_t ui_svc_aes_system_make(void)
+{
+	makes++;
+	if (make_fails)
+		return CODEPLUG_SYSTEM_NONE;
+	sys_made = true;
+	return MADE;
+}
+bool codeplug_channel(uint16_t number, channel_t *out)
+{
+	if (number != CHAN)
+		return false;
+	*out = chan_stored;
+	return true;
+}
+bool codeplug_set_channel(uint16_t number, const channel_t *ch)
+{
+	if (number != CHAN)
+		return false;
+	chan_stored = *ch;
+	chan_writes++;
+	return true;
 }
 
 static radio_view_t view(bool aes, uint16_t aes_ref)
@@ -236,6 +279,55 @@ int main(void)
 	memset(stored, 1, sizeof stored);
 	CHECK(shown(&aes, &g) && g.save_id == 3 && g.replaces);
 	end_session(&aes);
+
+	// A plain DMR channel (8.1): the VFO and a channel of another kind are refused; a stored one offers key ID 1 and
+	// says the save makes it an AES channel. The save makes the system, stores the key under its identity and turns
+	// the channel into an AES one on it with that key ID
+	radio_view_t dmr = view(false, 0), vfo;
+	dmr.ch.mode = RADIO_MODE_DMR;
+	dmr.ch.system = CODEPLUG_SYSTEM_NONE;
+	dmr.channel_number = CHAN;
+	vfo = dmr;
+	vfo.vfo = true;
+	vfo.channel_number = 0;
+	CHECK(ui_svc_gk_start(UI_GK_GENERATE, &vfo) == UI_GK_WHY_GEN_CHANNEL && heap_block == NULL);
+	radio_view_t p25 = dmr;
+	p25.ch.kind = CODEPLUG_KIND_DMR_AES + 1u;
+	CHECK(ui_svc_gk_start(UI_GK_GENERATE, &p25) == UI_GK_WHY_GEN_CHANNEL && heap_block == NULL);
+	chan_stored = dmr.ch;
+	chan_stored.color_code = 4;
+	CHECK(shown(&dmr, &g) && g.new_chan && g.save_id == UI_AES_NEW_ID && !g.replaces && makes == 0);
+	ui_svc_gk_save();
+	CHECK(makes == 0 && job_fn != NULL);	// nothing written before the storage job runs
+	run_job();
+	tick(&dmr);
+	CHECK(put.id_len == 1 && put.identity[0] == UI_AES_NEW_NETWORK && put.key_id == UI_AES_NEW_ID);
+	CHECK(makes == 1 && chan_writes == 1 && chan_stored.kind == CODEPLUG_KIND_DMR_AES && chan_stored.system == MADE &&
+	      chan_stored.aes_ref == UI_AES_NEW_ID + 1u && chan_stored.aes_opts == 0 && chan_stored.color_code == 4);
+	CHECK(ui_svc_gk_view(&g) && g.state == UI_GK_SAVED && g.save_id == UI_AES_NEW_ID);
+	end_session(&dmr);
+	CHECK(heap_block == NULL && freed_leftover == 0);
+	// Every system number taken: nothing stored, the channel unchanged, and the screen says why
+	chan_stored = dmr.ch;
+	make_fails = true;
+	int before = stores;
+	CHECK(shown(&dmr, &g) && g.new_chan);
+	ui_svc_gk_save();
+	run_job();
+	tick(&dmr);
+	CHECK(stores == before && chan_writes == 1 && chan_stored.kind == CODEPLUG_KIND_NONE);
+	CHECK(ui_svc_gk_view(&g) && g.state == UI_GK_FAILED && g.why == UI_GK_WHY_NO_ROOM);
+	end_session(&dmr);
+	// A channel that changed under the save (no longer plain DMR): the key is stored, the channel left alone
+	make_fails = false;
+	chan_stored = dmr.ch;
+	chan_stored.mode = RADIO_MODE_FM;
+	CHECK(shown(&dmr, &g));
+	ui_svc_gk_save();
+	run_job();
+	tick(&dmr);
+	CHECK(chan_writes == 1 && ui_svc_gk_view(&g) && g.state == UI_GK_FAILED && g.why == UI_GK_WHY_STORE);
+	end_session(&dmr);
 
 	if (failures == 0)
 		printf("# keyGenTest PASSED\n");

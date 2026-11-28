@@ -331,6 +331,7 @@ typedef struct {
 	uint8_t why;		// UI_GK_WHY_*: why it failed
 	bool send;		// the sender's session
 	bool gen;		// Generate a key: a new key from the pool, saved like a received one
+	bool new_chan;		// Generate on a plain DMR channel: saving makes it an AES channel (group-key-fill.md 8.1)
 	bool replaces;		// the key ID to save as holds a key already: saving replaces it
 	uint8_t copies;		// sender: copies on air so far
 	uint8_t presses;	// sender: random key presses the pool still wants
@@ -344,7 +345,7 @@ typedef struct {
 } ui_gk_view_t;
 enum { UI_GK_RANDOM, UI_GK_SENDING, UI_GK_SENT, UI_GK_LISTEN, UI_GK_GOT, UI_GK_SAVING, UI_GK_SAVED, UI_GK_FAILED };
 enum { UI_GK_WHY_NONE, UI_GK_WHY_CHANNEL, UI_GK_WHY_TARGET, UI_GK_WHY_NO_ID, UI_GK_WHY_KEY, UI_GK_WHY_BUSY,
-       UI_GK_WHY_SEND, UI_GK_WHY_TIMEOUT, UI_GK_WHY_STORE, UI_GK_WHY_GEN_CHANNEL };
+       UI_GK_WHY_SEND, UI_GK_WHY_TIMEOUT, UI_GK_WHY_STORE, UI_GK_WHY_GEN_CHANNEL, UI_GK_WHY_NO_ROOM };
 // Start a session on the channel in v: receive (key -1), generate a new key into the channel's AES system
 // (UI_GK_GENERATE), or send stored key `key` (ui_svc_key's index, an AES-256 traffic key) to the channel's talkgroup.
 // UI_GK_WHY_NONE, or why not
@@ -362,11 +363,24 @@ bool ui_svc_monitor(bool on);			// FM monitor latch
 bool ui_svc_vox(bool on);
 // Make temporary channel changes permanent (storage-cps): false when busy, off a stored channel, or unavailable
 bool ui_svc_save_channel(void);
+// The channel editor's AES key row (channel-modes.md 4): ch steps to the next choice after its own. The choices: the
+// system/PI key ID pairs the codeplug holds, each DMR AES-256 system without a key at key ID UI_AES_NEW_ID, and None
+// (CODEPLUG_KIND_NONE)
+#define UI_AES_NEW_ID		1u	// the key ID a channel on a system without keys starts on
+#define UI_AES_NEW_NETWORK	1u	// a new system's network identity, the Codeplug Editor's default
+void ui_svc_next_aes_key(channel_t *ch);
+#if CONFIG_DMR_AES
+// The DMR AES-256 system Generate a key makes on a plain DMR channel (group-key-fill.md 8.1), on the storage task: one
+// with network identity UI_AES_NEW_NETWORK, transmit allowed, shared as a whole system (a zone share carries it to a
+// radio without one; its keys only when the sender turns keys on), named "AES", no keys. A system of that identity
+// already here is used instead. Its number, CODEPLUG_SYSTEM_NONE when all the numbers a radio runs are taken or the
+// write fails
+uint8_t ui_svc_aes_system_make(void);
+#endif
 // Store a whole channel (the channel editor, ui.md 2.1) at number 1..CODEPLUG_CHANNELS_MAX, as a storage job like
 // ui_svc_save_channel. from: the stored channel ch is a copy of (number itself when edited in place), 0 = none; a
 // copy of a channel of a kind takes its mode with it (channel-modes.md 2.4). false: a write is still going on, or no
 // codeplug storage in this build
-void ui_svc_next_aes_key(channel_t *ch);
 bool ui_svc_write_channel(uint16_t number, const channel_t *ch, uint16_t from);
 #if CONFIG_P25 || CONFIG_NXDN
 // A P25 or NXDN channel's own settings, its tag's parameter block (p25-codeplug.md 2, nxdn-codeplug.md 2)
