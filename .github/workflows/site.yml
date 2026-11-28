@@ -19,6 +19,8 @@ permissions:
 
 jobs:
   rebuild:
+    # the project's repository only: a fork has no deploy hook (its test site is test-site.yml)
+    if: github.repository == 'RadioFoundry/RadioFoundry'
     # the hook URL is a secret: GitHub's runners only. The site environment hands it only to main and release tags
     runs-on: ubuntu-24.04
     environment: site
