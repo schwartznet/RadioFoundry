@@ -150,6 +150,7 @@
  "tools.satellite.status.fetching": "Fetching the AMSAT daily bulletin…",
  "tools.satellite.status.fetch_failed": "Could not fetch the AMSAT bulletin: {status}",
  "tools.satellite.status.api_not_found": "The AMSAT API route was not found. For a local preview, run site/build.py --serve; a plain static server cannot fetch the bulletin.",
+ "tools.satellite.status.test_site_save": "This test site can't fetch AMSAT's bulletin for you. Save {link} (right-click it, then Save link as), then choose that file with Browse for TLE file.",
  "tools.satellite.status.too_large": "The TLE source exceeds the 1 MB size limit.",
  "tools.satellite.status.missing": "The bulletin is missing selected catalog IDs: {ids}.",
  "tools.satellite.status.invalid": "Selected TLE data is invalid: {error}",

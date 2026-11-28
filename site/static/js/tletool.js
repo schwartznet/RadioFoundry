@@ -22,6 +22,10 @@ const providerInput = document.getElementById("tle-provider");
 const searchInput = document.getElementById("satellite-tle-search");
 const profileById = new Map(SATELLITES.map((satellite) => [satellite.id, satellite]));
 const RADIO_PORT_FILTERS = [RFOUNDRY_USB, ...CABLES];
+// A fork's test site on GitHub Pages (site/build.py --test-site) has no /api/amsat-tle route, and AMSAT's server
+// doesn't let a page fetch the bulletin itself: the user saves it and chooses the file
+const TEST_SITE = document.body?.dataset.testSite === "1";
+const AMSAT_FILE = "https://www.amsat.org/tle/daily-bulletin.txt";
 let catalog = null;
 let usingAmsat = false;
 const selected = new Set(DEFAULT_SELECTED_IDS);
@@ -177,7 +181,15 @@ amsatButton.addEventListener("click", async () => {
 		setBusy(false);
 		const result = status.textContent;
 		showReadyState();
-		status.textContent = result;
+		if (!catalog && TEST_SITE) {
+			const link = document.createElement("a");
+			link.href = AMSAT_FILE;
+			link.textContent = AMSAT_FILE;
+			const [before, after] = t("tools.satellite.status.test_site_save").split("{link}");
+			status.replaceChildren(before, link, after ?? "");
+		} else {
+			status.textContent = result;
+		}
 	}
 });
 
