@@ -111,8 +111,8 @@ async function stubs() {
 }
 // A board's status LED pins (its stub profile, from pins.h), else the stub's own
 export const ledFor = (c, board) => c.boards[board]?.stub_board?.led || c.led;
-// How the stub's status blink looks on this radio (board.toml [flash.stub] led_look): yellow, or green where one LED
-// outshines the other
+// How the stub's status blink looks on this radio (board.toml [flash.stub] led_look): yellow, or yellow-green where the
+// green LED outshines the red
 const ledLook = () => ledFor(C(), boardId())?.look || "yellow";
 // The stub image sent to a board's radio: its LED pins in the parameter block, so the stub never drives another pin,
 // not even before CONFIG

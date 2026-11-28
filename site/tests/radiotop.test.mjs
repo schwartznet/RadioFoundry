@@ -79,22 +79,23 @@ test("a radio without a display gets no screen line", async () => {
 	assert.ok(en["flash.c7.connect.no_keys_dark"] && !/screen/i.test(en["flash.c7.connect.no_keys_dark"]));
 });
 
-test("a radio whose status blink looks green is told so, in every language and on the picture", () => {
+test("a radio whose status blink looks yellow-green is told so, in every language and on the picture", () => {
 	for (const lang of ["en", "es", "it", "zh"]) {
 		const cat = JSON.parse(readFileSync(new URL(`../i18n/${lang}.json`, import.meta.url), "utf8"));
 		for (const k of ["tag_wait", "tag_busy", "led_wait", "led_busy"])
-			assert.ok(cat[`flash.c7.visual.${k}_green`], `${lang} has flash.c7.visual.${k}_green`);
+			assert.ok(cat[`flash.c7.visual.${k}_yellow_green`], `${lang} has flash.c7.visual.${k}_yellow_green`);
 	}
 	for (const k of ["tag_wait", "tag_busy", "led_wait", "led_busy"]) {
-		assert.match(en[`flash.c7.visual.${k}_green`], /green/i);
-		assert.doesNotMatch(en[`flash.c7.visual.${k}_green`], /yellow/i);
+		assert.match(en[`flash.c7.visual.${k}_yellow_green`], /yellow-green/i);
 	}
 	const ui = readFileSync(new URL("../static/js/flasher/c7000ui.js", import.meta.url), "utf8");
 	const calls = ui.match(/radioTop\([^\n]*\);/g) || [];
 	assert.ok(calls.length > 0 && calls.every((c) => c.includes("ledLook()")), "every radio picture gets the board's LED look");
 	const css = readFileSync(new URL("../static/css/site.css", import.meta.url), "utf8");
-	assert.match(css, /\[data-look="green"\]\[data-led="busy"\] \.rt-led[^{]*\{ animation-name: rt-green; \}/);
+	assert.match(css, /\[data-look="yellow-green"\]\[data-led="busy"\] \.rt-led[^{]*\{ animation-name: rt-yellow-green; \}/);
 	const reg = JSON.parse(readFileSync(new URL("../../tools/rfoundry/rfoundry/registry.json", import.meta.url), "utf8"));
-	const find = (o, id) => (o && typeof o === "object" ? (o.id === id && o.stub ? o : Object.values(o).map((v) => find(v, id)).find(Boolean)) : null);
-	assert.equal(find(reg, "dm32")?.stub?.led?.look, "green", "the DM-32UV's blink looks green (board.toml led_look)");
+	// every board's look is one the page knows, and at least one board's blink looks yellow-green (board.toml led_look)
+	const looks = JSON.stringify(reg).match(/"look": ?"[^"]*"/g) || [];
+	assert.ok(looks.length > 0 && looks.every((l) => /"(yellow|yellow-green)"$/.test(l)), looks.join(", "));
+	assert.ok(looks.some((l) => l.endsWith('"yellow-green"')), "a board whose blink looks yellow-green");
 });

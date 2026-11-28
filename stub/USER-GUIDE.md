@@ -152,7 +152,7 @@ The radio restarts into its normal firmware. If neither works, remove and refit 
 | Nothing, screen dark, tool says "waiting" | The radio is not in loader mode yet: switch it off, make sure the tool is waiting, then switch it on. |
 
 Yellow is the red and the green LED both full on. On the DM-32UV the green one outshines the red, so both blinks look
-green there (board.toml `[flash.stub] led_look`, which the web flasher follows). The tool drives each radio's own LED pins (its `pins.h`); `--led-red` and
+yellow-green there (board.toml `[flash.stub] led_look`, which the web flasher follows). The tool drives each radio's own LED pins (its `pins.h`); `--led-red` and
 `--led-green` override them. Without `--board` on the boot ROM route the radio is not known, so no LED blinks.
 
 ## Transfer speed

@@ -236,9 +236,9 @@ BOARD_SCHEMA = {
                       # stubtool --write-test erases and programs; it must not overlap stored or protected data
                       "write_test": _opt(int),
                       "write_test_size": _opt(int),
-                      # how the stub's status blink (both LEDs lit) looks on the radio: yellow (the default) or green,
-                      # where one LED outshines the other; the web flasher names that color
-                      "led_look": _opt(("yellow", "green")),
+                      # how the stub's status blink (both LEDs lit) looks on the radio: yellow (the default) or yellow-green,
+                      # where the green LED outshines the red; the web flasher names that color
+                      "led_look": _opt(("yellow", "yellow-green")),
                       # where the factory calibration is, for a backup: in a data flash, the 4 KB page of the stock
                       # codeplug area [0, area) whose last byte is page_id; on a radio whose data memory is a NAND,
                       # the 4 KB sectors of the program flash (progmem) and the NAND (nand) that each hold a copy

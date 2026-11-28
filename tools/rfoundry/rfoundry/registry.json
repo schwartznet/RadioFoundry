@@ -560,7 +560,7 @@
     "led": {
      "red": 33,
      "green": 32,
-     "look": "green"
+     "look": "yellow-green"
     },
     "calibration": {
      "area": 823296,

@@ -466,21 +466,23 @@ details p { margin: var(--space-2) 0 0; font-weight: 400; }
 .radio-top[data-led="green"] .rt-glow { fill: rgb(63 224 96 / 35%); }
 @keyframes rt-yellow { 0% { fill: #ffd21f; } 50% { fill: #3a3d42; } }
 @keyframes rt-green { 0% { fill: #3fe060; } 50% { fill: #3a3d42; } }
+@keyframes rt-yellow-green { 0% { fill: #b4e83a; } 50% { fill: #3a3d42; } }
 .rt-glow { animation-name: none; }
 .radio-top[data-led="wait"] .rt-glow, .radio-top[data-led="busy"] .rt-glow { animation-name: rt-yellow-glow; }
 .radio-top[data-led="done"] .rt-glow { animation-name: rt-green-glow; }
-/* a radio whose status blink looks green (board.toml [flash.stub] led_look) */
-.radio-top[data-look="green"][data-led="wait"] .rt-led, .radio-top[data-look="green"][data-led="busy"] .rt-led { animation-name: rt-green; }
-.radio-top[data-look="green"][data-led="wait"] .rt-glow, .radio-top[data-look="green"][data-led="busy"] .rt-glow { animation-name: rt-green-glow; }
+/* a radio whose status blink looks yellow-green (board.toml [flash.stub] led_look) */
+.radio-top[data-look="yellow-green"][data-led="wait"] .rt-led, .radio-top[data-look="yellow-green"][data-led="busy"] .rt-led { animation-name: rt-yellow-green; }
+.radio-top[data-look="yellow-green"][data-led="wait"] .rt-glow, .radio-top[data-look="yellow-green"][data-led="busy"] .rt-glow { animation-name: rt-yellow-green-glow; }
 @keyframes rt-yellow-glow { 0% { fill: rgb(255 210 31 / 40%); } 50% { fill: transparent; } }
 @keyframes rt-green-glow { 0% { fill: rgb(63 224 96 / 40%); } 50% { fill: transparent; } }
+@keyframes rt-yellow-green-glow { 0% { fill: rgb(180 232 58 / 40%); } 50% { fill: transparent; } }
 @keyframes rt-pulse { 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) {
 	/* no blinking on the page: the LED shows its color and the caption says how the real one blinks */
 	.radio-top .rt-led, .radio-top .rt-glow, .rt-key { animation: none !important; }
 	.radio-top[data-led="wait"] .rt-led, .radio-top[data-led="busy"] .rt-led { fill: #ffd21f; }
 	.radio-top[data-led="done"] .rt-led { fill: #3fe060; }
-	.radio-top[data-look="green"][data-led="wait"] .rt-led, .radio-top[data-look="green"][data-led="busy"] .rt-led { fill: #3fe060; }
+	.radio-top[data-look="yellow-green"][data-led="wait"] .rt-led, .radio-top[data-look="yellow-green"][data-led="busy"] .rt-led { fill: #b4e83a; }
 }
 .c7-checks { list-style: none; padding: 0; margin: 0 0 var(--space-4); display: grid; gap: var(--space-3); }
 .c7-checks li { display: grid; grid-template-columns: 1.8rem 1fr; gap: var(--space-2); align-items: start; }
