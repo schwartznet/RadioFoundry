@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: MIT
+# A fork's test site on GitHub Pages: the RadioFoundry site, whose installer installs only the firmware images of this
+# repository's newest release or pre-release (site/build.py --test-site). It sends nothing to the RadioFoundry project's
+# build service or backend. Runs when a release is published here, or by hand (Actions > Test site > Run workflow).
+#
+# Needs: Settings > Pages > Source "GitHub Actions". A release's assets are tools/release.py's files
+# (rfoundry-<board>-<version>.bin and .json, SHA256SUMS). Its tag must not start with "v", so release.yml leaves it alone.
+name: Test site
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: test-site
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.repository != 'RadioFoundry/RadioFoundry'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Site packages
+        run: python3 -m pip install -q -r site/requirements.txt
+      - name: The newest release's images
+        id: rel
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh release list -R "$GITHUB_REPOSITORY" --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName')
+          test -n "$tag" || { echo "no release in $GITHUB_REPOSITORY"; exit 1; }
+          name=$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json name --jq .name)
+          mkdir -p build/dist
+          gh release download "$tag" -R "$GITHUB_REPOSITORY" -D build/dist -p 'rfoundry-*' -p SHA256SUMS
+          (cd build/dist && sha256sum -c SHA256SUMS)
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "name=${name:-$tag}" >> "$GITHUB_OUTPUT"
+      - name: Build the site
+        env:
+          WHAT: ${{ steps.rel.outputs.name }}
+        run: |
+          python3 site/build.py --out build/site --firmware build/dist --repo-url "https://github.com/$GITHUB_REPOSITORY" \
+            --ref "$GITHUB_REF_NAME" --test-site "$WHAT"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

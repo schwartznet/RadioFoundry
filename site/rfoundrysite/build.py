@@ -57,12 +57,13 @@ DOC_ORDER = ("hardware", "install", "codec", "bringup")
 
 
 class Site:
-	def __init__(self, out, repo_url, ref, firmware=None, strict=False, log=print, beta="", i18n_dir=None):
+	def __init__(self, out, repo_url, ref, firmware=None, strict=False, log=print, beta="", i18n_dir=None, test_site=""):
 		self.out = out
 		self.repo_url = repo_url.rstrip("/")
 		self.ref = ref
 		self.firmware = firmware
 		self.beta = beta	# a pre-release newer than the release in firmware (site/cloudflare-build.sh), or ""
+		self.test_site = test_site	# a fork's test site: what it installs (site/build.py --test-site), or ""
 		self.strict = strict
 		self.log = log
 		self.warnings = []
@@ -174,7 +175,7 @@ class Site:
 			    for f in self.features]
 		return {
 			"site.json": {"format": "rfoundry-site/1", "git": self.git, "version": self.version, "built": self.built,
-				      "release": self.release, "beta": self.beta,
+				      "release": self.release, "beta": self.beta, "test_site": self.test_site,
 				      "branch": self.branch, "repo": self.repo_url, "community": COMMUNITY_URL, "languages": self.i18n.languages, "default_language": self.i18n.default,
 				      "reports": {"sentry_dsn": self.sentry_dsn}, "tool": self.tool},
 			"radios.json": {"radios": radios, "planned": planned},
@@ -252,6 +253,8 @@ class Site:
 			alternates += '<link rel="alternate" hreflang="x-default" href="%s">\n' % html.escape(page_url(self.i18n.default))
 		ctx = {"lang": lang, "dir": meta.get("dir", "ltr"), "title": title, "root": root,
 		       "home": root + prefix, "content": content, "page_class": page_class,
+		       "test_attr": ' data-test-site="1"' if self.test_site else "",
+		       "test_banner": self.tpl.partial("test_site", {"what": self.test_site, "repo": self.repo_url}, lang) if self.test_site else "",
 		       "description": description or self.i18n.t(lang, "site.tagline"), "scripts": scripts, "styles": styles, "footer": footer,
 		       "languages": langs, "alternates": alternates, "og_locale": meta.get("locale", lang).replace("-", "_"),
 		       "git": self.git, "assets": self.asset_version, "version": self.version, "built": self.built,

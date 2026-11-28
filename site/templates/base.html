@@ -25,7 +25,7 @@
 <link rel="stylesheet" href="{{root}}static/css/site.css?v={{ assets }}">
 <script>try{var t=localStorage.getItem("rfoundry-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
-<body class="page-{{ page_class }}" data-root="{{root}}" data-home="{{ home }}" data-gl-more="{{t glossary.more}}">
+<body{{{ test_attr }}} class="page-{{ page_class }}" data-root="{{root}}" data-home="{{ home }}" data-gl-more="{{t glossary.more}}">
 <a class="skip" href="#main">{{t nav.skip}}</a>
 <header class="site-header">
 	<div class="wrap header-row">
@@ -42,7 +42,7 @@
 	</div>
 </header>
 <main id="main">
-{{{ content }}}
+{{{ test_banner }}}{{{ content }}}
 </main>
 <footer class="site-footer">
 	<div class="wrap footer-help">

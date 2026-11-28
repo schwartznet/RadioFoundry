@@ -147,16 +147,20 @@ const initialState = () => ({
 });
 const S = initialState();
 
+// A fork's test site (site/build.py --test-site) has no build service and sends nothing to the project's backend: it
+// installs only the images it carries (releases.json), and keeps no flash log
+const TEST_SITE = document.body?.dataset.testSite === "1";
 // Custom builds and the flash log
-const API = "https://api.radiofoundry.org/v1/";
+const API = TEST_SITE ? null : "https://api.radiofoundry.org/v1/";
 // minimal non-invasive reporting for helping the RadioFoundry project track programming failures; opt out with
 // ?reporting=0
-const FLASH_LOG = new URLSearchParams(location.search).get("reporting") !== "0";
+const FLASH_LOG = !TEST_SITE && new URLSearchParams(location.search).get("reporting") !== "0";
 
 // A version link (/flash/?version=<tag, full commit hash or branch name>) builds that version instead of the latest release. The tab keeps
 // it for the session, so a reload or a visit to another page doesn't lose it; ?version= (empty) or the banner drops it.
 const VERSION_STORE = "rfoundry-flash-version";
 let VERSION_REF = (() => {
+	if (TEST_SITE) return null;	// a test site builds nothing: it has only its own images
 	const q = new URLSearchParams(location.search).get("version");
 	const ref = q && /^[0-9A-Fa-f]+$/.test(q) ? q.toLowerCase() : q;
 	try {
@@ -218,7 +222,7 @@ async function api(method, path, body) {
 // from the radio. problem (explain.js): what went wrong; for a fault in the page its message goes with the user's note.
 // Not offered in a simulation
 function analysisOffer(cand, boardId, problem = null) {
-	if (!cand || S.sim) return null;
+	if (!cand || S.sim || TEST_SITE) return null;
 	const internal = problem?.problem === "internal";
 	const dump = problem?.problem === "dump";
 	const status = h("p", { class: "small" });
@@ -971,7 +975,7 @@ async function connectForUpdate(status) {
 // or when the service doesn't answer in time: the update then goes by off= alone
 async function buildRecord(p, r) {
 	const v = p.version || {};
-	if (S.sim || v.preset !== "custom" || v.off === undefined || !p.git) return null;
+	if (S.sim || TEST_SITE || v.preset !== "custom" || v.off === undefined || !p.git) return null;
 	const q = new URLSearchParams({ board: r.id, git: p.git, off: v.off,
 		options: Object.entries(S.buildOptions || {}).map(([k, x]) => `${k}=${x}`).sort().join(",") });
 	try {
@@ -1310,14 +1314,14 @@ function buildView() {
 		const busy = building && !S.build.error;
 		const missing = buildOptions().find((o) => !S.buildOptions?.[o.name]);
 		forward(button(busy ? [spinner(), t("flash.nav.building")] : t(missing ? "flash.nav.choose" : S.firmware || S.sim ? `flash.nav.to_${stepsFor()[S.step + 1]}`
-			: VERSION_REF ? "flash.nav.build_version" : "flash.nav.build", { what: missing?.title.toLowerCase(), ref: VERSION_REF && versionShort() }), go, { primary: true, disabled: busy || !!missing }), summary);
+			: TEST_SITE ? "flash.test.nav" : VERSION_REF ? "flash.nav.build_version" : "flash.nav.build", { what: missing?.title.toLowerCase(), ref: VERSION_REF && versionShort() }), go, { primary: true, disabled: busy || !!missing }), summary);
 		// every image, prebuilt choice or not, comes from the build service (or is the user's own)
 		// the image's state, then building it yourself: one line and a fold under the features, not a card of its own
 		const image = h("div", { class: "build-image" },
 			S.firmware ? notice(t("flash.build.image_ready", { what: S.firmware.source }), "ok")
 				: building && S.build.error ? buildErrorNotice(S.build.error)
 				: building ? h("p", { class: "muted", role: "status" }, spinner(), S.build.text)
-				: h("p", { class: "small muted" }, t(S.sim ? "flash.sim.image" : VERSION_REF ? "flash.build.version_on_request" : "flash.build.on_request", { ref: versionShort() })),
+				: h("p", { class: "small muted" }, t(S.sim ? "flash.sim.image" : TEST_SITE ? "flash.test.on_request" : VERSION_REF ? "flash.build.version_on_request" : "flash.build.on_request", { ref: versionShort() })),
 			h("details", { class: "small" }, h("summary", {}, t("flash.build.self_title")),
 				h("p", {}, t("flash.build.self_text")), h("pre", {}, h("code", {}, sel.makeCommand(S.buildOptions))),
 				filePicker(t("flash.build.own_image"), ".bin", (f) => loadOwnImage(f, draw)),
@@ -1419,6 +1423,7 @@ const selectionKey = (sel) => `${VERSION_REF || ""}:${sel.radio.id}:${JSON.strin
 
 // Ask the build API for the current selection, wait for it, and take the image like a release's
 async function requestBuild(redraw) {
+	if (TEST_SITE) return carriedImage(redraw);
 	const sel = S.selection, key = selectionKey(sel);
 	const current = () => S.build?.selection === key && selectionKey(S.selection) === key;
 	S.build = { selection: key, text: t("flash.build.sending") };
@@ -1460,6 +1465,37 @@ async function requestBuild(redraw) {
 	redraw();
 }
 
+// A test site's image for the selection: the carried one of its variant (and build options), else a notice naming the
+// builds this site has. Checked against its manifest like any other
+async function carriedImage(redraw) {
+	const sel = S.selection, key = selectionKey(sel);
+	S.build = { selection: key, text: t("flash.test.loading") };
+	redraw();
+	try {
+		const rels = S.data.releases.filter((x) => x.board === S.radio.id);
+		const variant = sel.matches(startCode);
+		let found = null;
+		for (const r of rels.filter((x) => x.variant === variant)) {
+			const m = await (await fetch(`${ROOT}${r.manifest}`)).json();
+			if (Object.entries(S.buildOptions || {}).every(([name, value]) => m.build_options?.[name] === value)) { found = { r, m }; break; }
+		}
+		if (!found) {
+			const have = [...new Set(rels.map((x) => x.variant))].map((id) => tOr(`variant.${id}.title`, S.data.variants.find((v) => v.id === id)?.title || id));
+			S.build.error = { text: have.length ? t("flash.test.no_image", { builds: have.join(", ") }) : t("flash.test.no_images", { radio: S.radio.name }), plain: true };
+			return redraw();
+		}
+		const img = new Uint8Array(await (await fetch(`${ROOT}${found.r.image}`)).arrayBuffer());
+		await verify(found.m, img, fb(), S.board.id);
+		if (S.build?.selection !== key) return;
+		S.firmware = { manifest: found.m, image: img, source: t("flash.test.image", { version: found.m.version }), origin: "release",
+			variant, selection: key };
+		S.build = null;
+	} catch (e) {
+		if (S.build?.selection === key) S.build.error = { text: errorText(e), rec: diag.currentError() };
+	}
+	redraw();
+}
+
 // What to do about a build too big for the radio: turn things off, and a Radio language picked into the build is one
 function fitText(fit) {
 	const text = t(fit.memory === "flash" ? "flash.build.too_big" : "flash.build.too_big_ram", { kb: fit.kb });
@@ -1467,7 +1503,7 @@ function fitText(fit) {
 }
 
 // The build step's notice for a failed build: one too big is a plain notice, any other an error with its report
-const buildErrorNotice = (err) => (err.el ||= err.fit ? notice(err.text, "bad") : errorNotice(err.text, { rec: err.rec }));
+const buildErrorNotice = (err) => (err.el ||= err.fit || err.plain ? notice(err.text, "bad") : errorNotice(err.text, { rec: err.rec }));
 
 async function loadOwnImage(f, redraw) {
 	// The radio's original firmware file, picked where the RadioFoundry image goes (OPENDIGITALRADIO-15: a backup's
@@ -3265,7 +3301,7 @@ function kitView(api) {
 
 async function main() {
 	showBetaNotice();	// before the data loads: the first thing a visitor reads, once per session
-	initReporting({ tool: "flasher", context: reportContext, attachments: reportAttachments, backend: { api: API, meta: reportMeta, practice: () => !!S.sim || SIM_HASH.test(location.hash) } });
+	initReporting({ tool: "flasher", context: reportContext, attachments: reportAttachments, backend: TEST_SITE ? null : { api: API, meta: reportMeta, practice: () => !!S.sim || SIM_HASH.test(location.hash) } });
 	if (!FLASH_LOG) document.getElementById("flash-log-off")?.replaceWith(t("flash.log.is_off"));
 	// the privacy contact is put together here, so address scrapers don't find it in the page or the repository
 	const mail = ["tseuqer-ycavirp-rdo", "moc.relwofrecneps"].map((x) => [...x].reverse().join("")).join("@");

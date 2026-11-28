@@ -742,3 +742,6 @@ abbr.gl:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; bo
 	background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm);
 	box-shadow: 0 4px 16px rgb(0 0 0 / 0.2); font-size: var(--text-sm); line-height: var(--line); }
 .gl-pop[hidden] { display: none; }
+
+/* a fork's test site (site/build.py --test-site): its notice above every page */
+.test-site { margin: var(--space-4) 0 0; }
