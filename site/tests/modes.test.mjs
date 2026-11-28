@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 import { CodeplugImage } from "../static/js/codeplug/image.js";
 import { decodeArea, getValue, setValue, putArea, KV_ADDR, KV_SIZE } from "../static/js/codeplug/kv.js";
 import { decode, encode, empty, newChannel, newContact, remove, validate, numberAll } from "../static/js/codeplug/model.js";
-import { MODE_KEY, decodeTag, encodeTag, newSystem, setKind, syncModes, decodeSystemRecord, identityKey, countSecrets, withoutSecrets } from "../static/js/codeplug/channelmodes.js";
+import { MODE_KEY, decodeTag, encodeTag, newSystem, setKind, syncModes, decodeSystemRecord, identityKey, countSecrets, withoutSecrets, keyHidden, TRAFFIC_META } from "../static/js/codeplug/channelmodes.js";
 import { KINDS, SYSTEM_TYPES, offeredKinds, offeredTypes, kindName } from "../static/js/codeplug/modes.js";
 import { nameCheck } from "../static/js/codeplug/modebytes.js";
 import { decodeConv, encodeConv, decodeUnit, decodeTsys, p25System, NAC_ANY } from "../static/js/codeplug/mode_p25.js";
@@ -565,6 +565,31 @@ test("AES keys are traffic keys: round-trip by system and ID, stripped exports r
 	assert.equal(stripped.channels[0].kind, 5);
 	assert.equal(stripped.channels[0].params.id, 0);
 	assert.ok(stripped.systems.every((s) => s.trafficKeys.length === 0));
+});
+
+test("a key the radio hid behind its key PIN (octets 0) reads as hidden and goes back byte for byte", () => {
+	const m = empty(), c = newChannel({ name: "Voice" });
+	m.channels.push(c);
+	m.systems.push(newSystem(m, 5, "Net"));
+	numberAll(m);
+	m.systems[0].trafficKeys = [{ id: 7, key: "00".repeat(32) }, { id: 8, key: "12".repeat(32) }];
+	setKind(m, c, 5);
+	c.params.id = 7;
+	const img = encode(m);
+	const before = hexOf(getValue(area(img), MODE_KEY.traffic));
+	assert.equal(before, "0025070000" + "00".repeat(32));
+	const again = decode(img);
+	const [hidden, plain] = again.systems[0].trafficKeys;
+	assert.equal(hidden.hidden, true);
+	assert.equal(hidden.id, 7);	// its metadata still says which key it is
+	assert.equal(plain.hidden, undefined);
+	// written back unchanged, so the radio keeps its own key; the other one as typed
+	const out = encode(again);
+	assert.equal(hexOf(getValue(area(out), MODE_KEY.traffic)), before);
+	assert.equal(hexOf(getValue(area(out), MODE_KEY.traffic + 1)), "0025080000" + "12".repeat(32));
+	assert.equal(keyHidden(Uint8Array.of(0, 0x25, 7, 0, 0, 0, 0), TRAFFIC_META), true);
+	assert.equal(keyHidden(Uint8Array.of(0, 0x25, 7, 0, 0, 0, 1), TRAFFIC_META), false);
+	assert.equal(keyHidden(Uint8Array.of(0, 0x25, 7, 0, 0), TRAFFIC_META), false);	// no key octets: nothing hidden
 });
 
 test("AES: encrypted only is bit 0 of the block's third byte; a two-byte block reads off, other bits are kept", () => {

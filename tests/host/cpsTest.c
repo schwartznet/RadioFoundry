@@ -4,9 +4,11 @@
 // open-firmware UV380 driver does it: radio info, the session opening, 32-byte block reads of the regions it
 // transfers, prepare / data / commit per sector, close, save and reboot. Plus request assembly from arbitrary chunks,
 // the protected areas, the quick-key slots (written like the rest), the calibration window, the VFO overlay, overflows and the session time-out.
+#define _GNU_SOURCE	// memmem
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "keypin/keypin.h"
 #include "cps/cps_openfw.h"
 #include "codeplug/codeplug.h"
 #include "codeplug/codeplug_kv.h"
@@ -755,6 +757,50 @@ static void test_bad_requests(void)
 	CHECK(sim_flash_violations() == 0);
 }
 
+#if CONFIG_KEY_PIN
+// The key PIN set and the radio locked (docs/spec/key-pin.md 10): the settings area reads with its keys hidden through
+// area 2 and area 1, a raw area 1 read outside the codeplug images is refused, qdmr's read works, and the area read
+// back and written keeps the radio's keys. Unlocked, everything as before
+static void test_keypin(void)
+{
+	static uint8_t view[STORAGE_SECTOR], img[FLASH_SIZE];
+	static const uint8_t key[5 + 32] = { 1, 1, 7, 0, 0, 'S', 'E', 'C', 'R', 'E', 'T', '-', 'A', 'E', 'S', '-', 'K', 'E', 'Y',
+					     '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e',
+					     'f', 'g' };
+	uint8_t got[64], b[32];
+	populate();
+	CHECK(codeplug_kv_set(CODEPLUG_KEY_TRAFFIC + 7u, key, sizeof(key)) && codeplug_kv_set_u32(CODEPLUG_KEY_ARS_SERVER, 3100111));
+	uint32_t a = EE + CODEPLUG_KV_ADDR;
+	keypin_note(true);
+	keypin_lock();
+	CHECK(control(0, 0) && control(1, 0));
+	for (uint32_t off = 0; off < STORAGE_SECTOR; off += 32) {
+		CHECK(read_block(2, CODEPLUG_KV_ADDR + off, 32, view + off));
+	}
+	CHECK(codeplug_kv_check(view) == CODEPLUG_KV_VALID && memmem(view, sizeof(view), "SECRET-AES", 10) == NULL);
+	CHECK(read_block(1, a + 16u, 32, b) && memcmp(b, view + 16, 32) == 0);	// area 1 over the image: the same view
+	CHECK(r_nak(1, map.settings_addr, 32));		// the settings store (privacy keys): refused
+	CHECK(r_nak(1, map.journal_addr, 32));		// the journal (a copy of the area): refused
+	CHECK(r_nak(1, map.native_addr, 32));
+	CHECK(r_nak(1, FL - 16u, 32));			// across the image's edge: refused
+	CHECK(qdmr_read(img));				// a CPS read of the codeplug works
+	// The view written back: the key stays as stored
+	CHECK(kv_write(view, 32, 0, STORAGE_SECTOR));
+	CHECK(codeplug_kv_get(CODEPLUG_KEY_TRAFFIC + 7u, got, sizeof(got)) == (int)sizeof(key) && memcmp(got, key, sizeof(key)) == 0);
+	// Unlocked by the PIN: the keys read, the raw flash too
+	keypin_unlock();
+	CHECK(control(0, 0) && control(1, 0));
+	for (uint32_t off = 0; off < STORAGE_SECTOR; off += 32) {
+		CHECK(read_block(2, CODEPLUG_KV_ADDR + off, 32, view + off));
+	}
+	CHECK(memmem(view, sizeof(view), "SECRET-AES", 10) != NULL);
+	CHECK(read_block(1, map.settings_addr, 32, b));
+	CHECK(control(5, 0));
+	keypin_lock();
+	keypin_note(false);
+}
+#endif
+
 int main(void)
 {
 	populate();
@@ -770,6 +816,9 @@ int main(void)
 	test_stray_reboot();
 	test_foreign();
 	test_settings_area();
+#if CONFIG_KEY_PIN
+	test_keypin();
+#endif
 	sim_flash_free();
 	test_no_map();
 	printf("# cpsTest %s (%d failures)\n", failures ? "FAILED" : "PASSED", failures);

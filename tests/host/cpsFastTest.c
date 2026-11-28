@@ -5,9 +5,11 @@
 // sums and DIFF, READ windows, the range refusals, direct and staged writes, the session time-out, power cuts all
 // through a staged commit and a direct write, the staging area shared with the TFTP server, and the settings area's
 // transfer rule applied by the radio.
+#define _GNU_SOURCE	// memmem
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "keypin/keypin.h"
 #include "cps/cps_fast.h"
 #include "cps/cps_lz4.h"
 #include "cps/cps_openfw.h"
@@ -92,9 +94,18 @@ static void boot(const hal_flash_map_t *m, bool fresh)
 		sim_flash_create(FLASH_SIZE, m);
 	}
 	storage_buffer_release();	// RAM starts over
+#if CONFIG_KEY_PIN
+	keypin_note(false);	// RAM starts over
+	keypin_unlock();
+#endif
 	storage_init();
-	cps_fast_resume();
 	settings_init();
+#if CONFIG_KEY_PIN
+	// keypin_init, where app.c runs it, before the resume: locked, "a PIN is set" from the stored settings
+	keypin_lock();
+	keypin_note((SETTINGS_FIELD(kp_flags) & SETTINGS_KP_SET) != 0);
+#endif
+	cps_fast_resume();
 	codeplug_init();
 }
 
@@ -971,6 +982,65 @@ static void test_settings_area(void)
 	CHECK(memcmp(area - BLOCK, other, BLOCK) == 0);	// the sector before it: written as sent
 }
 
+#if CONFIG_KEY_PIN
+// A key PIN set and the radio locked (key-pin.md 10): the area's block reads with its key hidden (its CRC the view's),
+// and written back, direct or staged, the radio keeps its key
+static void test_keypin(void)
+{
+	static uint8_t view[BLOCK];
+	static const uint8_t key[5 + 16] = { 1, 1, 9, 0, 0, 'H', 'I', 'D', 'D', 'E', 'N', '-', 'A', 'E', 'S', '-', 'K',
+					     'E', 'Y', '!', '!' };
+	uint8_t got[32], format;
+	unsigned requests;
+	for (unsigned staged = 0; staged < 2; staged++) {
+		boot(&dm1701_map, true);
+		CHECK(codeplug_kv_set(CODEPLUG_KEY_TRAFFIC + 9u, key, sizeof(key)));
+		keypin_note(true);
+		keypin_lock();
+		CHECK(read_block(CODEPLUG_KV_ADDR, view, &format, &requests));
+		CHECK(codeplug_kv_check(view) == CODEPLUG_KV_VALID && memmem(view, BLOCK, "HIDDEN-AES", 10) == NULL);
+		kv_send(staged ? CPSF_MODE_STAGED : CPSF_MODE_DIRECT, view, false);
+		CHECK(codeplug_kv_get(CODEPLUG_KEY_TRAFFIC + 9u, got, sizeof(got)) == (int)sizeof(key) &&
+		      memcmp(got, key, sizeof(key)) == 0);
+		keypin_unlock();
+		CHECK(read_block(CODEPLUG_KV_ADDR, view, &format, &requests) && memmem(view, BLOCK, "HIDDEN-AES", 10) != NULL);
+		keypin_lock();
+		keypin_note(false);
+	}
+	// A staged commit cut by a power loss, finished at the next boot: still merged (a cut can't load or delete keys).
+	// The file: the radio's view with the key's octets changed
+	boot(&dm1701_map, true);
+	CHECK(codeplug_kv_set(CODEPLUG_KEY_TRAFFIC + 9u, key, sizeof(key)));
+	settings_t *st = settings_begin();
+	st->kp_flags = SETTINGS_KP_SET;		// a PIN set, stored: the next boot knows it
+	settings_end(0);
+	CHECK(settings_flush());
+	keypin_note(true);
+	keypin_unlock();	// typed on the radio: the file is staged unlocked, then the power goes
+	CHECK(read_block(CODEPLUG_KV_ADDR, view, &format, &requests));
+	{
+		static uint8_t file[BLOCK];
+		memcpy(file, view, BLOCK);
+		uint8_t *k = memmem(file, BLOCK, "\x01\x01\x09\x00\x00", 5);
+		CHECK(k != NULL);
+		if (k != NULL) {
+			memset(k + 5, 0x5A, sizeof(key) - 5u);
+			uint16_t len = (uint16_t)(file[6] | file[7] << 8);
+			p32(&file[8], storage_crc32(0, &file[file[5]], len));
+		}
+		CHECK(codeplug_kv_check(file) == CODEPLUG_KV_VALID);
+		kv_send(CPSF_MODE_STAGED, file, true);	// the cut, then the boot's resume
+	}
+	CHECK(keypin_guard());		// the boot read the PIN from the settings: locked
+	CHECK(codeplug_kv_get(CODEPLUG_KEY_TRAFFIC + 9u, got, sizeof(got)) == (int)sizeof(key) &&
+	      memcmp(got, key, sizeof(key)) == 0);
+	keypin_note(false);
+	st = settings_begin();
+	st->kp_flags = 0;
+	settings_end(0);
+}
+#endif
+
 int main(void)
 {
 	setvbuf(stdout, NULL, _IONBF, 0);	// the lines before a crash
@@ -983,6 +1053,9 @@ int main(void)
 	test_power_cuts();
 	test_bad_records();
 	test_settings_area();
+#if CONFIG_KEY_PIN
+	test_keypin();
+#endif
 	CHECK(sim_flash_violations() == 0);
 	sim_flash_free();
 	printf("# cpsFastTest: %d checks, %s\n", checks, failures ? "FAILED" : "PASSED");

@@ -28,6 +28,7 @@
 #include "radio/radio.h"
 #include "storage/storage.h"
 #include "settings/settings.h"
+#include "keypin/keypin.h"
 #include "ui/gfx.h"
 
 #ifndef RFOUNDRY_GIT
@@ -568,6 +569,9 @@ static size_t cmd_radio(const uint8_t *req, uint16_t len, uint8_t *out)
 #endif
 	case DL_OP_DMR_PRIVACY:	// type u8, key u16 LE (RAM only, never stored)
 #if CONFIG_DMR_PRIVACY
+		if (KEYPIN_GUARD()) {
+			return status_only(out, DL_ST_REFUSED);	// a key set by cable needs the key PIN (key-pin.md 10.3)
+		}
 		radio_req_dmr_privacy(a[0], get16(a + 1));
 		break;
 #else
@@ -656,8 +660,8 @@ static size_t cmd_read_mem(const uint8_t *req, uint16_t len, uint8_t *out, size_
 	if (board.system == NULL || board.system->read == NULL || board.system->mem_window == NULL) {
 		return status_only(out, DL_ST_UNAVAILABLE);
 	}
-	if (!dl_mem_allowed(addr, n, board.system->mem_window)) {
-		return status_only(out, DL_ST_REFUSED);
+	if (!dl_mem_allowed(addr, n, board.system->mem_window) || KEYPIN_GUARD()) {
+		return status_only(out, DL_ST_REFUSED);	// RAM and flash hold keys: not while the key PIN guards them
 	}
 	out[0] = DL_ST_OK;
 	put32(out + 1, addr);
@@ -765,8 +769,8 @@ static size_t cmd_storage(const uint8_t *req, uint16_t len, uint8_t *out, size_t
 		if (n == 0 || n > DL_MEM_READ_MAX || 5u + n > cap) {
 			return status_only(out, DL_ST_BAD_ARG);
 		}
-		if (!storage_debug_read_allowed(addr, n)) {
-			return status_only(out, DL_ST_REFUSED);
+		if (!storage_debug_read_allowed(addr, n) || KEYPIN_GUARD()) {
+			return status_only(out, DL_ST_REFUSED);	// raw flash holds key copies: not while the key PIN guards them
 		}
 		storage_lock();
 		bool ok = board.flash->read(addr, out + 5, n);

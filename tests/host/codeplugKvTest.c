@@ -5,9 +5,11 @@
 // than a reader knows, scalars of every width, a record's fields set from the front, a full area, batches of sets and
 // removes, walks over a key range, the raw write rule (codeplug_kv_keep, codeplug_kv_commit), the serial, and power
 // cuts during a write
+#define _GNU_SOURCE	// memmem
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "keypin/keypin.h"
 #include "codeplug/codeplug.h"
 #include "codeplug/codeplug_kv.h"
 #include "storage/storage.h"
@@ -586,6 +588,145 @@ static void test_power_cut(void)
 	CHECK(o > 0 && nw > 0);
 }
 
+#if CONFIG_KEY_PIN
+// The key PIN's guard (docs/spec/key-pin.md 10): what a cable reads of the secrets, and what it may write over them
+static const uint8_t tkey[5 + 32] = { 1, 1, 0x34, 0x12, 0, 'T', 'R', 'A', 'F', 'F', 'I', 'C', '-', 'K', 'E', 'Y', '-', '0',
+				      '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h',
+				      'i', 'j' };
+static const uint8_t skey[19] = "SYSTEM-SECRET-XYZ1";
+
+static bool zeros(const uint8_t *p, unsigned n)
+{
+	for (unsigned i = 0; i < n; i++) {
+		if (p[i] != 0) {
+			return false;
+		}
+	}
+	return true;
+}
+
+// The value of key in an area held in RAM (the first entry), its length or -1
+static int value_in(const uint8_t *s, uint16_t key, const uint8_t **v)
+{
+	uint16_t len = (uint16_t)(s[6] | s[7] << 8);
+	const uint8_t *d = &s[s[5]];
+	for (uint32_t at = 0; at < len; ) {
+		uint16_t k = (uint16_t)(d[at] | d[at + 1] << 8), n = (uint16_t)(d[at + 2] | d[at + 3] << 8);
+		if (k == key) {
+			*v = &d[at + 4];
+			return n;
+		}
+		at += 4u + n;
+	}
+	return -1;
+}
+
+static void test_keypin(void)
+{
+	static uint8_t view[STORAGE_SECTOR], part[STORAGE_SECTOR], file[STORAGE_SECTOR];
+	fresh();
+	CHECK(codeplug_kv_set_u32(CODEPLUG_KEY_ARS_SERVER, 3100999));
+	CHECK(codeplug_kv_set(CODEPLUG_KEY_TRAFFIC + 3u, tkey, sizeof(tkey)));
+	CHECK(codeplug_kv_set(CODEPLUG_KEY_SYS_KEY + 1u, skey, sizeof(skey)));
+	CHECK(codeplug_kv_secret(CODEPLUG_KEY_TRAFFIC) && codeplug_kv_secret(CODEPLUG_KEY_ZONE_TAG - 1u) &&
+	      codeplug_kv_secret(CODEPLUG_KEY_SYS_KEY + 0xFFu) && !codeplug_kv_secret(CODEPLUG_KEY_ZONE_TAG) &&
+	      !codeplug_kv_secret(CODEPLUG_KEY_CH_TAG) && !codeplug_kv_secret(CODEPLUG_KEY_SYSTEM));
+	// No PIN, or a PIN set and unlocked: the cable reads the keys as stored
+	memcpy(view, &sim_flash_data[AREA], STORAGE_SECTOR);
+	codeplug_kv_redact(AREA, view, STORAGE_SECTOR);
+	CHECK(memcmp(view, &sim_flash_data[AREA], STORAGE_SECTOR) == 0);
+	keypin_note(true);
+	keypin_unlock();
+	codeplug_kv_redact(AREA, view, STORAGE_SECTOR);
+	CHECK(memcmp(view, &sim_flash_data[AREA], STORAGE_SECTOR) == 0);
+	// Locked: the secrets' values read 0, a traffic key's metadata kept, the rest and the layout as stored, the CRC the
+	// view's own, so the area still checks
+	keypin_lock();
+	codeplug_kv_redact(AREA, view, STORAGE_SECTOR);
+	CHECK(codeplug_kv_check(view) == CODEPLUG_KV_VALID);
+	CHECK(memcmp(view, &sim_flash_data[AREA], 8) == 0);	// magic, version, header length, data length
+	const uint8_t *v;
+	CHECK(value_in(view, CODEPLUG_KEY_TRAFFIC + 3u, &v) == (int)sizeof(tkey) && memcmp(v, tkey, 5) == 0 &&
+	      zeros(v + 5, sizeof(tkey) - 5u));
+	CHECK(value_in(view, CODEPLUG_KEY_SYS_KEY + 1u, &v) == (int)sizeof(skey) && zeros(v, sizeof(skey)));
+	CHECK(value_in(view, CODEPLUG_KEY_ARS_SERVER, &v) == 4 && v[0] == 0x47 && v[1] == 0x51 && v[2] == 0x2F);
+	CHECK(memmem(view, STORAGE_SECTOR, &tkey[5], 8) == NULL && memmem(view, STORAGE_SECTOR, skey, 8) == NULL);
+	CHECK(memmem(&sim_flash_data[AREA], STORAGE_SECTOR, &tkey[5], 8) != NULL);	// the radio keeps them
+	// Read in pieces of any size and offset (the CPS shim reads a few bytes at a time): the same view
+	for (uint32_t step = 1; step <= 61; step += 12) {
+		memcpy(part, &sim_flash_data[AREA], STORAGE_SECTOR);
+		for (uint32_t o = 0; o < STORAGE_SECTOR; o += step) {
+			uint32_t n = STORAGE_SECTOR - o < step ? STORAGE_SECTOR - o : step;
+			codeplug_kv_redact(AREA + o, part + o, n);
+		}
+		CHECK(memcmp(part, view, STORAGE_SECTOR) == 0);
+	}
+	// A read across the sector's start: the sector's bytes only
+	uint8_t edge[32];
+	memcpy(edge, &sim_flash_data[AREA - 16u], sizeof(edge));
+	codeplug_kv_redact(AREA - 16u, edge, sizeof(edge));
+	CHECK(memcmp(edge, &sim_flash_data[AREA - 16u], 16) == 0 && memcmp(edge + 16, view, 16) == 0);
+	// The hidden view written back while locked: every key as it was
+	memcpy(file, view, STORAGE_SECTOR);
+	CHECK(codeplug_kv_commit(AREA, file));
+	uint8_t got[64];
+	CHECK(codeplug_kv_get(CODEPLUG_KEY_TRAFFIC + 3u, got, sizeof(got)) == (int)sizeof(tkey) &&
+	      memcmp(got, tkey, sizeof(tkey)) == 0);
+	CHECK(codeplug_kv_get(CODEPLUG_KEY_SYS_KEY + 1u, got, sizeof(got)) == (int)sizeof(skey) &&
+	      memcmp(got, skey, sizeof(skey)) == 0);
+	// A file with a new ARS server, a new value for the traffic key, a new key, and no system secret: the ARS server
+	// taken, the stored keys kept, the new key not loaded
+	uint8_t data[160], nkey[sizeof(tkey)];
+	memcpy(nkey, tkey, sizeof(nkey));
+	memset(nkey + 5, 0x5A, sizeof(nkey) - 5u);
+	uint8_t ars[4] = { 1, 0, 0, 0 };
+	uint16_t len = entry(data, CODEPLUG_KEY_TRAFFIC + 3u, nkey, sizeof(nkey));
+	len = (uint16_t)(len + entry(data + len, CODEPLUG_KEY_ARS_SERVER, ars, 4));
+	len = (uint16_t)(len + entry(data + len, CODEPLUG_KEY_TRAFFIC + 5u, nkey, sizeof(nkey)));
+	memset(file, 0xFF, STORAGE_SECTOR);
+	put32(&file[0], CODEPLUG_KV_MAGIC);
+	file[4] = CODEPLUG_KV_VERSION;
+	file[5] = CODEPLUG_KV_HDR;
+	put16(&file[6], len);
+	put32(&file[8], storage_crc32(0, data, len));
+	memset(&file[12], 0, 4);
+	memcpy(&file[16], data, len);
+	CHECK(codeplug_kv_commit(AREA, file));
+	uint32_t id;
+	CHECK(codeplug_kv_get_id(CODEPLUG_KEY_ARS_SERVER, &id) && id == 1);
+	CHECK(codeplug_kv_get(CODEPLUG_KEY_TRAFFIC + 3u, got, sizeof(got)) == (int)sizeof(tkey) &&
+	      memcmp(got, tkey, sizeof(tkey)) == 0);
+	CHECK(codeplug_kv_get(CODEPLUG_KEY_SYS_KEY + 1u, got, sizeof(got)) == (int)sizeof(skey) &&
+	      memcmp(got, skey, sizeof(skey)) == 0);
+	CHECK(codeplug_kv_get(CODEPLUG_KEY_TRAFFIC + 5u, got, sizeof(got)) == -1);
+	// A damaged area reads erased while locked: its keys can't be told apart from the rest
+	uint8_t raw[40];
+	uint16_t rl = entry(raw, CODEPLUG_KEY_TRAFFIC, tkey, sizeof(tkey));
+	raw_area(raw, rl, CODEPLUG_KV_VERSION, CODEPLUG_KV_HDR, true);
+	memcpy(view, &sim_flash_data[AREA], STORAGE_SECTOR);
+	codeplug_kv_redact(AREA, view, STORAGE_SECTOR);
+	CHECK(view[0] == 0xFF && view[100] == 0xFF && memmem(view, STORAGE_SECTOR, &tkey[5], 8) == NULL);
+	// Unlocked by the PIN: a file loads keys as before
+	fresh();
+	CHECK(codeplug_kv_set(CODEPLUG_KEY_TRAFFIC + 3u, tkey, sizeof(tkey)));
+	keypin_unlock();
+	memset(file, 0xFF, STORAGE_SECTOR);
+	put32(&file[0], CODEPLUG_KV_MAGIC);
+	file[4] = CODEPLUG_KV_VERSION;
+	file[5] = CODEPLUG_KV_HDR;
+	put16(&file[6], len);
+	put32(&file[8], storage_crc32(0, data, len));
+	memset(&file[12], 0, 4);
+	memcpy(&file[16], data, len);
+	CHECK(codeplug_kv_commit(AREA, file));
+	CHECK(codeplug_kv_get(CODEPLUG_KEY_TRAFFIC + 3u, got, sizeof(got)) == (int)sizeof(nkey) &&
+	      memcmp(got, nkey, sizeof(nkey)) == 0);
+	CHECK(codeplug_kv_get(CODEPLUG_KEY_TRAFFIC + 5u, got, sizeof(got)) == (int)sizeof(nkey));
+	keypin_lock();
+	keypin_note(false);
+}
+#endif
+
 int main(void)
 {
 	test_blank();
@@ -603,6 +744,9 @@ int main(void)
 	test_head();
 	test_serial_commit();
 	test_power_cut();
+#if CONFIG_KEY_PIN
+	test_keypin();
+#endif
 	sim_flash_free();
 	if (failures) {
 		printf("codeplugKvTest: %d failure(s)\n", failures);

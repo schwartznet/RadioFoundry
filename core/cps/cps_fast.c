@@ -174,6 +174,7 @@ static bool block_hash(uint32_t off, uint32_t *crc, bool *blank)
 			return false;
 		}
 		cps_openfw_vfo_overlay(phys(off + o), c, CHUNK);
+		codeplug_kv_redact(phys(off + o), c, CHUNK);	// the keys as the cable sees them (key-pin.md 10)
 		v = storage_crc32(v, c, CHUNK);
 		for (unsigned i = 0; i < CHUNK && b; i++) {
 			b = c[i] == 0xFF;
@@ -363,6 +364,7 @@ static size_t op_read(const uint8_t *a, uint16_t len, uint8_t *out, size_t cap)
 	bool ok = fread_(phys(addr), buf, CPSF_BLOCK);
 	if (ok) {
 		cps_openfw_vfo_overlay(phys(addr), buf, CPSF_BLOCK);
+		codeplug_kv_redact(phys(addr), buf, CPSF_BLOCK);	// the keys as the cable sees them (key-pin.md 10)
 	}
 	uint32_t crc = storage_crc32(0, buf, CPSF_BLOCK);
 	bool blank = true;

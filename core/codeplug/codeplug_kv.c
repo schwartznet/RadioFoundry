@@ -8,7 +8,9 @@
 #include "codeplug.h"
 #include "codeplug_kv.h"
 #include "board.h"
+#include "config.h"
 #include "storage/storage.h"
+#include "keypin/keypin.h"	// keypin_guard: what the cable sees of the secrets (CONFIG_KEY_PIN)
 
 #define ENTRY_HDR	4u	// key, length
 
@@ -239,11 +241,6 @@ bool codeplug_kv_keep(uint32_t addr, const uint8_t *sector)
 	return s == CODEPLUG_KV_NEWER || (s == CODEPLUG_KV_VALID && codeplug_kv_check(sector) != CODEPLUG_KV_VALID);
 }
 
-bool codeplug_kv_commit(uint32_t addr, const uint8_t *sector)
-{
-	return codeplug_kv_keep(addr, sector) || storage_sector_write(addr, sector);
-}
-
 // Whether an entry before the one at end has key k
 static bool seen(const uint8_t *d, uint32_t end, uint16_t k)
 {
@@ -260,6 +257,183 @@ static uint32_t cut(uint8_t *d, uint32_t len, uint32_t at, uint32_t next)
 {
 	memmove(&d[at], &d[next], len - next);
 	return len - (next - at);
+}
+
+#if CONFIG_KEY_PIN
+// The octets of a secret's value the cable sees: a traffic key's metadata, nothing of a system secret
+static uint16_t secret_shown(uint16_t key, uint16_t n)
+{
+	uint16_t m = key >= CODEPLUG_KEY_TRAFFIC ? CODEPLUG_KV_TRAFFIC_META : 0;
+	return n < m ? n : m;
+}
+
+// The bytes of buf (flash addr .. addr + len) inside flash from .. from + n set to v
+static void fill_range(uint32_t addr, uint8_t *buf, uint32_t len, uint32_t from, uint32_t n, uint8_t v)
+{
+	uint32_t lo = from > addr ? from : addr, hi = from + n < addr + len ? from + n : addr + len;
+	if (lo < hi) {
+		memset(&buf[lo - addr], v, hi - lo);
+	}
+}
+
+void codeplug_kv_redact(uint32_t addr, uint8_t *buf, uint32_t len)
+{
+	static const uint8_t zero[16];
+	uint32_t a;
+	if (len == 0 || !keypin_guard() || !area_addr(&a) || addr >= a + STORAGE_SECTOR || addr + len <= a) {
+		return;
+	}
+	storage_lock();
+	uint32_t data, crc;
+	uint16_t dlen, count;
+	codeplug_kv_state_t s = check_flash(&data, &dlen, &count, &crc);
+	if (s != CODEPLUG_KV_VALID) {
+		if (s != CODEPLUG_KV_EMPTY) {
+			fill_range(addr, buf, len, a, STORAGE_SECTOR, 0xFF);	// secrets that can't be placed: none shown
+		}
+		storage_unlock();
+		return;
+	}
+	bool want_crc = addr < a + 12u && addr + len > a + 8u;	// the header's data CRC is in buf
+	uint32_t c = 0;
+	uint8_t b[16];
+	for (uint32_t at = 0; at < dlen; ) {
+		if (!board.flash->read(data + at, b, ENTRY_HDR)) {
+			fill_range(addr, buf, len, a, STORAGE_SECTOR, 0xFF);
+			storage_unlock();
+			return;
+		}
+		uint16_t k = get16(b), n = get16(&b[2]);
+		uint16_t shown = codeplug_kv_secret(k) ? secret_shown(k, n) : n;
+		uint32_t v = data + at + ENTRY_HDR;
+		fill_range(addr, buf, len, v + shown, (uint32_t)(n - shown), 0);
+		if (want_crc) {
+			c = storage_crc32(c, b, ENTRY_HDR);
+			for (uint32_t o = 0; o < n; ) {
+				uint32_t m = n - o < sizeof(b) ? n - o : sizeof(b);
+				if (o >= shown) {
+					c = storage_crc32(c, zero, m);
+				} else {
+					m = shown - o < m ? shown - o : m;
+					if (!board.flash->read(v + o, b, m)) {
+						m = 0;
+						break;
+					}
+					c = storage_crc32(c, b, m);
+				}
+				o += m;
+			}
+		}
+		at += ENTRY_HDR + n;
+	}
+	fill_range(addr, buf, len, data + dlen, a + STORAGE_SECTOR - (data + dlen), 0xFF);	// nothing past the data
+	if (want_crc) {
+		uint8_t w[4];
+		put32(w, c);
+		for (unsigned i = 0; i < 4u; i++) {
+			if (a + 8u + i >= addr && a + 8u + i < addr + len) {
+				buf[a + 8u + i - addr] = w[i];
+			}
+		}
+	}
+	storage_unlock();
+}
+
+// The first entry of key in the stored area's data (flash data .. data + len): its value's address and length
+static bool stored_find(uint32_t data, uint16_t len, uint16_t key, uint32_t *v, uint16_t *n)
+{
+	uint8_t e[ENTRY_HDR];
+	for (uint32_t at = 0; at < len; at += ENTRY_HDR + get16(&e[2])) {
+		if (!board.flash->read(data + at, e, ENTRY_HDR)) {
+			return false;
+		}
+		if (get16(e) == key) {
+			*v = data + at + ENTRY_HDR;
+			*n = get16(&e[2]);
+			return true;
+		}
+	}
+	return false;
+}
+
+// A valid area in b (a whole sector) about to be committed while the key PIN guards the keys: every secret takes the
+// radio's stored value in place (the hidden one read back, a new one, a changed one), one the radio doesn't hold is
+// taken out, and a stored one b lacks (deleted by the cable) goes back at the end. The header and CRC made again. False
+// when that doesn't fit; true with nothing to merge against a later firmware's area (codeplug_kv_keep keeps it whole)
+static bool keep_secrets(uint8_t *b)
+{
+	uint16_t hdr, len, slen = 0, scount;
+	uint32_t crc, sdata = 0, scrc;
+	header(b, &hdr, &len, &crc);
+	codeplug_kv_state_t s = check_flash(&sdata, &slen, &scount, &scrc);
+	if (s == CODEPLUG_KV_NEWER) {
+		return true;
+	}
+	bool have = s == CODEPLUG_KV_VALID;
+	uint8_t *d = &b[hdr];
+	uint32_t room = STORAGE_SECTOR - hdr, l = len;
+	for (uint32_t at = 0; at < l; ) {
+		uint16_t k = get16(&d[at]), n = get16(&d[at + 2]);
+		uint32_t next = at + ENTRY_HDR + n, v;
+		uint16_t sn;
+		if (!codeplug_kv_secret(k)) {
+			at = next;
+			continue;
+		}
+		if (!have || seen(d, at, k) || !stored_find(sdata, slen, k, &v, &sn)) {
+			l = cut(d, l, at, next);	// loading a key needs the PIN; a later entry of a key counts for nothing
+			continue;
+		}
+		if (l - n + sn > room) {
+			return false;
+		}
+		memmove(&d[at + ENTRY_HDR + sn], &d[next], l - next);
+		put16(&d[at + 2], sn);
+		if (sn != 0 && !board.flash->read(v, &d[at + ENTRY_HDR], sn)) {
+			return false;
+		}
+		l = l - n + sn;
+		at += ENTRY_HDR + sn;
+	}
+	uint8_t e[ENTRY_HDR];
+	for (uint32_t at = 0; have && at < slen; at += ENTRY_HDR + get16(&e[2])) {
+		if (!board.flash->read(sdata + at, e, ENTRY_HDR)) {
+			return false;
+		}
+		uint16_t k = get16(e), n = get16(&e[2]);
+		if (!codeplug_kv_secret(k) || seen(d, (uint32_t)l, k)) {
+			continue;
+		}
+		if (l + ENTRY_HDR + n > room) {
+			return false;
+		}
+		memcpy(&d[l], e, ENTRY_HDR);
+		if (n != 0 && !board.flash->read(sdata + at + ENTRY_HDR, &d[l + ENTRY_HDR], n)) {
+			return false;
+		}
+		l += ENTRY_HDR + n;
+	}
+	memset(&d[l], 0xFF, room - l);
+	put16(&b[6], l);
+	put32(&b[8], storage_crc32(0, d, l));
+	return true;
+}
+#endif
+
+bool codeplug_kv_commit(uint32_t addr, uint8_t *sector)
+{
+#if CONFIG_KEY_PIN
+	uint32_t a;
+	if (keypin_guard() && area_addr(&a) && addr == a && codeplug_kv_check(sector) == CODEPLUG_KV_VALID) {
+		storage_lock();
+		bool ok = keep_secrets(sector);
+		storage_unlock();
+		if (!ok) {
+			return false;
+		}
+	}
+#endif
+	return codeplug_kv_keep(addr, sector) || storage_sector_write(addr, sector);
 }
 
 // One op on the entries d[0..*len): a set replaces the key's first entry in place or appends one (with

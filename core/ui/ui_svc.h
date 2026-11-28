@@ -593,6 +593,19 @@ bool ui_svc_wipe_set(uint8_t id, int32_t value);
 #define UI_WIPE_FAIL_PURGE	0x10u
 #define UI_WIPE_FAIL_RADIO	0x20u
 
+// --- The key PIN (CONFIG_KEY_PIN; ui_svc_keypin.c over core/keypin, docs/spec/key-pin.md). Weak stubs: not in this
+// build (no PIN, never asked) ---
+bool ui_svc_keypin_is_set(void);
+// Store a new PIN (4 to 8 digits, '0'..'9') as a salted hash, the wrong count 0; false when not stored
+bool ui_svc_keypin_set(const char *pin, uint8_t len);
+void ui_svc_keypin_clear(void);
+// A PIN typed: UI_KP_RIGHT; UI_KP_WRONG, counted; UI_KP_WAIT, not tried (the back-off's wait isn't over). *wait_ms:
+// the wait before the next try may be made, 0 none
+enum { UI_KP_RIGHT, UI_KP_WRONG, UI_KP_WAIT };
+uint8_t ui_svc_keypin_try(const char *pin, uint8_t len, uint32_t *wait_ms);
+uint32_t ui_svc_keypin_wait_ms(void);	// the back-off's wait left now, 0 none
+uint8_t ui_svc_keypin_wrong(void);	// consecutive wrong PINs (kept over a restart)
+
 // --- The crash log (CONFIG_CRASH_LOG) and its report (CONFIG_CRASH_REPORT; ui_svc_crash.c, docs/spec/crash-log.md) ---
 typedef struct {
 	bool seen;		// shown or answered before (no prompt after the restart)

@@ -77,6 +77,11 @@ HR_C7000 ones; `tools/cps_client.py --offset`).
 
 A range that runs off the end of the flash or the EEPROM image is refused with `-` before any data goes out.
 
+While a key PIN is set and the radio is locked ([key-pin.md](key-pin.md) 10): areas 1 and 2 read the codeplug settings
+area with its keys hidden (10.1), an area 1 read outside the EEPROM and flash images, or touching the settings store,
+the journal, the staging or native areas, is refused with `-`, and a commit (`X` 3) of the area keeps the radio's keys
+(10.2).
+
 The board's `hal_cps_t` (`board.cps`) supplies the radio-specific answers:
 
 | Answer | Meaning |

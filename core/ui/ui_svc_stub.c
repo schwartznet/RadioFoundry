@@ -206,6 +206,12 @@ WEAK bool ui_svc_wipe_code_check(const char code[4]) { (void)code; return false;
 WEAK bool ui_svc_wipe_start(void) { return false; }
 WEAK bool ui_svc_clear_keys_start(void) { return false; }
 WEAK bool ui_svc_wipe_all_start(void) { return false; }
+WEAK bool ui_svc_keypin_is_set(void) { return false; }
+WEAK bool ui_svc_keypin_set(const char *pin, uint8_t len) { (void)pin; (void)len; return false; }
+WEAK void ui_svc_keypin_clear(void) { }
+WEAK uint8_t ui_svc_keypin_try(const char *pin, uint8_t len, uint32_t *wait_ms) { (void)pin; (void)len; *wait_ms = 0; return UI_KP_WRONG; }
+WEAK uint32_t ui_svc_keypin_wait_ms(void) { return 0; }
+WEAK uint8_t ui_svc_keypin_wrong(void) { return 0; }
 #if CONFIG_GROUP_KEY_FILL
 WEAK uint8_t ui_svc_gk_start(int32_t key, const radio_view_t *v) { (void)key; (void)v; return UI_GK_WHY_BUSY; }
 WEAK bool ui_svc_gk_view(ui_gk_view_t *out) { (void)out; return false; }

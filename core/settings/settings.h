@@ -302,6 +302,14 @@ typedef struct {
 	// turn radio silence on, as the user's rule for remote controls wants
 	uint8_t otar_sil;
 	uint8_t otar_sil_reserved[3];	// 0
+	// The key PIN (docs/spec/key-pin.md 5), appended: an older record reads no PIN. kp_flags: bit 0 a PIN is set
+	// (SETTINGS_KP_SET), bits 4-7 the consecutive wrong tries (saturating at 15; kept so a restart doesn't reset the
+	// back-off). The PIN itself is never stored: kp_hash is the first 16 octets of
+	// SHA-256("RFKP1" | UID | kp_salt | length | PIN). Cleared by a factory reset and a full wipe, kept by a keys-only one
+	uint8_t kp_flags;
+	uint8_t kp_reserved[3];		// 0
+	uint32_t kp_salt;
+	uint8_t kp_hash[16];
 } settings_t;
 
 // Pages: settings_t is stored as records of SETTINGS_PAGE_BYTES each (settings-store.md 2.1). Only the pages its size
@@ -321,6 +329,8 @@ typedef struct {
 #define SETTINGS_ZZ_KEYS_ONLY		0x02u	// ... a wipe erases the keys only (clear: keys and codeplug)
 #define SETTINGS_ZZ_NO_CONFIRM		0x04u	// ... no confirmation press (clear: OK confirms)
 #define SETTINGS_ZZ_TRIES_SHIFT		4	// ... bits 4-7: wrong codes while locked before a wipe, 0 = off
+#define SETTINGS_KP_SET			0x01u	// kp_flags: a key PIN is set
+#define SETTINGS_KP_WRONG_SHIFT		4	// ... bits 4-7: consecutive wrong PINs (the back-off, key-pin.md 4)
 
 #define SETTINGS_ZONE_JRN_NONE		0u	// zone_jrn_kind
 #define SETTINGS_ZONE_JRN_ADD		1u

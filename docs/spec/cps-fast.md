@@ -128,6 +128,10 @@ block's: the host checks it after decoding, and a CRC or length that changes bet
 block changed meanwhile (read it again). An offset past the stream's end is a bad argument. A READ while a write holds
 the storage sector buffer (a block between BLOCK and END, or a pending CPS sector) answers busy (3).
 
+While a key PIN is set and the radio is locked ([key-pin.md](key-pin.md) 10), READ and SUMS show the codeplug settings
+area with its keys hidden (10.1; the CRC-32s are the shown bytes'), and the area's commit keeps the radio's keys (10.2).
+A commit resumed at start-up runs after the PIN state is read, locked, so it merges too.
+
 ### 3.4 Writing: BEGIN, BLOCK, DATA, END, COMMIT
 
 ```

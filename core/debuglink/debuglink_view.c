@@ -377,6 +377,11 @@ static void link_section(dl_text_t *t)
 		(unsigned)u.focus, (unsigned)u.count, (unsigned)u.locked, u.unlock_key, (unsigned)u.gps);
 	dl_text(t, "ui.banner=%s\nui.toast=%s\nui.query=%s\nui.draws=%u\nui.dual=%u\n", u.banner, u.toast, u.query,
 		(unsigned)u.draws, u.dual);
+#if CONFIG_KEY_PIN
+	// The key PIN (docs/spec/key-pin.md 8): set, typed (the key screens open), consecutive wrong tries. Never the PIN
+	dl_text(t, "keypin.set=%u\nkeypin.unlocked=%u\nkeypin.wrong=%u\n", (unsigned)u.kp_set, (unsigned)u.kp_unlocked,
+		(unsigned)u.kp_wrong);
+#endif
 	dl_text(t, "input.idle_ms=%u\nui.backlight=%u\n", (unsigned)input_idle_ms(), ui_backlight());
 	if (board.display != NULL && board.display->panel != NULL) {
 		// A board's hook fills only what it knows: the rest must read as not known, never as stack contents

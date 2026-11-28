@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "keypin/keypin.h"
 #include "codeplug/codeplug.h"
 #include "codeplug/codeplug_kv.h"
 #include "codeplug/codeplug_tag.h"
@@ -501,6 +502,21 @@ static void test_debuglink(void)
 	CHECK(cpkv(DL_CPKV_GET, CODEPLUG_KEY_TRAFFIC, 0, NULL, 0, out) == 1 && out[0] == DL_ST_UNAVAILABLE);
 	CHECK(cpkv(DL_CPKV_SET, CODEPLUG_KEY_SYS_KEY, 0, seed, sizeof seed, out) == 1 && out[0] == DL_ST_OK);
 	CHECK(cpkv(DL_CPKV_GET, CODEPLUG_KEY_SYS_KEY, 0, NULL, 0, out) == 1 && out[0] == DL_ST_UNAVAILABLE);
+#if CONFIG_KEY_PIN
+	// A key PIN set and the radio locked (key-pin.md 10.3): no key set or removed by cable; other keys as before
+	keypin_note(true);
+	keypin_lock();
+	CHECK(cpkv(DL_CPKV_SET, CODEPLUG_KEY_TRAFFIC + 1u, 0, seed, sizeof seed, out) == 1 && out[0] == DL_ST_REFUSED);
+	CHECK(cpkv(DL_CPKV_REMOVE, CODEPLUG_KEY_TRAFFIC, 0, NULL, 0, out) == 1 && out[0] == DL_ST_REFUSED);
+	CHECK(cpkv(DL_CPKV_SET, CODEPLUG_KEY_SYS_KEY + 2u, 0, seed, sizeof seed, out) == 1 && out[0] == DL_ST_REFUSED);
+	CHECK(codeplug_kv_get(CODEPLUG_KEY_TRAFFIC, NULL, 0) == (int)sizeof seed &&
+	      codeplug_kv_get(CODEPLUG_KEY_TRAFFIC + 1u, NULL, 0) == -1);
+	CHECK(cpkv(DL_CPKV_SET, 0x7F01, 0, seed, 1, out) == 1 && out[0] == DL_ST_OK);
+	keypin_unlock();
+	CHECK(cpkv(DL_CPKV_REMOVE, CODEPLUG_KEY_TRAFFIC + 1u, 0, NULL, 0, out) == 1 && out[0] == DL_ST_OK);
+	keypin_lock();
+	keypin_note(false);
+#endif
 	// A patch inside the value keeps the rest; one past its end is refused
 	uint8_t cc = 7;
 	CHECK(cpkv(DL_CPKV_SET, SYS(0), BLOCK + 4, &cc, 1, out) == 1 && out[0] == DL_ST_OK);

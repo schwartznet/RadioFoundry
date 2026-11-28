@@ -561,8 +561,8 @@ run-core: radioCoreTest radioCoreTestNoVfoDmr radioCoreTestNoAm radioCoreTestP25
 FLASH_HAL := -I$(ROOT)/hal -Wshadow
 TESTS   += codeplugTest
 
-codeplugTest: codeplugTest.c $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/codeplug/codeplug_tag.c $(CORE)/codeplug/codeplug.h $(CORE)/codeplug/dmr_iddb.c $(CORE)/codeplug/dmr_iddb.h $(CORE)/storage/storage.c
-	$(CC) $(CFLAGS) $(FLASH_HAL) -o $@ codeplugTest.c $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/codeplug/codeplug_tag.c $(CORE)/codeplug/dmr_iddb.c $(CORE)/storage/storage.c -lm
+codeplugTest: codeplugTest.c $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/keypin/keypin_state.c $(CORE)/codeplug/codeplug_tag.c $(CORE)/codeplug/codeplug.h $(CORE)/codeplug/dmr_iddb.c $(CORE)/codeplug/dmr_iddb.h $(CORE)/storage/storage.c
+	$(CC) $(CFLAGS) $(FLASH_HAL) -o $@ codeplugTest.c $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/keypin/keypin_state.c $(CORE)/codeplug/codeplug_tag.c $(CORE)/codeplug/dmr_iddb.c $(CORE)/storage/storage.c -lm
 
 # The text editor's Back: one character per press, a Chinese name by its three UTF-8 bytes (core/ui/text_edit.h)
 TESTS += textEditTest
@@ -577,14 +577,14 @@ run-text: textEditTest
 # The same without format C (CONFIG_IDDB_COMPACT=0): a format C database is no database (iddb-compact.md 3.1)
 TESTS   += codeplugNoCompactTest
 
-codeplugNoCompactTest: codeplugTest.c $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/codeplug/codeplug_tag.c $(CORE)/codeplug/codeplug.h $(CORE)/codeplug/dmr_iddb.c $(CORE)/codeplug/dmr_iddb.h $(CORE)/storage/storage.c
-	$(CC) $(CFLAGS) $(FLASH_HAL) -DCONFIG_IDDB_COMPACT=0 -o $@ codeplugTest.c $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/codeplug/codeplug_tag.c $(CORE)/codeplug/dmr_iddb.c $(CORE)/storage/storage.c -lm
+codeplugNoCompactTest: codeplugTest.c $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/keypin/keypin_state.c $(CORE)/codeplug/codeplug_tag.c $(CORE)/codeplug/codeplug.h $(CORE)/codeplug/dmr_iddb.c $(CORE)/codeplug/dmr_iddb.h $(CORE)/storage/storage.c
+	$(CC) $(CFLAGS) $(FLASH_HAL) -DCONFIG_IDDB_COMPACT=0 -o $@ codeplugTest.c $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/keypin/keypin_state.c $(CORE)/codeplug/codeplug_tag.c $(CORE)/codeplug/dmr_iddb.c $(CORE)/storage/storage.c -lm
 
 # The power byte on 2-, 3- and 9-level radios
 TESTS   += codeplugPower2Test codeplugPower3Test codeplugPower9Test
 
-codeplugPower%Test: codeplugPowerTest.c $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/codeplug/codeplug_tag.c $(CORE)/codeplug/codeplug.h $(CORE)/codeplug/dmr_iddb.c $(CORE)/storage/storage.c
-	$(CC) $(CFLAGS) $(FLASH_HAL) -DPOWER_COUNT=$* -o $@ codeplugPowerTest.c $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/codeplug/codeplug_tag.c $(CORE)/codeplug/dmr_iddb.c $(CORE)/storage/storage.c
+codeplugPower%Test: codeplugPowerTest.c $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/keypin/keypin_state.c $(CORE)/codeplug/codeplug_tag.c $(CORE)/codeplug/codeplug.h $(CORE)/codeplug/dmr_iddb.c $(CORE)/storage/storage.c
+	$(CC) $(CFLAGS) $(FLASH_HAL) -DPOWER_COUNT=$* -o $@ codeplugPowerTest.c $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/keypin/keypin_state.c $(CORE)/codeplug/codeplug_tag.c $(CORE)/codeplug/dmr_iddb.c $(CORE)/storage/storage.c
 
 # The calibration curve every board's reader shares
 TESTS   += calCurveTest sqlRssiTest
@@ -751,7 +751,7 @@ UIAPP   := $(UI) $(CORE)/ui/ui_app.c $(CORE)/ui/ui_menus.c $(CORE)/ui/ui_find.c 
            $(CORE)/codeplug/codeplug_talk.c $(CORE)/codeplug/zone_edit.c $(CORE)/codeplug/zone_shift.c $(CORE)/radio/radio_am.c \
            $(CORE)/radio/radio_bcast.c $(CORE)/support/sha256.c $(CORE)/support/image_hash.c $(CORE)/support/auto_dmr_id.c \
            $(CORE)/support/support_info.c $(CORE)/support/hkdf.c $(CORE)/support/kcv.c sim/ui_sim.c sim/ui_png.c \
-           $(CORE)/dmr/dmrAes.c $(CORE)/dmr/dmrPrivacy.c $(CORE)/dmr/ambe/ambeFec.c $(CORE)/otar/otar_keys.c
+           $(CORE)/dmr/dmrAes.c $(CORE)/dmr/dmrPrivacy.c $(CORE)/dmr/ambe/ambeFec.c $(CORE)/otar/otar_keys.c $(CORE)/keypin/keypin_state.c
 # The About page's data header, as the firmware build makes it (tools/gen_about.py; the STM32F4 list stands in)
 ABOUT_H := out/gen/rfoundry_about.h
 $(shell python3 $(ROOT)/tools/gen_about.py $(ROOT)/AUTHORS $(ROOT)/platform/stm32f4/THIRD_PARTY $(ABOUT_H) >/dev/null)
@@ -993,7 +993,7 @@ run-key-gen: keyGenTest
 # Storing a filled key (core/codeplug/key_store.c, key-fill.md 8): privacy slots, traffic keys into the matching
 # system, on a simulated flash with an in-memory settings record
 TESTS   += keyStoreTest
-KEYSTORE := $(CORE)/codeplug/key_store.c $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c \
+KEYSTORE := $(CORE)/codeplug/key_store.c $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/keypin/keypin_state.c \
             $(CORE)/codeplug/codeplug_tag.c $(CORE)/codeplug/codeplug_records.c $(CORE)/storage/storage.c sim/sim_flash.c \
             $(CORE)/dmr/dmrPrivacy.c $(CORE)/dmr/ambe/ambeFec.c $(CORE)/support/sha256.c $(CORE)/support/hkdf.c \
             $(CORE)/support/kcv.c $(CORE)/dmr/dmrAes.c $(CORE)/otar/otar_net.c
@@ -1571,7 +1571,7 @@ run-ppp: pppTest pppPeer
 # TFTP server with codeplug.bin on a simulated flash. Their frames go to pcaps that tshark checks when it's there
 MDNST   := mdnsTest.c $(CORE)/net/mdns.c $(CORE)/dmr/ipGateway.c $(DATA)
 TFTPT   := tftpTest.c $(CORE)/net/tftp.c $(CORE)/net/tftp_codeplug.c $(CORE)/net/tftp_iddb.c $(CORE)/dmr/ipGateway.c $(DATA) \
-           $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/codeplug/codeplug_tag.c $(CORE)/codeplug/dmr_iddb.c $(CORE)/storage/storage.c \
+           $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/keypin/keypin_state.c $(CORE)/codeplug/codeplug_tag.c $(CORE)/codeplug/dmr_iddb.c $(CORE)/storage/storage.c \
            sim/sim_flash.c
 TESTS   += mdnsTest tftpTest
 
@@ -1667,7 +1667,7 @@ spiNandTest: spiNandTest.c $(ROOT)/drivers/flash/spi_nand/spi_nand.c $(ROOT)/dri
 # of several kinds), then core/storage and core/settings on top across reboots and cuts
 # and the open-firmware CPS writing a whole codeplug through the DB25-D's sector replace, with cuts
 NSECT   := $(ROOT)/drivers/flash/nand_sectors/nand_sectors.c $(CORE)/storage/storage.c $(CORE)/settings/settings.c \
-           $(CORE)/cps/cps_openfw.c $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/codeplug/codeplug_tag.c
+           $(CORE)/cps/cps_openfw.c $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/keypin/keypin_state.c $(CORE)/codeplug/codeplug_tag.c
 TESTS   += nandSectorsTest
 
 nandSectorsTest: nandSectorsTest.c $(NSECT) $(ROOT)/drivers/flash/nand_sectors/nand_sectors.h \
@@ -1676,7 +1676,7 @@ nandSectorsTest: nandSectorsTest.c $(NSECT) $(ROOT)/drivers/flash/nand_sectors/n
 
 # Codeplug editing: the open-firmware record encoder, the built-in set made a stored codeplug, zones / contacts / lists,
 # the round trip read -> write -> read, power cuts during an edit
-CPEDIT  := $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/codeplug/codeplug_tag.c $(CORE)/storage/storage.c sim/sim_flash.c
+CPEDIT  := $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/keypin/keypin_state.c $(CORE)/codeplug/codeplug_tag.c $(CORE)/storage/storage.c sim/sim_flash.c
 TESTS   += codeplugEditTest
 
 codeplugEditTest: codeplugEditTest.c $(CPEDIT) $(wildcard $(CORE)/codeplug/*.h $(CORE)/storage/*.h sim/sim_flash.h)
@@ -1703,6 +1703,18 @@ run-zeroize: zeroizeTest
 	./zeroizeTest
 .PHONY: run-zeroize
 
+# The key PIN (core/keypin, docs/spec/key-pin.md) on a simulated NOR flash with the real storage and settings store:
+# its hash, set / check / clear and the back-off
+KEYPIN  := $(CORE)/keypin/keypin.c $(CORE)/keypin/keypin_state.c $(CORE)/support/sha256.c $(STORE)
+TESTS   += keypinTest
+keypinTest: keypinTest.c $(KEYPIN) $(wildcard $(CORE)/keypin/*.h $(CORE)/storage/*.h $(CORE)/settings/*.h sim/sim_flash.h)
+	$(CC) $(CFLAGS) -I$(ROOT)/hal -I. -Wshadow -o $@ keypinTest.c $(KEYPIN)
+
+run: run-keypin
+run-keypin: keypinTest
+	./keypinTest
+.PHONY: run-keypin
+
 # The codeplug settings area: keyed values, unknown keys kept, invalid and newer areas, power cuts during a write
 TESTS   += codeplugKvTest
 
@@ -1717,7 +1729,7 @@ run-cpkv: codeplugKvTest
 # The generic channel-mode layer (core/codeplug/codeplug_tag.c, codeplug_records.c) with a synthetic kind: tags, the
 # live rule, writes that rename, make plain or meet a stale tag, unknown kinds, a full area, the mode record families
 TESTS   += codeplugTagTest
-CPTAG   := $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/storage/storage.c sim/sim_flash.c
+CPTAG   := $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/keypin/keypin_state.c $(CORE)/storage/storage.c sim/sim_flash.c
 
 codeplugTagTest: codeplugTagTest.c $(CPTAG) $(CORE)/codeplug/codeplug_tag.c $(CORE)/codeplug/codeplug_records.c \
                  $(wildcard $(CORE)/codeplug/*.h $(CORE)/storage/*.h sim/sim_flash.h)
@@ -1797,7 +1809,7 @@ run-zimport: zoneImportTest zoneImportModesTest zoneImportNxdnTest
 .PHONY: run-zimport
 
 # The open-firmware CPS shim against a simulated flash, driven like qdmr's UV380 driver (core/cps)
-CPS     := $(CORE)/cps/cps_openfw.c $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/codeplug/codeplug_tag.c $(CORE)/settings/settings.c \
+CPS     := $(CORE)/cps/cps_openfw.c $(CORE)/codeplug/codeplug.c $(CORE)/codeplug/codeplug_kv.c $(CORE)/keypin/keypin_state.c $(CORE)/codeplug/codeplug_tag.c $(CORE)/settings/settings.c \
            $(CORE)/storage/storage.c sim/sim_flash.c
 TESTS   += cpsTest
 

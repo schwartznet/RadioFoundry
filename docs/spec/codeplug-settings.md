@@ -322,6 +322,10 @@ including CPS software that knows nothing of the area:
 A kept sector is acknowledged as written, so the CPS doesn't fail. A CPS that reads the sector back to verify it
 sees the radio's bytes.
 
+With a key PIN set and the radio locked ([key-pin.md](key-pin.md) 10), every path above reads the secrets (0x0300-0x03FF,
+0x1900-0x1CFF) with their value octets 0 (a traffic key's first 5 kept) and the header CRC of the area as shown, and the
+commit keeps each secret the radio holds whatever the file has (hidden, a new value, or none), and adds none.
+
 The host tools apply the rule as well, before they send: the Codeplug Editor writes the area only when one of its
 fields changed (7), and `tools/cps_client.py` (default regions `radio`) and `tools/cps_fast.py` send it only when the
 file's is valid and the radio's isn't of a newer version. That covers radios on firmware from before the radio-side

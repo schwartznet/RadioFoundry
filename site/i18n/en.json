@@ -1858,6 +1858,7 @@
  "editor.modes.control": "Control",
  "editor.modes.secret": "Key",
  "editor.modes.secret_set": "Set",
+ "editor.modes.secret_hidden": "Hidden (radio key PIN)",
  "editor.modes.key_check": "Key check",
  "editor.modes.key_check_help": "The key check value: the radio shows the same six digits for the same key (Settings > Privacy > Stored keys). Compare them to see two radios hold the same key without showing it.",
  "editor.modes.secret_none": "Not set",

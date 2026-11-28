@@ -4215,6 +4215,11 @@ msgid "Clear all keys"
 msgstr "清除所有密钥"
 
 #: core/ui/ui_menus.c
+msgctxt "SET_LABEL_KEY_PIN"
+msgid "Key PIN"
+msgstr "密钥密码"
+
+#: core/ui/ui_menus.c
 msgctxt "SET_LABEL_AUTO_LOCK"
 msgid "Auto lock"
 msgstr "自动锁键"
@@ -4628,6 +4633,111 @@ msgstr "设置更改即保存"
 msgctxt "HINT_OK_CHANGE_BACK"
 msgid "OK change  Back"
 msgstr "OK 改  返回"
+
+#: core/ui/ui_menus.c
+msgctxt "KP_UNIT_S"
+msgid " s"
+msgstr " 秒"
+
+#: core/ui/ui_menus.c
+msgctxt "KP_UNIT_MIN"
+msgid " min"
+msgstr " 分"
+
+#: core/ui/ui_menus.c
+msgctxt "KP_ROW_CHANGE"
+msgid "Change PIN"
+msgstr "修改密码"
+
+#: core/ui/ui_menus.c
+msgctxt "KP_ROW_OFF"
+msgid "Turn off"
+msgstr "关闭"
+
+#: core/ui/ui_menus.c
+msgctxt "KP_LABEL_PIN"
+msgid "PIN"
+msgstr "密码"
+
+#: core/ui/ui_menus.c
+msgctxt "KP_LABEL_NEW"
+msgid "New PIN"
+msgstr "新密码"
+
+#: core/ui/ui_menus.c
+msgctxt "KP_LABEL_AGAIN"
+msgid "Again"
+msgstr "再输入"
+
+#: core/ui/ui_menus.c
+msgctxt "KP_BODY_WAIT"
+msgid "Too many wrong PINs. Wait "
+msgstr "密码不对次数过多。请等 "
+
+#: core/ui/ui_menus.c
+msgctxt "KP_BODY_ASK"
+msgid "Type the key PIN, then OK"
+msgstr "输入密钥密码，然后 OK"
+
+#: core/ui/ui_menus.c
+msgctxt "KP_BODY_NEW"
+msgid "4 to 8 digits, then OK. Asked before the keys open"
+msgstr "4 到 8 位数字，然后 OK。打开密钥前输入"
+
+#: core/ui/ui_menus.c
+msgctxt "KP_BODY_AGAIN"
+msgid "Type the PIN again, then OK"
+msgstr "再输入一次密码，然后 OK"
+
+#: core/ui/ui_menus.c
+msgctxt "KP_BODY_MANAGE"
+msgid "Asked before Privacy and Key fill open"
+msgstr "打开加密和密钥注入前输入"
+
+#: core/ui/ui_menus.c
+msgctxt "KP_HINT_TYPE"
+msgid "0-9 type  OK  Back"
+msgstr "0-9 输入  OK  返回"
+
+#: core/ui/ui_menus.c
+msgctxt "KP_TITLE"
+msgid "Key PIN"
+msgstr "密钥密码"
+
+#: core/ui/ui_menus.c
+msgctxt "KP_TOAST_DIGITS"
+msgid "The PIN has 4 to 8 digits"
+msgstr "密码为 4 到 8 位数字"
+
+#: core/ui/ui_menus.c
+msgctxt "KP_TOAST_WAIT"
+msgid "Wait "
+msgstr "请等 "
+
+#: core/ui/ui_menus.c
+msgctxt "KP_TOAST_WRONG"
+msgid "Wrong PIN"
+msgstr "密码不对"
+
+#: core/ui/ui_menus.c
+msgctxt "KP_TOAST_WRONG_WAIT"
+msgid ". Wait "
+msgstr "。请等 "
+
+#: core/ui/ui_menus.c
+msgctxt "KP_TOAST_DIFFER"
+msgid "Not the same: type the PIN again"
+msgstr "不一致：请重新输入"
+
+#: core/ui/ui_menus.c
+msgctxt "KP_TOAST_SET"
+msgid "Key PIN set"
+msgstr "密钥密码已设"
+
+#: core/ui/ui_menus.c
+msgctxt "KP_TOAST_OFF"
+msgid "Key PIN off"
+msgstr "密钥密码已关闭"
 
 #: core/ui/ui_menus.c
 msgctxt "RESET_ROW_KEEP"
@@ -5388,6 +5498,16 @@ msgstr "开"
 msgctxt "NET_OFF"
 msgid "Off"
 msgstr "关"
+
+#: core/ui/ui_menus.c
+msgctxt "NET_HOUR"
+msgid " hour"
+msgstr ""
+
+#: core/ui/ui_menus.c
+msgctxt "NET_HOURS"
+msgid " hours"
+msgstr ""
 
 #: core/ui/ui_menus.c
 msgctxt "NET_DAY"

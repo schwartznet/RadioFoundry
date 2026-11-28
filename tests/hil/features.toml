@@ -140,6 +140,11 @@ switch = "ZEROIZE"
 spec = "docs/spec/zeroize.md"
 source = ["core/zeroize/zeroize.c", "core/ui/ui_svc_zeroize.c"]
 
+[feature.key_pin]
+switch = "KEY_PIN"
+spec = "docs/spec/key-pin.md"
+source = ["core/keypin/keypin.c", "core/ui/ui_svc_keypin.c"]
+
 [feature.dmr_aes]
 switch = "DMR_AES"
 spec = "docs/spec/dmr-voice.md"

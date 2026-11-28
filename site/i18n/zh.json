@@ -1858,6 +1858,7 @@
  "editor.modes.control": "控制",
  "editor.modes.secret": "密钥",
  "editor.modes.secret_set": "已设置",
+ "editor.modes.secret_hidden": "已隐藏（电台密钥密码）",
  "editor.modes.key_check": "密钥校验",
  "editor.modes.key_check_help": "密钥校验值：同一密钥在电台上显示相同的六位数（设置 > 加密 > 已存密钥）。比较它们即可确认两台电台持有相同密钥而无需显示密钥。",
  "editor.modes.secret_none": "未设置",

@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "config.h"
 #include "codeplug/codeplug.h"	// CODEPLUG_DMR_ID_MAX
 
 #define CODEPLUG_KV_ADDR	0xE000u		// in the EEPROM image: one STORAGE_SECTOR
@@ -169,10 +170,34 @@ bool codeplug_kv_remove_ranges(const uint16_t *lohi, uint8_t n);
 #endif
 // The state of an area held whole in RAM (a STORAGE_SECTOR), as a reader would find it in flash. No lock
 codeplug_kv_state_t codeplug_kv_check(const uint8_t *sector);
+
+// Secrets (docs/spec/channel-modes.md 8): the system secrets and the traffic keys. A traffic key's first
+// CODEPLUG_KV_TRAFFIC_META octets (system, algorithm, key ID, flags) say which key it is, not the key
+#define CODEPLUG_KV_TRAFFIC_META	5u
+static inline bool codeplug_kv_secret(uint16_t key)
+{
+	return (key >= CODEPLUG_KEY_SYS_KEY && key < CODEPLUG_KEY_CH_TAG) ||
+	       (key >= CODEPLUG_KEY_TRAFFIC && key < CODEPLUG_KEY_ZONE_TAG);
+}
+
+// The cable's view of the area while the key PIN guards the keys (keypin_guard, docs/spec/key-pin.md 10): buf holds
+// len bytes read from flash address addr for a host (CPS shim, fast CPS, TFTP), and the bytes of the area's sector in
+// it change to what the radio shows a cable. A secret's value octets read 0 (a traffic key's first
+// CODEPLUG_KV_TRAFFIC_META kept), the header's data CRC is the one of the area as shown, so it still checks; the bytes
+// after the data read 0xFF; an area that isn't valid (damaged, a later version) reads erased whole, since its secrets
+// can't be told apart. Nothing changes without a PIN set, unlocked, or outside the sector. Takes storage_lock
+#if CONFIG_KEY_PIN
+void codeplug_kv_redact(uint32_t addr, uint8_t *buf, uint32_t len);
+#else
+static inline void codeplug_kv_redact(uint32_t addr, uint8_t *buf, uint32_t len) { (void)addr; (void)buf; (void)len; }
+#endif
+
 // A raw write of sector (STORAGE_SECTOR bytes) at flash address addr, for every path that commits the EEPROM image's
 // sectors (CPS shim, fast CPS, TFTP): the sector is written through the journal unless codeplug_kv_keep says the
-// radio's stays, which counts as written. False only when the write failed
-bool codeplug_kv_commit(uint32_t addr, const uint8_t *sector);
+// radio's stays, which counts as written. While the key PIN guards the keys (key-pin.md 10.2) the area's secrets are
+// merged first, in sector itself: each keeps the radio's stored value whatever the cable sent (hidden, new or gone),
+// and one the radio doesn't hold isn't added. False when the write failed, or the merge doesn't fit the sector
+bool codeplug_kv_commit(uint32_t addr, uint8_t *sector);
 // Whether a raw write of sector (STORAGE_SECTOR bytes) at flash address addr must leave the radio's sector as it is
 // (docs/spec/codeplug-settings.md 6): addr is the area's sector and the radio's area is CODEPLUG_KV_NEWER, or
 // CODEPLUG_KV_VALID while sector isn't, so a file without the area never erases the radio's keys

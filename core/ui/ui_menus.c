@@ -19,6 +19,7 @@
 #include "codeplug/codeplug_modes.h"
 #include "codeplug/codeplug_tag.h"
 #include "codeplug/key_store.h"
+#include "keypin/keypin.h"		// the key PIN's lengths (header only)
 #if CONFIG_KEY_FILL
 #include "keyfill/keyfill.h"
 #endif
@@ -6876,10 +6877,12 @@ typedef enum { ST_TOGGLE, ST_LIST, ST_NUMBER, ST_ACTION } set_type_t;
 enum { SA_DIAG, SA_FIRMWARE, SA_CODEPLUG, SA_RESET, SA_MY_RADIO, SA_CRASH, SA_LANGUAGE, SA_HARDWARE, SA_FIXED_POS,
 	SA_SAVE_GPS_POS, SA_DATA_SERVICES, SA_BL_TEST, SA_KEY_CHECK, SA_KEYS,
 	SA_SIG_BEGIN, SA_SIG_END, SA_SIG_IDLE,	// signaling tone steps, by sig_event_t
-	SA_WIPE_CODE, SA_CLEAR_KEYS };
+	SA_WIPE_CODE, SA_CLEAR_KEYS, SA_KEY_PIN };
 // The wipe screen's arg: the emergency wipe's confirmation, then it going (ui_wipe_open); Clear all keys' confirmation,
 // then that going (keys only, whatever Wipe what says)
 enum { WIPE_ASK, WIPE_RUN, WIPE_ASK_KEYS_ONLY, WIPE_RUN_KEYS_ONLY };
+// The key PIN screen's arg (key-pin.md 5, 7): typed to open the key screens; a new PIN, typed twice; Change or Turn off
+enum { KP_ASK, KP_NEW, KP_MANAGE };
 
 typedef struct {
 	tr_id_t name;			// TRN; TR_NONE for a key's row (set_name)
@@ -7257,6 +7260,11 @@ static const set_item_t s_privacy[] = {
 	// Every key erased now, the channels kept (zeroize.md 3.2): the wipe's keys only steps, always after a confirmation
 	ACTION(TRN(SET_LABEL_CLEAR_KEYS, "Clear all keys"), "erase delete keys zeroize privacy aes", SA_CLEAR_KEYS),
 #endif
+#if CONFIG_KEY_PIN
+	// The key PIN (key-pin.md 7): typed before this group or Tools > Key fill opens. Before Radio silence, which stays
+	// last (Up from the top)
+	ACTION(TRN(SET_LABEL_KEY_PIN, "Key PIN"), "password lock protect keys code key fill", SA_KEY_PIN),
+#endif
 #if CONFIG_RADIO_SILENCE
 	// radio silence (radio-silence.md): the radio transmits only what its user starts. Last, so the rows above keep
 	// their places; a side key can toggle it too (Settings > Keys)
@@ -7518,6 +7526,12 @@ void ui_open_setting(uint8_t g, uint8_t i)
 	ui_push(SCR_SETTINGS, 0);
 	ui_frame()->focus = g;
 	ui_push(SCR_GROUP, g);
+#if CONFIG_KEY_PIN
+	if (ui_frame()->scr != SCR_GROUP) {
+		ui_kp_focus(i);		// the key PIN first (a Privacy setting): the row once it is typed
+		return;
+	}
+#endif
 	ui_frame()->focus = i;
 }
 
@@ -7857,7 +7871,7 @@ static const char *set_why_not(const set_item_t *s)
 		return !(feats() & UI_FEAT_PRIVACY) ? TR(WHY_PRIVACY_NOT_IN_BUILD, "Privacy: not in this build") :
 			ui_svc_setting_get(UI_SET_PRIVACY_TYPE) == 0 ? TR(SET_WHY_PICK_KEY_TYPE_FIRST, "Pick a key type first") :
 			NULL;
-	if (s->type == ST_ACTION && s->id == SA_WIPE_CODE)
+	if (s->type == ST_ACTION && (s->id == SA_WIPE_CODE || s->id == SA_KEY_PIN))
 		return ui_has_action(ACT_DIGIT_1) ? NULL : TR(WHY_NEEDS_NUMBER_KEYS, "Needs number keys");
 	if (s->type == ST_ACTION)
 		return s->id >= SA_SIG_BEGIN && s->id <= SA_SIG_IDLE && !(CONFIG_BEEP && CONFIG_SIG_TONES) ?
@@ -7973,6 +7987,10 @@ static void group_item(uint16_t i, ui_item_t *it)
 		str_copy(it->value, sizeof it->value, ui_svc_setting_get(UI_SET_WIPE_CODE) ? TR(VALUE_SET, "Set") :
 			TR(VALUE_OFF, "Off"));
 #endif
+#if CONFIG_KEY_PIN
+	else if (s->id == SA_KEY_PIN)
+		str_copy(it->value, sizeof it->value, ui_svc_keypin_is_set() ? TR(VALUE_ON, "On") : TR(VALUE_OFF, "Off"));
+#endif
 	if (s->id == UI_SET_PRIVACY_KEY && s->type == ST_NUMBER && !edit && ui_svc_setting_get(UI_SET_PRIVACY_TYPE) == 0)
 		strcpy(it->value, "-");
 	if (s->type == ST_NUMBER && s->id == UI_SET_MIC_GAIN && !edit && mic_agc_on())
@@ -8064,6 +8082,9 @@ static void group_select(uint16_t i, bool hold)
 #if CONFIG_ZEROIZE
 		case SA_WIPE_CODE: ui_push(SCR_WIPE_CODE, 0); break;
 		case SA_CLEAR_KEYS: ui_push(SCR_WIPE, WIPE_ASK_KEYS_ONLY); break;
+#endif
+#if CONFIG_KEY_PIN
+		case SA_KEY_PIN: ui_push(SCR_KEY_PIN, ui_svc_keypin_is_set() ? KP_MANAGE : KP_NEW); break;
 #endif
 #if CONFIG_SIG_TONES
 		case SA_SIG_BEGIN ... SA_SIG_IDLE: ui_push(SCR_SIG_CHAIN, (uint16_t)(s->id - SA_SIG_BEGIN)); break;
@@ -8172,6 +8193,291 @@ static const ui_scr_def_t group_screen = {
 	.count = group_count, .item = group_item, .select = group_select, .key = group_key, .enter = group_enter,
 	.title = group_title,
 };
+
+#if CONFIG_KEY_PIN
+// ======================= The key PIN (docs/spec/key-pin.md) =======================
+// arg KP_ASK: typed to open a key screen (ui_kp_ask), then that screen in its place. KP_NEW: a new PIN, typed twice
+// (Settings > Privacy > Key PIN while none is set, or Change). KP_MANAGE: Change PIN, Turn off. 4 to 8 digits shown as
+// stars, BACK takes the last one back and with none typed leaves, OK takes them
+
+static char kp_pin[KEYPIN_MAX], kp_pin2[KEYPIN_MAX];	// the digits typed; KP_NEW: the first entry, then the second
+static uint8_t kp_len;		// digits in the entry being typed
+static uint8_t kp_len1;		// KP_NEW: the first entry's length once OK took it, 0 while it is typed
+static uint8_t kp_to_scr = SCR_COUNT;	// KP_ASK: where the right PIN goes (SCR_COUNT: back to the screen under it)
+static uint16_t kp_to_arg, kp_to_focus;
+static bool kp_to_focused;
+static char kp_text[64];	// the body
+static char kp_toast[48];	// a wrong PIN's toast (its own: the body is built again at every draw)
+
+// The key screens (ui_nav.h): Privacy and what it opens, and Tools > Key fill and what it opens. The emergency wipe's
+// screen (typed on Home or while locked) is not one, so the wipe never waits for a PIN; nor is the PIN typed to open them
+bool ui_kp_guarded(uint8_t scr, uint16_t arg)
+{
+	switch (scr) {
+	case SCR_GROUP:
+		return arg < GROUPS && groups[arg].items == s_privacy;
+	case SCR_KEY_PIN:
+		return arg != KP_ASK;
+	case SCR_WIPE:
+		return arg == WIPE_ASK_KEYS_ONLY || arg == WIPE_RUN_KEYS_ONLY;	// Clear all keys
+	case SCR_WIPE_CODE:
+	case SCR_KEYS:
+	case SCR_KEY_SEND:
+	case SCR_KEY_FILL:
+	case SCR_GROUP_KEY:
+	case SCR_KEY_GEN:
+	case SCR_NET_KEYS:
+	case SCR_NET:
+	case SCR_NET_MEMBERS:
+	case SCR_NET_STATUS:
+	case SCR_NET_MEMBER:
+	case SCR_NET_LOCATION:
+	case SCR_NET_ROLLCALL:
+	case SCR_KEY_FILL_MENU:
+		return true;
+	default:
+		return false;
+	}
+}
+
+uint16_t ui_kp_target(uint8_t scr, uint16_t arg)
+{
+	kp_to_scr = scr;
+	kp_to_arg = arg;
+	kp_to_focused = false;
+	return KP_ASK;
+}
+
+void ui_kp_ask(uint8_t scr, uint16_t arg)
+{
+	ui_push(SCR_KEY_PIN, ui_kp_target(scr, arg));
+}
+
+void ui_kp_focus(uint16_t focus)
+{
+	kp_to_focus = focus;
+	kp_to_focused = true;
+}
+
+static void kp_forget(void)
+{
+	memset(kp_pin, 0, sizeof kp_pin);
+	memset(kp_pin2, 0, sizeof kp_pin2);
+	kp_len = kp_len1 = 0;
+}
+
+void ui_kp_forget(void)
+{
+	kp_forget();
+}
+
+static char *kp_entry(void)
+{
+	return ui_frame()->arg == KP_NEW && kp_len1 > 0 ? kp_pin2 : kp_pin;
+}
+
+// "30 s", "2 min": a wait, rounded up
+static void kp_wait_text(sbuf_t *b, uint32_t ms)
+{
+	uint32_t s = (ms + 999u) / 1000u;
+	if (s < 120u) {
+		sb_u32(b, s, 1);
+		sb_str(b, TR(KP_UNIT_S, " s"));
+	} else {
+		sb_u32(b, (s + 59u) / 60u, 1);
+		sb_str(b, TR(KP_UNIT_MIN, " min"));
+	}
+}
+
+static uint16_t kp_count(void) { return ui_frame()->arg == KP_MANAGE ? 2 : 1; }
+
+static void kp_item(uint16_t i, ui_item_t *it)
+{
+	if (ui_frame()->arg == KP_MANAGE) {
+		str_copy(it->label, sizeof it->label, i == 0 ? TR(KP_ROW_CHANGE, "Change PIN") : TR(KP_ROW_OFF, "Turn off"));
+		if (i == 1)
+			it->flags |= UI_ITEM_WARN;
+		return;
+	}
+	str_copy(it->label, sizeof it->label, ui_frame()->arg == KP_ASK ? TR(KP_LABEL_PIN, "PIN") :
+		kp_len1 == 0 ? TR(KP_LABEL_NEW, "New PIN") : TR(KP_LABEL_AGAIN, "Again"));
+	uint8_t k = 0;
+	for (; k < kp_len; k++)
+		it->value[k] = '*';
+	if (kp_len < KEYPIN_MAX)
+		it->value[k++] = '_';
+	it->value[k] = 0;
+	it->flags |= UI_ITEM_EDIT;
+}
+
+static const char *kp_body(void)
+{
+	sbuf_t b;
+	sb_init(&b, kp_text, sizeof kp_text);
+	switch (ui_frame()->arg) {
+	case KP_ASK: {
+		uint32_t wait = ui_svc_keypin_wait_ms();
+		if (wait != 0) {
+			sb_str(&b, TR(KP_BODY_WAIT, "Too many wrong PINs. Wait "));
+			kp_wait_text(&b, wait);
+		} else {
+			sb_str(&b, TR(KP_BODY_ASK, "Type the key PIN, then OK"));
+		}
+		break;
+	}
+	case KP_NEW:
+		sb_str(&b, kp_len1 == 0 ? TR(KP_BODY_NEW, "4 to 8 digits, then OK. Asked before the keys open") :
+			TR(KP_BODY_AGAIN, "Type the PIN again, then OK"));
+		break;
+	default:
+		sb_str(&b, TR(KP_BODY_MANAGE, "Asked before Privacy and Key fill open"));
+		break;
+	}
+	return kp_text;
+}
+
+static const char *kp_hint(void)
+{
+	return ui_frame()->arg == KP_MANAGE ? TR(HINT_OK_PICK_BACK, "OK pick  Back") :
+		TR(KP_HINT_TYPE, "0-9 type  OK  Back");
+}
+
+static const char *kp_title(void)
+{
+	return TR(KP_TITLE, "Key PIN");
+}
+
+// OK on KP_ASK: the PIN tried; right, the screen it was asked for opens in its place
+static void kp_submit_ask(void)
+{
+	if (kp_len < KEYPIN_MIN) {
+		ui_toast(TR(KP_TOAST_DIGITS, "The PIN has 4 to 8 digits"));
+		return;
+	}
+	uint32_t wait;
+	uint8_t r = ui_svc_keypin_try(kp_pin, kp_len, &wait);
+	kp_forget();
+	if (r == UI_KP_RIGHT) {
+		uint8_t scr = kp_to_scr;
+		uint16_t arg = kp_to_arg, focus = kp_to_focus;
+		bool focused = kp_to_focused;
+		kp_to_scr = SCR_COUNT;
+		kp_to_focused = false;
+		ui_kp_unlock();
+		ui_pop();
+		if (scr < SCR_COUNT) {
+			ui_push(scr, arg);
+			if (focused && ui_frame()->scr == scr)
+				ui_frame()->focus = focus;
+		}
+		return;
+	}
+	sbuf_t b;
+	sb_init(&b, kp_toast, sizeof kp_toast);
+	if (r == UI_KP_WAIT) {
+		sb_str(&b, TR(KP_TOAST_WAIT, "Wait "));
+		kp_wait_text(&b, wait);
+	} else {
+		sb_str(&b, TR(KP_TOAST_WRONG, "Wrong PIN"));
+		if (wait != 0) {
+			sb_str(&b, TR(KP_TOAST_WRONG_WAIT, ". Wait "));
+			kp_wait_text(&b, wait);
+		}
+	}
+	ui_svc_beep(UI_BEEP_ERROR);
+	ui_toast(kp_toast);
+}
+
+// OK on KP_NEW: the first entry taken, then the second compared with it and the PIN stored
+static void kp_submit_new(void)
+{
+	if (kp_len < KEYPIN_MIN) {
+		ui_toast(TR(KP_TOAST_DIGITS, "The PIN has 4 to 8 digits"));
+		return;
+	}
+	if (kp_len1 == 0) {
+		kp_len1 = kp_len;
+		kp_len = 0;
+		ui_dirty();
+		return;
+	}
+	bool same = kp_len == kp_len1 && memcmp(kp_pin, kp_pin2, kp_len) == 0;
+	bool stored = same && ui_svc_keypin_set(kp_pin, kp_len);
+	kp_forget();
+	if (!same) {
+		ui_toast(TR(KP_TOAST_DIFFER, "Not the same: type the PIN again"));
+	} else if (!stored) {
+		ui_toast(TR(TOAST_SAVE_FAILED, "Couldn't save: try again"));
+	} else {
+		ui_kp_unlock();		// its owner, already past Privacy: not asked again until it locks
+		ui_pop();
+		ui_toast(TR(KP_TOAST_SET, "Key PIN set"));
+		return;
+	}
+	ui_dirty();
+}
+
+static void kp_select(uint16_t i, bool hold)
+{
+	(void)hold;
+	switch (ui_frame()->arg) {
+	case KP_ASK:
+		kp_submit_ask();
+		break;
+	case KP_NEW:
+		kp_submit_new();
+		break;
+	default:
+		if (i == 0) {
+			kp_forget();
+			ui_frame()->arg = KP_NEW;	// Change: a new PIN, typed twice, in this screen's place
+			ui_frame()->focus = 0;
+		} else {
+			ui_svc_keypin_clear();
+			kp_forget();
+			ui_pop();
+			ui_toast(TR(KP_TOAST_OFF, "Key PIN off"));
+			return;
+		}
+		break;
+	}
+	ui_dirty();
+}
+
+static bool kp_key(const input_event_t *ev)
+{
+	if (ui_frame()->arg == KP_MANAGE)
+		return false;
+	if (ev->action >= ACT_DIGIT_0 && ev->action <= ACT_DIGIT_9 && ev->gesture == GESTURE_PRESS) {
+		if (kp_len < KEYPIN_MAX)
+			kp_entry()[kp_len++] = (char)('0' + (ev->action - ACT_DIGIT_0));
+		ui_dirty();
+		return true;
+	}
+	if (ev->action == ACT_BACK && ev->gesture == GESTURE_PRESS) {
+		if (kp_len > 0) {
+			kp_entry()[--kp_len] = 0;	// takes the last digit back
+		} else {
+			kp_forget();		// none typed: leaves (the screen asked for stays shut)
+			kp_to_scr = SCR_COUNT;
+			ui_pop();
+		}
+		ui_dirty();
+		return true;
+	}
+	return false;
+}
+
+static void kp_enter(void)
+{
+	kp_forget();
+}
+
+static const ui_scr_def_t key_pin_screen = {
+	.name = "key-pin", .flags = SF_LIST | SF_HINT_FN, .prefix = TR_NONE, .title = kp_title, .hint_fn = kp_hint,
+	.count = kp_count, .item = kp_item, .select = kp_select, .key = kp_key, .enter = kp_enter, .body = kp_body,
+};
+#endif
 
 #if RFOUNDRY_HWOPTS
 // ======================= Hardware options (hal_hwopt.h) =======================
@@ -10792,6 +11098,9 @@ const ui_scr_def_t *const ui_scr[SCR_COUNT] = {
 #endif
 #if CONFIG_ZEROIZE
 	[SCR_WIPE_CODE] = &wipe_code_screen, [SCR_WIPE] = &wipe_screen,
+#endif
+#if CONFIG_KEY_PIN
+	[SCR_KEY_PIN] = &key_pin_screen,
 #endif
 	[SCR_DMR_ID] = &dmr_id_screen,
 #if CONFIG_AUTO_DMR_ID && CONFIG_DMR

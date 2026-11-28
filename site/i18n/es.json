@@ -1858,6 +1858,7 @@
  "editor.modes.control": "Control",
  "editor.modes.secret": "Clave",
  "editor.modes.secret_set": "Definida",
+ "editor.modes.secret_hidden": "Oculta (PIN de claves de la radio)",
  "editor.modes.key_check": "Verif. clave",
  "editor.modes.key_check_help": "El valor de verificación de la clave: la radio muestra los mismos seis dígitos para la misma clave (Ajustes > Privacidad > Claves guardadas). Compárelos para ver que dos radios tienen la misma clave sin mostrarla.",
  "editor.modes.secret_none": "Sin definir",

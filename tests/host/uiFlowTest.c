@@ -1430,6 +1430,85 @@ static const flow_t flows[] = {
 	  "1 1 1 1 ctx 1 1 1 1 ctx long:quick long:quick 1 1 1 1 ctx", "wipes=0 locked=1", 17, false },
 #endif
 #endif
+#if CONFIG_KEY_PIN
+	// The key PIN (docs/spec/key-pin.md): asked before Settings > Privacy and Tools > Key fill open, by every way in
+	// (the Settings list, Find, Tools). keypin = a PIN set, kpopen = typed and not locked again, kpwrong = wrong tries.
+	// Settings > Privacy > Key PIN is the row before Radio silence, which is last
+#if CONFIG_RADIO_SILENCE
+#define KP_ROW		"up up"
+#else
+#define KP_ROW		"up"
+#endif
+#define KP_IN		"keypin:1234 ok 7 4 1 2 3 4 ok"		// Privacy, open after the PIN
+	{ "K no PIN set: Privacy opens at once", "", "ok 7 4", "screen=group focus=Key_type keypin=0", 3, false },
+	{ "K Privacy asks for the key PIN", "keypin:1234", "ok 7 4", "screen=key-pin shows=Key_PIN keypin=1 kpopen=0", 3,
+	  false },
+	{ "K the right PIN opens Privacy", "keypin:1234 ok 7 4", "1 2 3 4 ok", "screen=group focus=Key_type kpopen=1", 5,
+	  false },
+	{ "K the PIN shows as stars", "keypin:1234 ok 7 4", "1 2", "screen=key-pin shows=**", 2, false },
+	{ "K a wrong PIN toasts and stays", "keypin:1234 ok 7 4", "1 1 1 1 ok",
+	  "screen=key-pin toast=Wrong_PIN kpwrong=1 kpopen=0", 5, false },
+	{ "K too few digits aren't a try", "keypin:1234 ok 7 4", "1 2 3 ok", "screen=key-pin toast=The_PIN_has_4 kpwrong=0",
+	  4, false },
+	{ "K BACK takes a digit back", "keypin:1234 ok 7 4", "1 2 9 back 3 4 ok", "screen=group kpopen=1", 7, false },
+	{ "K BACK with none typed leaves", "keypin:1234 ok 7 4", "back", "screen=settings kpopen=0", 1, false },
+	{ "K a right PIN after a wrong one resets the count", "keypin:1234 ok 7 4 1 1 1 1 ok", "1 2 3 4 ok",
+	  "screen=group kpwrong=0", 5, false },
+	// Tools > Key fill, and Find opening a Privacy setting: the same PIN, then where the user was going
+	{ "K Tools > Key fill asks for the PIN", "keypin:1234", "ok 6 up ok", "screen=key-pin", 4, false },
+	{ "K Key fill opens after the PIN", "keypin:1234 ok 6 up ok", "1 2 3 4 ok", "screen=key-fill-menu kpopen=1", 5,
+	  false },
+	{ "K no PIN set: Key fill opens at once", "", "ok 6 up ok", "screen=key-fill-menu", 4, false },
+	{ "K Find into a Privacy setting asks for the PIN", "keypin:1234 9 4 7 3", "ok", "screen=key-pin", 1, false },
+	{ "K Find opens the setting after the PIN", "keypin:1234 9 4 7 3 ok", "1 2 3 4 ok",
+	  "screen=group focus=Wipe_code kpopen=1", 5, false },
+	// Unlocked until Home, the key lock or 5 minutes without a key; inside a key screen then, any key but Back asks
+	{ "K unlocked: Privacy again without asking", KP_IN " back", "4", "screen=group", 1, false },
+	{ "K unlocked: Key fill without asking", KP_IN " back back", "6 up ok", "screen=key-fill-menu", 3, false },
+	{ "K Home locks it again", KP_IN " long:back", "ok 7 4", "screen=key-pin kpopen=0", 3, false },
+	{ "K 5 minutes without a key lock it again", KP_IN, "wait:301000 down", "screen=key-pin kpopen=0", 1, false },
+	{ "K locked again: Back still leaves", KP_IN " wait:301000", "back", "screen=settings kpopen=0", 1, false },
+	{ "K locked again: the PIN goes back to the screen", KP_IN " down wait:301000 down", "1 2 3 4 ok",
+	  "screen=group focus=Key kpopen=1", 5, false },
+	{ "K the key lock locks it again", "autolock:30 " KP_IN, "wait:31000", "locked=1 kpopen=0", 0, false },
+	// The back-off (key-pin.md 4): 3 wrong tries free, then 30 s, doubling; the right PIN isn't even tried meanwhile
+	{ "K three wrong PINs, then a wait", "keypin:1234 ok 7 4 1 1 1 1 ok 1 1 1 1 ok", "1 1 1 1 ok",
+	  "screen=key-pin kpwrong=3 toast=Wrong_PIN._Wait_30_s shows=Wait_30_s", 5, false },
+	{ "K while waiting the right PIN isn't tried", "keypin:1234 ok 7 4 1 1 1 1 ok 1 1 1 1 ok 1 1 1 1 ok", "1 2 3 4 ok",
+	  "screen=key-pin toast=Wait kpwrong=3 kpopen=0", 5, false },
+	{ "K the fourth wrong PIN waits a minute", "keypin:1234 ok 7 4 1 1 1 1 ok 1 1 1 1 ok 1 1 1 1 ok wait:31000",
+	  "1 1 1 1 ok", "kpwrong=4 toast=Wrong_PIN._Wait_60_s", 5, false },
+	{ "K after the wait the right PIN opens", "keypin:1234 ok 7 4 1 1 1 1 ok 1 1 1 1 ok 1 1 1 1 ok wait:31000",
+	  "1 2 3 4 ok", "screen=group kpwrong=0 kpopen=1", 5, false },
+	// Settings > Privacy > Key PIN: Off / On; a new PIN typed twice; Change, Turn off
+	{ "K the Key PIN row says Off", "ok 7 4", KP_ROW, "focus=Key_PIN shows=Off", 2, false },
+	{ "K the Key PIN row says On", KP_IN, KP_ROW, "focus=Key_PIN shows=On", 2, false },
+	{ "K setting a PIN", "ok 7 4 " KP_ROW " ok", "1 2 3 4 ok 1 2 3 4 ok",
+	  "keypin=1 kpopen=1 toast=Key_PIN_set screen=group focus=Key_PIN", 10, false },
+	{ "K a PIN of 8 digits", "ok 7 4 " KP_ROW " ok", "1 2 3 4 5 6 7 8 ok 1 2 3 4 5 6 7 8 ok", "keypin=1", 18, false },
+	{ "K PINs that differ aren't set", "ok 7 4 " KP_ROW " ok", "1 2 3 4 ok 5 6 7 8 ok",
+	  "keypin=0 toast=Not_the_same screen=key-pin shows=New_PIN", 10, false },
+	{ "K a set PIN is asked next time", "ok 7 4 " KP_ROW " ok 1 2 3 4 ok 1 2 3 4 ok long:back", "ok 7 4",
+	  "screen=key-pin", 3, false },
+	{ "K turning the PIN off", KP_IN " " KP_ROW " ok", "down ok", "keypin=0 toast=Key_PIN_off screen=group", 2, false },
+	{ "K changing the PIN", KP_IN " " KP_ROW " ok", "ok 5 6 7 8 9 ok 5 6 7 8 9 ok", "keypin=1 toast=Key_PIN_set", 13,
+	  false },
+	{ "K the changed PIN opens Privacy", KP_IN " " KP_ROW " ok ok 5 6 7 8 9 ok 5 6 7 8 9 ok long:back ok 7 4",
+	  "5 6 7 8 9 ok", "screen=group kpopen=1", 6, false },
+#if CONFIG_ZEROIZE
+	{ "K the emergency wipe never waits for the PIN", "keypin:1234 wipecode:2468", "2 4 6 8 ctx ok", "screen=wipe wipes=1",
+	  6, false },
+	// Clear all keys left asking when the PIN locked again: OK asks for the PIN and clears nothing, Back still cancels
+	{ "K Clear all keys asks again once locked", KP_IN " down down down down down down down down ok wait:301000", "ok",
+	  "screen=key-pin keyclears=0", 1, false },
+	{ "K Clear all keys: Back cancels once locked", KP_IN " down down down down down down down down ok wait:301000",
+	  "back", "screen=group keyclears=0", 1, false },
+	{ "K Clear all keys after the PIN again", KP_IN " down down down down down down down down ok wait:301000 ok",
+	  "1 2 3 4 ok ok", "screen=wipe keyclears=1", 6, false },
+#endif
+#undef KP_IN
+#undef KP_ROW
+#endif
 	{ "S number typed", "", "ok 7 3 down down ok 3 ok", "sq=5 set12=3", 8, false },
 	{ "S voice prompts not built", "ok 7 1 down down down down down down down down down", "ok", "toast=Voice_prompts", 1, false },
 	{ "S mode tile in the VFO", "ok 4 up ok", "quick 4", "toast=VFO:_DMR mode=dmr temporary=0 vfo=1", 2, false },

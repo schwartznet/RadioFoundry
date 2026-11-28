@@ -7,6 +7,7 @@
 #include "debuglink/debuglink.h"
 #include "debuglink/debuglink_proto.h"
 #include "codeplug/codeplug_kv.h"
+#include "keypin/keypin.h"
 
 #if CONFIG_DMR_DATA_CORE || CONFIG_DMR_TRUNK
 #define VALUE_MAX	128u	// the longest value set through here: a request is at most DL_REQ_MAX bytes a piece
@@ -26,10 +27,13 @@ size_t __attribute__((noinline)) debuglink_cmd_cpkv(const uint8_t *req, uint16_t
 	}
 	uint16_t key = rd16(req + 1);
 	out[0] = DL_ST_OK;
+	if ((req[0] == DL_CPKV_SET || req[0] == DL_CPKV_REMOVE) && codeplug_kv_secret(key) && KEYPIN_GUARD()) {
+		out[0] = DL_ST_REFUSED;	// loading or erasing a key by cable needs the key PIN (key-pin.md 10.3)
+		return 1;
+	}
 	switch (req[0]) {
 	case DL_CPKV_GET: {	// key u16, offset u16 -> length u16, the value's bytes from offset
-		if ((key >= CODEPLUG_KEY_SYS_KEY && key < CODEPLUG_KEY_CH_TAG) ||
-		    (key >= CODEPLUG_KEY_TRAFFIC && key < CODEPLUG_KEY_ZONE_TAG)) {
+		if (codeplug_kv_secret(key)) {
 			out[0] = DL_ST_UNAVAILABLE;	// system and traffic keys are write-only over this interface
 			return 1;
 		}

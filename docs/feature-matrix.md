@@ -64,6 +64,7 @@ is `tools/bringup.py list --radio <id>`.
 | `key_fill` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | `group_key_fill` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | `zeroize` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | off |
+| `key_pin` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | off |
 | `dmr_aes` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | `dmr_data_privacy` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | `dmr_talker_alias` | not recorded | pass (seed) | not recorded | not recorded | not recorded | not recorded | pass, needs re-run | pass, needs re-run |
@@ -215,6 +216,7 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 | `GROUP_KEY_FILL` | ● | ● | ● | ● | ● | ● | ● | ● |
 | `OTAR` | ● | ● | ● | ● | ● | ● | ● | ● |
 | `ZEROIZE` | ● | ● | ● | ● | ● | ● | ● | ○ |
+| `KEY_PIN` | ● | ● | ● | ● | ● | ● | ● | ○ |
 | `DMR_TALKER_ALIAS` | ● | ● | ● | ● | ● | ● | ● | ● |
 | `DMR_GPS` | ● | ● | ● | ● | ● | ● | ● | ○ |
 | `DMR_SMS` | ● | ● | ● | ● | ● | ● | ● | ✕ |

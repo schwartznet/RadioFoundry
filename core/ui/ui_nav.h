@@ -60,6 +60,7 @@ typedef enum {
 	SCR_WIPE_CODE, SCR_WIPE,	// the emergency wipe (CONFIG_ZEROIZE): its code; the confirmation and the wipe
 	SCR_KEY_FILL_MENU,		// Tools > Key fill: receive, send (CONFIG_KEY_FILL)
 	SCR_MSG_NEW, SCR_MSG_TO,	// Messages > New message: whom to (CONFIG_DMR_SMS); a contact or a typed ID
+	SCR_KEY_PIN,			// the key PIN (CONFIG_KEY_PIN): typed to open the key screens; set, changed, turned off
 #if CONFIG_BACKLIGHT_TEST
 	SCR_BL_TEST,			// Settings > Advanced > Backlight tests
 #endif
@@ -153,6 +154,23 @@ void ui_backlight_hold(int16_t percent);
 void ui_go_home(void);
 // The emergency wipe's screen (CONFIG_ZEROIZE, docs/spec/zeroize.md 3.1): its confirmation, or the wipe started at once
 void ui_wipe_open(bool confirm);
+#if CONFIG_KEY_PIN
+// The key PIN (docs/spec/key-pin.md 3, 6). The key screens are the protected area: Settings > Privacy and every screen
+// it or Tools > Key fill opens (ui_kp_guarded, ui_menus.c). While a PIN is set and the radio isn't unlocked, ui_push
+// into the area from outside it opens the PIN screen instead (ui_kp_ask), and inside it any key but Back asks first.
+// Unlocked by the right PIN (ui_kp_unlock), in RAM only; locked again on Home, by the key lock, after 5 minutes
+// without a key press and at start-up (ui_app.c)
+bool ui_kp_guarded(uint8_t scr, uint16_t arg);
+// The PIN screen, then scr with arg once the PIN is right (scr SCR_COUNT: back to the screen under it)
+void ui_kp_ask(uint8_t scr, uint16_t arg);
+// The same target kept for the PIN screen ui_push opens itself; returns that screen's arg
+uint16_t ui_kp_target(uint8_t scr, uint16_t arg);
+// The row the screen ui_kp_ask continues to opens on (a setting opened through Find)
+void ui_kp_focus(uint16_t focus);
+bool ui_kp_unlocked(void);
+void ui_kp_unlock(void);
+void ui_kp_forget(void);	// digits typed on the PIN screen zeroed (going Home, where it may be left by long Back)
+#endif
 void ui_toast(const char *text);
 // Save temporary channel changes and tell the user why a save cannot start
 bool ui_try_save_channel(void);

@@ -258,6 +258,11 @@
 #ifndef CONFIG_ZEROIZE
 #define CONFIG_ZEROIZE			CONFIG_UI_SETTINGS
 #endif
+// The key PIN (docs/spec/key-pin.md): set in Settings > Privacy, so with the settings menu and DMR privacy (the key
+// store, and key fill when built)
+#ifndef CONFIG_KEY_PIN
+#define CONFIG_KEY_PIN			(CONFIG_UI_SETTINGS && CONFIG_DMR && CONFIG_DMR_PRIVACY)
+#endif
 #ifndef CONFIG_SCAN
 #define CONFIG_SCAN			1
 #endif
@@ -550,6 +555,9 @@
 #endif
 #if CONFIG_ZEROIZE && !CONFIG_UI_SETTINGS
 #error "CONFIG_ZEROIZE needs CONFIG_UI_SETTINGS (the wipe code is set there)"
+#endif
+#if CONFIG_KEY_PIN && !(CONFIG_UI_SETTINGS && CONFIG_DMR && CONFIG_DMR_PRIVACY)
+#error "CONFIG_KEY_PIN needs CONFIG_UI_SETTINGS and CONFIG_DMR_PRIVACY (the PIN is set in Settings > Privacy)"
 #endif
 #if CONFIG_AIR_RAW && !CONFIG_AIR
 #error "CONFIG_AIR_RAW needs CONFIG_P25 or CONFIG_NXDN (an air-framed mode)"

@@ -58,6 +58,7 @@
 //   foreign             the codeplug is another firmware's: a channel write asks first (codeplug-foreign)
 //   wipecode:<dddd>     the emergency wipe's code is set to these four digits (CONFIG_ZEROIZE)
 //   wipefail:<bits>     the next emergency wipe fails with these UI_WIPE_FAIL_* bits (0: it works)
+//   keypin:<digits>     the key PIN is set to these 4 to 8 digits (CONFIG_KEY_PIN); expect keypin, kpopen, kpwrong
 //   aeskeys             system 3 is a DMR AES one holding traffic keys 0 and 7 (the channel editor's AES key row)
 //   datadeny:<d>[,<p>]  why the channel can't send data now: view.data_deny d, packet_deny p (default d), each none,
 //                       aes_key, not_dmr or data_encrypted
@@ -100,6 +101,7 @@
 #include "ui/ui_svc_aprs.h"
 #include "codeplug/codeplug_tag.h"
 #include "codeplug/key_store.h"
+#include "keypin/keypin.h"
 #include "support/kcv.h"
 #if CONFIG_KEY_FILL
 #include "keyfill/keyfill.h"
@@ -2670,6 +2672,51 @@ uint8_t ui_svc_wipe_state(uint8_t *failed)
 	return sim_wipe_state;
 }
 
+// The key PIN (ui_svc.h, docs/spec/key-pin.md): kept as typed (the firmware keeps a salted hash); the back-off by the
+// firmware's own rule (keypin.h) on the simulated clock
+static char sim_kp[KEYPIN_MAX];
+static uint8_t sim_kp_len, sim_kp_wrong;	// sim_kp_len 0: no PIN
+static uint32_t sim_kp_last;			// the last wrong try
+bool ui_svc_keypin_is_set(void) { return sim_kp_len != 0; }
+bool ui_svc_keypin_set(const char *pin, uint8_t len)
+{
+	if (!keypin_valid(pin, len))
+		return false;
+	memcpy(sim_kp, pin, len);
+	sim_kp_len = len;
+	sim_kp_wrong = 0;
+#if CONFIG_KEY_PIN
+	keypin_note(true);
+#endif
+	return true;
+}
+void ui_svc_keypin_clear(void)
+{
+	memset(sim_kp, 0, sizeof sim_kp);
+	sim_kp_len = sim_kp_wrong = 0;
+#if CONFIG_KEY_PIN
+	keypin_note(false);
+#endif
+}
+uint32_t ui_svc_keypin_wait_ms(void) { return keypin_wait_left(sim_kp_wrong, sim_kp_last, now_ms); }
+uint8_t ui_svc_keypin_wrong(void) { return sim_kp_wrong; }
+uint8_t ui_svc_keypin_try(const char *pin, uint8_t len, uint32_t *wait_ms)
+{
+	uint8_t r;
+	if (ui_svc_keypin_wait_ms() != 0) {
+		r = UI_KP_WAIT;
+	} else if (sim_kp_len != 0 && len == sim_kp_len && memcmp(pin, sim_kp, len) == 0) {
+		sim_kp_wrong = 0;
+		r = UI_KP_RIGHT;
+	} else {
+		sim_kp_wrong = sim_kp_wrong < KEYPIN_WRONG_MAX ? (uint8_t)(sim_kp_wrong + 1u) : sim_kp_wrong;
+		sim_kp_last = now_ms;
+		r = UI_KP_WRONG;
+	}
+	*wait_ms = ui_svc_keypin_wait_ms();
+	return r;
+}
+
 // The crash log (ui_svc.h): "crash:on" a record from before this start nobody has seen, "crash:ask" / "crash:auto"
 // the same with the report's mode and the first contact (USA, TG 3100) as its target. A report goes at once;
 // "crashtx:refuse" makes the next sends fail to start (one still going), "crashtx:fail" makes them end failed
@@ -3646,6 +3693,8 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 {
 	emergency_on = false;
 	memset(sim_wipe_code, 0, sizeof sim_wipe_code);
+	ui_svc_keypin_clear();
+	sim_kp_last = 0;
 	sim_wipes = 0;
 	sim_key_clears = 0;
 #if CONFIG_GROUP_KEY_FILL
@@ -4113,6 +4162,10 @@ static bool check(const char *kv, char *err, size_t len)
 	else if (strcmp(key, "gksaved") == 0) snprintf(got, sizeof got, "%u", (unsigned)(gk_sim.saved ? gk_sim.saved - 1u : 0u));
 #endif
 	else if (strcmp(key, "wipecode") == 0) snprintf(got, sizeof got, "%d", (int)ui_svc_setting_get(UI_SET_WIPE_CODE));
+	// The key PIN: set (1), typed and not locked again (kpopen 1), consecutive wrong PINs
+	else if (strcmp(key, "keypin") == 0) snprintf(got, sizeof got, "%u", (unsigned)s.kp_set);
+	else if (strcmp(key, "kpopen") == 0) snprintf(got, sizeof got, "%u", (unsigned)s.kp_unlocked);
+	else if (strcmp(key, "kpwrong") == 0) snprintf(got, sizeof got, "%u", (unsigned)s.kp_wrong);
 	else if (strcmp(key, "poweroff") == 0) snprintf(got, sizeof got, "%u", ui_app_power_off_due());
 	else if (strcmp(key, "wake") == 0) snprintf(got, sizeof got, "%u", ui_app_take_wake());	// the backlight asked for
 	else if (strncmp(key, "set", 3) == 0 && key[3] >= '0' && key[3] <= '9')	// set<N>: ui_setting_t N's value
@@ -4876,6 +4929,10 @@ static bool run_token(char *t, char *err, size_t len)
 	}
 	if (strcmp(t, "wipecode") == 0 && arg != NULL && strlen(arg) == 4) {
 		ui_svc_wipe_code_set(arg);
+		return true;
+	}
+	if (strcmp(t, "keypin") == 0 && arg != NULL && keypin_valid(arg, (uint8_t)strlen(arg))) {
+		ui_svc_keypin_set(arg, (uint8_t)strlen(arg));
 		return true;
 	}
 	if (strcmp(t, "wipefail") == 0 && arg != NULL) {

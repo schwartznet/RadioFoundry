@@ -52,6 +52,9 @@ typedef struct {
 	bool dual;		// the UI runs dual watch: it has taken over a watch the debug link started
 	int8_t volbar;		// the knob's volume bar shows this step, -1 = not shown
 	bool volbar_top;	// ... in the status strip: the last frame drew no hint row
+	bool kp_set;		// a key PIN is set (CONFIG_KEY_PIN, docs/spec/key-pin.md; false without it)
+	bool kp_unlocked;	// ... and the right one was typed: the key screens open without asking
+	uint8_t kp_wrong;	// ... consecutive wrong PINs (the back-off)
 } ui_app_status_t;
 void ui_app_status(ui_app_status_t *st);
 // The label of the focused row on a list screen ("" otherwise), for scripted checks

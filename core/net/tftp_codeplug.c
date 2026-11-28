@@ -185,6 +185,9 @@ static bool read_file(uint32_t off, uint8_t *buf, uint16_t len)
 		if (lo < hi && !flash_read(phys(lo), buf + (lo - off), hi - lo)) {
 			return false;
 		}
+		if (lo < hi) {
+			codeplug_kv_redact(phys(lo), buf + (lo - off), hi - lo);	// the keys as the cable sees them (key-pin.md 10)
+		}
 	}
 	return true;
 }

@@ -986,8 +986,13 @@ static void test_settings_layout(void)
 		{ offsetof(settings_t, otar_seen_id), 528 },	// whose counter each is (otar.md 7.6), appended
 		{ offsetof(settings_t, entropy_seed), 544 },	// the randomness pool's seed (key-fill.md 6.1), appended
 		{ offsetof(settings_t, otar_chan), 576 },	// the OTAR net's channel (otar.md 7.8), appended
+		{ offsetof(settings_t, otar_sil), 604 },	// OTAR remote silence (otar.md 7.11), appended
+		{ offsetof(settings_t, kp_flags), 608 },	// the key PIN (key-pin.md 5), appended
+		{ offsetof(settings_t, kp_reserved), 609 },
+		{ offsetof(settings_t, kp_salt), 612 },
+		{ offsetof(settings_t, kp_hash), 616 },
 	};
-	CHECK(sizeof(settings_t) == 608);
+	CHECK(sizeof(settings_t) == 632);
 	for (unsigned i = 0; i < sizeof(offs) / sizeof(offs[0]); i++) {
 		if (offs[i].got != offs[i].want) {
 			printf("FAIL settings_t field %u at %zu, layout 1 has it at %zu\n", i, offs[i].got, offs[i].want);

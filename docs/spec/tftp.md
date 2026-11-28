@@ -38,7 +38,8 @@ out over a read (`cps-protocol.md` 2.7 has the same open question for the CPS's 
 **Format: the flat image `tools/cps_client.py` reads and writes**, 716,384 bytes (0xAEE60): file offset = the
 open-firmware CPS's STM32 wire address. Bytes 0x00000-0x0FFFF are the EEPROM image, 0x20000 on the flash image
 (`open-firmware-cps.md` 7.1). On a read, the regions qdmr transfers and the codeplug settings area hold the stored
-bytes and everything else is 0xFF:
+bytes and everything else is 0xFF (while a key PIN is set and the radio is locked, the area's keys read hidden and a
+write keeps the radio's, [key-pin.md](key-pin.md) 10):
 
 | File range | Content |
 |---|---|

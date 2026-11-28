@@ -55,7 +55,7 @@ export function systemsTab(api, features) {
 				h("td", {}, t(`editor.modes.tx${txChoice(mod, systemTx(s), s.fields)}_short`)),
 				h("td", {}, t(shareLabel(mod, s.sharing <= 2 ? s.sharing : 0))),
 				h("td", {}, mod?.conventional ? "" : String(s.entries.filter((e) => e.control).length)),
-				h("td", {}, mod?.conventional ? "" : t(s.secret ? "editor.modes.secret_set" : "editor.modes.secret_none")),
+				h("td", {}, mod?.conventional ? "" : t(s.secret?.hidden ? "editor.modes.secret_hidden" : s.secret ? "editor.modes.secret_set" : "editor.modes.secret_none")),
 				h("td", {}, String(used)),
 				h("td", {}, h("div", { class: "ed-actions" }, ...actions,
 					button(t("editor.delete"), () => deleteSystem(api, s), { quiet: true, danger: true }))));
@@ -225,7 +225,10 @@ function trafficFields({ t, h, button }, system, traffic) {
 	// Each row's key check value (docs/spec/key-check.md), from what is typed now: the same six digits the radio shows
 	// for the key, so the two can be compared without showing the key. "-" while a field doesn't parse
 	const checks = [];
+	// A key the radio hid (its key PIN, docs/spec/key-pin.md 10.1) and not typed over: no value to show or check
+	const hiddenKey = (row) => row.hidden && !traffic.columns.some((col) => col.secret && row._text?.[col.key] != null);
 	const kcvOf = async (row) => {
+		if (hiddenKey(row)) return "-";
 		const key = {};
 		for (const col of traffic.columns) {
 			const raw = row._text?.[col.key] ?? formatSpec(col, row[col.key], t);
@@ -255,7 +258,8 @@ function trafficFields({ t, h, button }, system, traffic) {
 	const secretCell = (col, row) => {
 		const hidden = !reveal;
 		const has = row[col.key] != null || row._text?.[col.key];
-		const body = hidden && has ? t("editor.modes.secret_set") : cell(h, t, col, row, hidden);
+		const body = hiddenKey(row) ? t("editor.modes.secret_hidden") :
+			hidden && has ? t("editor.modes.secret_set") : cell(h, t, col, row, hidden);
 		if (!col.generate) return body;
 		return h("span", {}, body, button(t("editor.aes.generate"), () => {
 			row._text = { ...row._text, [col.key]: col.generate() };
@@ -292,7 +296,8 @@ function trafficFields({ t, h, button }, system, traffic) {
 		{ type: "custom", key: "trafficKeys", render: () => table, parse: (form) => {
 			const errors = [], keys = [], ids = new Set();
 			for (const row of rows) {
-				const key = { slot: row.slot, flags: row.flags };
+				// A hidden key not typed over goes back as it came (its octets 0): the radio keeps its own
+				const key = { slot: row.slot, flags: row.flags, ...(hiddenKey(row) ? { hidden: true } : {}) };
 				for (const col of traffic.columns) {
 					const raw = row._text?.[col.key] ?? formatSpec(col, row[col.key], t);
 					const result = raw.trim() ? parseSpec(col, raw, t) : { error: blank(col) };

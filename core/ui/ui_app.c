@@ -26,6 +26,7 @@
 #include "config.h"
 #include "codeplug/codeplug_modes.h"	// CODEPLUG_KIND_NONE
 #include "zeroize/zeroize.h"		// the wipe's key sequence (header only)
+#include "keypin/keypin.h"		// the key PIN's unlocked state (CONFIG_KEY_PIN)
 #if CONFIG_HOTSPOT || (CONFIG_USB_NETWORK && CONFIG_HOSTLINK)
 #include "hostlink/hostlink.h"
 #endif
@@ -131,6 +132,12 @@ static void entry_cancel(void)
 static zeroize_seq_t wipe_seq;		// the emergency wipe's key sequence (docs/spec/zeroize.md 3)
 static uint8_t wipe_wrong;		// wrong codes typed while locked, since the keys were last unlocked
 #endif
+#if CONFIG_KEY_PIN
+#define KP_IDLE_MS	(5u * 60u * 1000u)	// the key PIN locks again after this long without a key press
+// Unlocked or not is keypin.c's (keypin_open, RAM only), so the host paths on other tasks read it too (key-pin.md 3, 10)
+bool ui_kp_unlocked(void) { return keypin_open(); }
+void ui_kp_unlock(void) { keypin_unlock(); }
+#endif
 
 // Lock or unlock the keys; PTT goes with them when Settings > Key lock > PTT when locked is off
 static void set_locked(bool locked)
@@ -143,6 +150,9 @@ static void set_locked(bool locked)
 	if (locked) {
 		ui_st.quick_edit = false;
 		entry_cancel();
+#if CONFIG_KEY_PIN
+		keypin_lock();	// the key lock locks the key screens too (key-pin.md 3)
+#endif
 	}
 	ui_svc_ptt_block(locked && !ui_st.ptt_locked);
 	ui_svc_dtmf_block(locked);
@@ -192,6 +202,15 @@ static void left(uint8_t from)
 
 void ui_push(uint8_t scr, uint16_t arg)
 {
+#if CONFIG_KEY_PIN
+	// Into the key screens from outside them (the Settings list, Find, Tools): the PIN first, then scr. A push from one
+	// key screen to another isn't asked again: inside them a key but Back already asked (kp_key)
+	if (!keypin_open() && ui_kp_guarded(scr, arg) && !ui_kp_guarded(stack[sp].scr, stack[sp].arg) &&
+	    ui_svc_keypin_is_set()) {
+		arg = ui_kp_target(scr, arg);	// pushed here, not by a call back into ui_push
+		scr = SCR_KEY_PIN;
+	}
+#endif
 	if (sp + 1 >= UI_STACK_MAX) {
 		left(UI_STACK_MAX - 1);
 		sp = UI_STACK_MAX - 2;	// never deeper than the stack: the oldest levels stay, the newest is replaced
@@ -248,6 +267,10 @@ void ui_pop(void)
 	left(sp);
 	if (sp > 0)
 		sp--;
+#if CONFIG_KEY_PIN
+	if (sp == 0)
+		keypin_lock();	// Home: the key PIN locks again (key-pin.md 3)
+#endif
 	if (ui_scr[stack[sp].scr]->flags & SF_FILTER)
 		ui_filter_rebuild();
 #if CONFIG_ZONE_EDIT
@@ -263,6 +286,10 @@ void ui_go_home(void)
 	cp_question_gone(1);
 	left(1);
 	sp = 0;
+#if CONFIG_KEY_PIN
+	keypin_lock();	// Home: the key PIN locks again (key-pin.md 3)
+	ui_kp_forget();		// and digits left on its screen go
+#endif
 	ui_st.quick_edit = false;
 	entry_cancel();
 	update_focus_target();
@@ -2055,6 +2082,9 @@ void ui_app_init(void)
 #if CONFIG_DMR
 	hear_all_key = 0;
 #endif
+#if CONFIG_KEY_PIN
+	keypin_lock();	// locked at start-up (key-pin.md 3)
+#endif
 	has_quick_key = ui_has_action(ACT_QUICK);
 	has_unlock_key = has_quick_key || ui_has_action(ACT_BACK);
 	has_context_key = ui_has_action(ACT_CONTEXT);
@@ -2202,14 +2232,34 @@ static void call_back_key(void)
 	ui_toast(TR(EMPTY_NO_CALLS_HEARD, "No calls heard yet"));
 }
 
+#if CONFIG_KEY_PIN
+// A key screen on top while the key PIN is locked (it locked again with the screen open: the key lock, 5 minutes
+// without a key): Back does what it does, so the user can always leave; any other key asks for the PIN first and does
+// nothing else (key-pin.md 6). True: taken
+static bool kp_key(const input_event_t *ev)
+{
+	if (keypin_open() || !ui_kp_guarded(stack[sp].scr, stack[sp].arg) ||
+	    (ev->action == ACT_BACK && ev->gesture == GESTURE_PRESS) || !ui_svc_keypin_is_set())
+		return false;
+	if (ev->gesture == GESTURE_PRESS || ev->gesture == GESTURE_LONG || ev->action == ACT_ENC_STEP)
+		ui_kp_ask(SCR_COUNT, 0);
+	return true;
+}
+#endif
+
 #if CONFIG_ZEROIZE
 // The emergency wipe's key sequence (docs/spec/zeroize.md 3): four digits and # on Home (and in Find, which the first
 // digit opens in channel mode), or on any screen while the keys are locked. The digits are never taken: they do what
 // they do, so no other sequence behaves differently. # is taken only after the wipe code. True: taken
 static bool wipe_seq_key(const input_event_t *ev)
 {
-	if (stack[sp].scr == SCR_WIPE && ui_scr[SCR_WIPE] != NULL)
+	if (stack[sp].scr == SCR_WIPE && ui_scr[SCR_WIPE] != NULL) {
+#if CONFIG_KEY_PIN
+		if (kp_key(ev))
+			return true;	// Clear all keys left open when the key PIN locked again: the PIN first, Back still cancels
+#endif
 		return ui_scr[SCR_WIPE]->key(ev);	// its confirmation and result, before the key lock
+	}
 	bool where = ui_st.locked || sp == 0 || (wipe_seq.n > 0 && sp == 1 && stack[1].scr == SCR_FIND);
 	int d = digit_of(ev);
 	if (where && d >= 0 && ev->gesture == GESTURE_PRESS) {
@@ -2243,6 +2293,7 @@ static bool wipe_seq_key(const input_event_t *ev)
 	return true;
 }
 #endif
+
 
 void ui_app_key(const input_event_t *ev)
 {
@@ -2485,6 +2536,10 @@ void ui_app_key(const input_event_t *ev)
 		ui_push(SCR_QUICK, 0);
 		return;
 	}
+#if CONFIG_KEY_PIN
+	if (kp_key(ev))
+		return;
+#endif
 	if (d->key != NULL && d->key(ev))
 		return;
 	if (d->flags & SF_LIST) {
@@ -2855,6 +2910,11 @@ __attribute__((noinline)) static bool app_tick(const radio_view_t *v, uint32_t n
 			now - last_key_ms >= (uint32_t)ui_st.auto_lock_s * 1000u) {
 		set_locked(true);
 	}
+#if CONFIG_KEY_PIN
+	// The key PIN locks again on Home and after KP_IDLE_MS without a key press (key-pin.md 3)
+	if (keypin_open() && (sp == 0 || now - last_key_ms >= KP_IDLE_MS))
+		keypin_lock();
+#endif
 	use_tick(v);
 #if CONFIG_DMR
 	hear_all_tick(v);
@@ -3030,4 +3090,12 @@ void ui_app_status(ui_app_status_t *s)
 #endif
 	s->volbar = ui_st.volbar;
 	s->volbar_top = volbar_top;
+#if CONFIG_KEY_PIN
+	s->kp_set = ui_svc_keypin_is_set();
+	s->kp_unlocked = keypin_open();
+	s->kp_wrong = ui_svc_keypin_wrong();
+#else
+	s->kp_set = s->kp_unlocked = false;
+	s->kp_wrong = 0;
+#endif
 }

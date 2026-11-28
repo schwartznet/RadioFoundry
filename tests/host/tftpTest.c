@@ -10,9 +10,11 @@
 // commit, finished by tftp_codeplug_resume. Then the DMR ID database (core/net/tftp_iddb.c): iddb.bin written, looked up
 // and read back, refusals, transfers that stop or run long leaving no database, and a combined codeplug.bin that
 // carries one, or doesn't. The short transfers go to tftpTest.pcap for tshark.
+#define _GNU_SOURCE	// memmem
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "keypin/keypin.h"
 #include "dmr/ipGateway.h"
 #include "net/tftp.h"
 #include "net/tftp_codeplug.h"
@@ -711,6 +713,27 @@ static void test_settings_area(void)
 	CHECK(put("codeplug.bin", NULL, img, sizeof(img), 512) == 0);
 	CHECK(sim_flash_data[EE + CODEPLUG_KV_ADDR + 4] == CODEPLUG_KV_VERSION + 1);
 	CHECK(sim_flash_violations() == 0);
+#if CONFIG_KEY_PIN
+	// A key PIN set and the radio locked (key-pin.md 10): codeplug.bin carries the area with its keys hidden, and the
+	// file put back (a new value for the key in it, too) keeps the radio's key. Unlocked: as before
+	static const uint8_t key[5 + 16] = { 1, 1, 3, 0, 0, 'S', 'E', 'C', 'R', 'E', 'T', '-', 'A', 'R', 'C', '4', '-', 'K',
+					     'E', 'Y', '!' };
+	uint8_t got[32];
+	populate();
+	CHECK(codeplug_kv_set(CODEPLUG_KEY_TRAFFIC + 2u, key, sizeof(key)));
+	keypin_note(true);
+	keypin_lock();
+	CHECK(get("codeplug.bin", NULL, img, sizeof(img), 512) == (long)TFTP_CODEPLUG_SIZE);
+	CHECK(codeplug_kv_check(img + CODEPLUG_KV_ADDR) == CODEPLUG_KV_VALID);
+	CHECK(memmem(img, sizeof(img), "SECRET-ARC4", 11) == NULL && memmem(img, sizeof(img), "\x01\x01\x03\x00\x00", 5) != NULL);
+	CHECK(put("codeplug.bin", NULL, img, sizeof(img), 512) == 0);
+	CHECK(codeplug_kv_get(CODEPLUG_KEY_TRAFFIC + 2u, got, sizeof(got)) == (int)sizeof(key) && memcmp(got, key, sizeof(key)) == 0);
+	keypin_unlock();
+	CHECK(get("codeplug.bin", NULL, img, sizeof(img), 512) == (long)TFTP_CODEPLUG_SIZE);
+	CHECK(memmem(img, sizeof(img), "SECRET-ARC4", 11) != NULL);
+	keypin_lock();
+	keypin_note(false);
+#endif
 	capture = true;
 }
 

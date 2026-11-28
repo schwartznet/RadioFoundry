@@ -143,6 +143,9 @@ endif
 ifeq ($(CONFIG_ZEROIZE),y)
 CORE_DIRS += core/zeroize
 endif
+ifeq ($(CONFIG_KEY_PIN),y)
+CORE_DIRS += core/keypin
+endif
 # The storage layer over SPI NAND, for the boards that list it (BOARD_NAND_DIRS in their board.mk)
 ifeq ($(CONFIG_NAND_STORAGE),y)
 BOARD_DIRS += $(BOARD_NAND_DIRS)
@@ -238,6 +241,10 @@ APP_SRC += $(filter-out $(APP_SRC),core/otar/otar_keys.c core/otar/otar_crypto.c
 endif
 # The emergency wipe's code hash (core/support is globbed with SUPPORT_INFO): SHA-256 with its own switch, once
 ifeq ($(CONFIG_ZEROIZE),y)
+APP_SRC += $(filter-out $(APP_SRC),core/support/sha256.c)
+endif
+# The key PIN's hash (docs/spec/key-pin.md 2): the same SHA-256, once, without the emergency wipe too
+ifeq ($(CONFIG_KEY_PIN),y)
 APP_SRC += $(filter-out $(APP_SRC),core/support/sha256.c)
 endif
 # Zone sharing over DMR data: the record, the sender and the offers (its codeplug side is core/codeplug/zone_import.c)

@@ -11,6 +11,7 @@
 #include "board.h"
 #include "codeplug/codeplug.h"
 #include "codeplug/codeplug_kv.h"
+#include "keypin/keypin.h"
 #include "settings/settings.h"
 #include "storage/storage.h"
 
@@ -255,6 +256,7 @@ static void read_flash(uint32_t addr, uint16_t len)
 		if (overlay) {
 			overlay_vfo(addr + off, c + h, n, vfo);
 		}
+		codeplug_kv_redact(addr + off, c + h, n);	// the keys as the cable sees them (key-pin.md 10)
 		send(c, h + n);
 		h = 0;
 	}
@@ -291,6 +293,24 @@ static void read_other(bool rom, uint32_t addr, uint16_t len)
 	stats.reads++;
 }
 
+#if CONFIG_KEY_PIN
+static bool overlaps(uint32_t a, uint32_t alen, uint32_t b, uint32_t blen);
+
+// A raw read (area 1) the cable may make while the key PIN guards the keys: inside the EEPROM image or the flash image
+// and clear of the radio's own areas (the settings store, the journal, the staging and native areas)
+static bool raw_shown(uint32_t addr, uint32_t len)
+{
+	const hal_flash_map_t *m = map();
+	if (m == NULL || overlaps(addr, len, m->settings_addr, m->settings_size) ||
+	    overlaps(addr, len, m->journal_addr, 2u * STORAGE_SECTOR) || overlaps(addr, len, m->native_addr, m->native_size) ||
+	    overlaps(addr, len, m->staging_addr, m->staging_size)) {
+		return false;
+	}
+	return (addr >= m->openfw_eeprom && addr + len <= m->openfw_eeprom + EE_IMAGE_SIZE) ||
+	       (addr >= m->openfw_flash && addr + len <= m->openfw_end);
+}
+#endif
+
 static void cmd_read(void)
 {
 	uint8_t area = req[1];
@@ -320,6 +340,14 @@ static void cmd_read(void)
 			refuse();
 			return;
 		}
+#if CONFIG_KEY_PIN
+		// Locked with a key PIN set (key-pin.md 10.3): raw flash only inside the codeplug images, whose keys read
+		// hidden; the settings store, the journal, the staging area and the rest hold key copies the cable can't see
+		if (area == 1 && keypin_guard() && !raw_shown(addr, len)) {
+			refuse();
+			return;
+		}
+#endif
 		read_flash(addr, len);
 		return;
 	case 5:

@@ -38,6 +38,7 @@
 #if CONFIG_CPS_OPENFW
 #include "cps/cps_openfw.h"
 #endif
+#include "keypin/keypin.h"		// header only without CONFIG_KEY_PIN
 #if CONFIG_CRASH_LOG
 #include "crash/crash.h"
 #endif
@@ -101,6 +102,12 @@ static void startup_task(void *arg)
 	board.display->set_backlight(100);
 	board.input->init();
 	storage_init();			// finishes a codeplug sector rewrite a power cut interrupted
+	settings_init();
+#if CONFIG_KEY_PIN
+	// Locked, and whether a PIN is set, before the commits below: a commit a power cut interrupted is finished with
+	// the settings area's keys merged as for any locked write, so a cut can't load or delete keys (key-pin.md 10.2)
+	keypin_init();
+#endif
 	bool written = false;		// a commit below wrote a new codeplug
 #if CONFIG_CPS_FAST
 	written = cps_fast_resume();	// and a fast codeplug protocol commit (docs/spec/cps-fast.md 7)
@@ -108,7 +115,6 @@ static void startup_task(void *arg)
 #if CONFIG_TFTP
 	written = tftp_codeplug_resume() || written;	// and a TFTP codeplug write's commit (before the codeplug is read)
 #endif
-	settings_init();
 	settings_t *cp = settings_begin();
 	if (written) {
 		cp->cp_flags &= (uint8_t)~SETTINGS_CP_ACCEPTED;	// "Use anyway" was for the codeplug replaced

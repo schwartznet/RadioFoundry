@@ -21,6 +21,14 @@ import { KINDS, kindRow, typeRow, radioRuns } from "./modes.js";
 import { u16, u32, put16, put32, sameBytes, sameValue, nameCheck } from "./modebytes.js";
 
 export const MODE_KEY = { system: 0x0100, entry: 0x0200, secret: 0x0300, tag: 0x0400, setting: 0x0A00, traffic: 0x1900 };
+// A secret a locked radio hides from the cable (docs/spec/key-pin.md 10.1): every octet after the first `from` 0 (a
+// traffic key keeps its TRAFFIC_META octets: system, algorithm, key ID, flags)
+export const TRAFFIC_META = 5;
+export function keyHidden(v, from) {
+	if (!v || v.length <= from) return false;
+	for (let i = from; i < v.length; i++) if (v[i] !== 0) return false;
+	return true;
+}
 export const MODE_LIMITS = { systems: 255, entries: 256, tags: 1024, traffic: 1024, name: 16 };
 export const TAG = { tx: 0x01, baseOwn: 0x02, fallback: 0x04, reserved: 0x08 };
 export const SYS = { needsKey: 0x01, tx: 0x02 };
@@ -119,7 +127,7 @@ export function decodeModes(m, b) {
 			tx: (h.flags & SYS.tx) !== 0, needsKey: (h.flags & SYS.needsKey) !== 0, flagsRaw: h.flags,
 			fallback: null, fbChan: h.fbChan, fbCheck: h.fbCheck,
 			fields: mod ? mod.decode(h.block) : null, entries: [], trafficKeys: [],
-			secret: sec ? (mod?.secret?.decode(sec) ?? { raw: sec }) : null, raw,
+			secret: sec ? (keyHidden(sec, 0) ? { raw: sec, hidden: true } : (mod?.secret?.decode(sec) ?? { raw: sec })) : null, raw,
 		});
 	}
 	const fam = entries.filter((e) => inFamily(e.key, MODE_KEY.entry, MODE_LIMITS.entries)).sort((a, b) => a.key - b.key);
@@ -133,7 +141,9 @@ export function decodeModes(m, b) {
 		if (!inFamily(key, MODE_KEY.traffic, MODE_LIMITS.traffic)) continue;
 		const s = m.systems.find((x) => x.number === value[0] + 1);
 		const traffic = typeRow(s?.type)?.module.traffic?.decode(value);
-		if (traffic) s.trafficKeys.push({ ...traffic, slot: key });
+		// A key a radio locked by its key PIN read out hidden (docs/spec/key-pin.md 10.1): its octets all 0. Kept as
+		// read and written back unchanged; the radio keeps its own key
+		if (traffic) s.trafficKeys.push({ ...traffic, slot: key, ...(keyHidden(value, TRAFFIC_META) ? { hidden: true } : {}) });
 	}
 	for (const c of m.channels) {
 		c.kind = 0;
