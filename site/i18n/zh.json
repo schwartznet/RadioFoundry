@@ -2436,5 +2436,15 @@
  "editor.sig.play": "播放",
  "editor.sig.roll": "链路的音高随时间变化，{ms} 毫秒",
  "editor.sig.no_audio": "此处无法播放",
- "editor.sig.empty": "无步骤:使用标准声音"
+ "editor.sig.empty": "无步骤:使用标准声音",
+ "site.test.title": "测试站点，并非 RadioFoundry 官方站点。",
+ "site.test.text": "此 RadioFoundry 站点副本安装的是 RadioFoundry 项目尚未审核或发布的测试固件：",
+ "site.test.source": "其源代码",
+ "tools.satellite.status.test_site_save": "此测试站点无法替你获取 AMSAT 公告。请保存 {link}（右键单击，然后选择“链接另存为”），再用“浏览 TLE 文件”选择该文件。",
+ "flash.test.on_request": "此测试站点不进行编译：它为你的选择安装其自带的测试版本。",
+ "flash.test.loading": "正在获取测试版本…",
+ "flash.test.nav": "获取测试固件",
+ "flash.test.image": "测试版本 {version}",
+ "flash.test.no_image": "此测试站点没有适合此选择的版本。现有：{builds}。请从中选择一个，且不要更改功能。",
+ "flash.test.no_images": "此测试站点没有适用于 {radio} 的版本。"
 }

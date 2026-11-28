@@ -2436,5 +2436,15 @@
  "editor.sig.play": "Riproduci",
  "editor.sig.roll": "La catena come tono nel tempo, {ms} ms",
  "editor.sig.no_audio": "Nessun audio qui",
- "editor.sig.empty": "Nessun passo: il suono standard"
+ "editor.sig.empty": "Nessun passo: il suono standard",
+ "site.test.title": "Sito di prova, non quello di RadioFoundry.",
+ "site.test.text": "Questa copia del sito di RadioFoundry installa firmware di prova che il progetto RadioFoundry non ha revisionato né rilasciato:",
+ "site.test.source": "Il suo sorgente",
+ "tools.satellite.status.test_site_save": "Questo sito di prova non può scaricare il bollettino AMSAT per te. Salva {link} (clic destro, poi Salva link con nome), poi scegli quel file con Sfoglia file TLE.",
+ "flash.test.on_request": "Questo sito di prova non compila nulla: installa la build di prova che contiene per la tua scelta.",
+ "flash.test.loading": "Recupero della build di prova…",
+ "flash.test.nav": "Ottieni firmware di prova",
+ "flash.test.image": "build di prova {version}",
+ "flash.test.no_image": "Questo sito di prova non ha una build per questa scelta. Ha: {builds}. Scegline una, senza cambiare funzioni.",
+ "flash.test.no_images": "Questo sito di prova non ha una build per la {radio}."
 }
